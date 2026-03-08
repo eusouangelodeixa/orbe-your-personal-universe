@@ -366,7 +366,8 @@ REGRAS:
 - Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente
 - IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".
 - IMPORTANTE: Ao responder sobre treinos, dieta ou agenda, responda APENAS sobre o dia específico perguntado. NÃO liste a semana inteira. Se perguntaram "treino de segunda", mostre SÓ o de segunda. Se perguntaram "treino de hoje", mostre SÓ o de hoje.
-- Mantenha respostas CONCISAS. Máximo 10-15 linhas no WhatsApp.`;
+- IMPORTANTE: Quando o usuário perguntar sobre saldo, gastos ou informações de uma carteira/conta ESPECÍFICA, preencha params.wallet_name com o nome da carteira. Responda APENAS com os dados da carteira pedida. NÃO inclua dados de outras carteiras, resumo geral ou patrimônio total a menos que o usuário peça explicitamente.
+- Mantenha respostas CONCISAS e FOCADAS no que foi perguntado. Máximo 10-15 linhas no WhatsApp.`;
 
   const result = await callAI(apiKey, systemPrompt, text, INTENT_TOOLS, { type: "function", function: { name: "execute_action" } });
 
@@ -512,14 +513,27 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       }
 
       case "list_expenses": {
-        const { data } = await supabase.from("expenses")
-          .select("name, amount, paid, due_date")
+        let query = supabase.from("expenses")
+          .select("name, amount, paid, due_date, wallet_id, wallets(name)")
           .eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear)
           .order("due_date");
-        if (!data?.length) return "📊 Nenhum gasto registrado este mês.";
+        // Filter by wallet if specified
+        if (params.wallet_name) {
+          const { data: wallets } = await supabase.from("wallets")
+            .select("id, name").eq("user_id", userId)
+            .ilike("name", `%${params.wallet_name}%`).limit(1);
+          if (wallets?.length) {
+            query = query.eq("wallet_id", wallets[0].id);
+          }
+        }
+        const { data } = await query;
+        if (!data?.length) return params.wallet_name
+          ? `📊 Nenhum gasto encontrado na conta *${params.wallet_name}* este mês.`
+          : "📊 Nenhum gasto registrado este mês.";
         const total = data.reduce((s: number, e: any) => s + Number(e.amount), 0);
         const paid = data.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.amount), 0);
-        let msg = `📊 *Gastos ${currentMonth}/${currentYear}*\n\n`;
+        const walletLabel = params.wallet_name ? ` (${params.wallet_name})` : "";
+        let msg = `📊 *Gastos${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
         data.slice(0, 15).forEach((e: any) => {
           msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${fmtBRL(e.amount)}\n`;
         });
@@ -541,6 +555,15 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       }
 
       case "wallet_balance": {
+        // If a specific wallet is asked, return ONLY that wallet
+        if (params.wallet_name) {
+          const { data } = await supabase.from("wallets")
+            .select("name, balance").eq("user_id", userId)
+            .ilike("name", `%${params.wallet_name}%`).limit(1);
+          if (!data?.length) return `🏦 Carteira "${params.wallet_name}" não encontrada.`;
+          const w = data[0];
+          return `💳 *${w.name}*\nSaldo: ${fmtBRL(Number(w.balance))}`;
+        }
         const { data } = await supabase.from("wallets")
           .select("name, balance, is_default").eq("user_id", userId);
         if (!data?.length) return "🏦 Nenhuma carteira cadastrada.";
