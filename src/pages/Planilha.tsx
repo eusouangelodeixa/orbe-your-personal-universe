@@ -688,16 +688,29 @@ export default function Planilha() {
 
         {/* Projection */}
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-6 space-y-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm text-muted-foreground">Projeção do mês</p>
-                <p className="text-xs text-muted-foreground">Saldo após todos os gastos</p>
+                <p className="text-sm text-muted-foreground">Fluxo Mensal</p>
+                <p className="text-xs text-muted-foreground">Renda − Gastos do mês</p>
               </div>
               <p className={`text-2xl font-bold font-display ${saldo < 0 ? "text-destructive" : "text-primary"}`}>
                 R$ {saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </p>
             </div>
+            <div className="border-t border-border pt-4 flex justify-between items-center">
+              <div>
+                <p className="text-sm text-muted-foreground">Projeção Patrimonial</p>
+                <p className="text-xs text-muted-foreground">Carteiras + Renda − Gastos</p>
+              </div>
+              {(() => {
+                const projecaoPatrimonial = totalCarteiras + saldo;
+                return (
+                  <p className={`text-2xl font-bold font-display ${projecaoPatrimonial < 0 ? "text-destructive" : "text-primary"}`}>
+                    R$ {projecaoPatrimonial.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </p>
+                );
+              })()}
           </CardContent>
         </Card>
       </div>
