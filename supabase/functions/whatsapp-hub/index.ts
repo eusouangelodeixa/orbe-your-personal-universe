@@ -788,6 +788,7 @@ serve(async (req) => {
       if (msg.audioMessage) {
         isAudio = true;
         audioUrl = msg.audioMessage.url || data.mediaUrl || null;
+        audioMimeType = msg.audioMessage.mimetype || "audio/ogg";
       }
       if (!textMessage) {
         textMessage = msg.imageMessage?.caption || msg.documentMessage?.caption || msg.videoMessage?.caption || "";
