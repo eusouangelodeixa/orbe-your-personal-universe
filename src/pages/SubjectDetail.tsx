@@ -539,7 +539,7 @@ export default function SubjectDetail() {
                                 },
                               }}
                             >
-                              {msg.content}
+                              {sanitizeLatex(msg.content)}
                             </ReactMarkdown>
                           </div>
                         ) : msg.content}
