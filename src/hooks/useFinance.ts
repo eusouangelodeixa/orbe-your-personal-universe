@@ -285,7 +285,12 @@ export function useAddExpense() {
             reference_type: "expense",
             reference_id: data.id,
           });
-        if (txError) throw txError;
+
+        if (txError) {
+          // Safety rollback to avoid a paid expense without transaction
+          await supabase.from("expenses").delete().eq("id", data.id);
+          throw new Error(txError.message);
+        }
       }
 
       return data;
