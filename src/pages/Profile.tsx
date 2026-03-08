@@ -73,6 +73,17 @@ export default function Profile() {
         whatsapp_notifications: (data as any).whatsapp_notifications ?? false,
         email_notifications: (data as any).email_notifications ?? true,
       });
+    } else {
+      // Profile doesn't exist yet — create it
+      const { data: newProfile, error: insertErr } = await supabase
+        .from("profiles")
+        .insert({ user_id: user.id, display_name: user.email?.split("@")[0] || "" } as any)
+        .select()
+        .single();
+      if (!insertErr && newProfile) {
+        setProfile(newProfile as any);
+        setForm(f => ({ ...f, display_name: (newProfile as any).display_name || "" }));
+      }
     }
     setLoading(false);
   };
