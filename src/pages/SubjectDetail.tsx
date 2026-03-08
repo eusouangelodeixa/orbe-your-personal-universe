@@ -23,6 +23,7 @@ import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
+import mermaid from "mermaid";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
