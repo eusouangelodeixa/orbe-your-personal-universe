@@ -40,6 +40,8 @@ export default function Planilha() {
   const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(month, year);
   const { data: wallets = [], isLoading: loadingWallets } = useWallets();
   const { data: transactions = [] } = useWalletTransactions();
+  const { data: savingsGoals = [] } = useSavingsGoals();
+  const updateSavingsGoal = useUpdateSavingsGoal();
 
   const addIncome = useAddIncome();
   const addExpense = useAddExpense();
