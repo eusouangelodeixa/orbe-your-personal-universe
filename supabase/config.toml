@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.subject-chat]
 verify_jwt = false
+
+[functions.academic-reminders]
+verify_jwt = false
