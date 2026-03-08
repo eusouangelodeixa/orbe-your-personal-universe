@@ -1,26 +1,114 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bot, Send, User } from "lucide-react";
+import { Send, User } from "lucide-react";
 import { OrbeIcon } from "@/components/OrbeIcon";
+import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+async function streamChat({
+  messages,
+  onDelta,
+  onDone,
+}: {
+  messages: Message[];
+  onDelta: (deltaText: string) => void;
+  onDone: () => void;
+}) {
+  const resp = await fetch(CHAT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify({ messages }),
+  });
+
+  if (resp.status === 429) {
+    toast.error("Limite de requisições atingido. Tente novamente em instantes.");
+    throw new Error("Rate limited");
+  }
+  if (resp.status === 402) {
+    toast.error("Créditos insuficientes para IA.");
+    throw new Error("Payment required");
+  }
+  if (!resp.ok || !resp.body) throw new Error("Falha ao conectar com IA");
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let textBuffer = "";
+  let streamDone = false;
+
+  while (!streamDone) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    textBuffer += decoder.decode(value, { stream: true });
+
+    let newlineIndex: number;
+    while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
+      let line = textBuffer.slice(0, newlineIndex);
+      textBuffer = textBuffer.slice(newlineIndex + 1);
+
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      if (line.startsWith(":") || line.trim() === "") continue;
+      if (!line.startsWith("data: ")) continue;
+
+      const jsonStr = line.slice(6).trim();
+      if (jsonStr === "[DONE]") { streamDone = true; break; }
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+        if (content) onDelta(content);
+      } catch {
+        textBuffer = line + "\n" + textBuffer;
+        break;
+      }
+    }
+  }
+
+  if (textBuffer.trim()) {
+    for (let raw of textBuffer.split("\n")) {
+      if (!raw) continue;
+      if (raw.endsWith("\r")) raw = raw.slice(0, -1);
+      if (raw.startsWith(":") || raw.trim() === "") continue;
+      if (!raw.startsWith("data: ")) continue;
+      const jsonStr = raw.slice(6).trim();
+      if (jsonStr === "[DONE]") continue;
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const content = parsed.choices?.[0]?.delta?.content as string | undefined;
+        if (content) onDelta(content);
+      } catch { /* ignore */ }
+    }
+  }
+
+  onDone();
+}
+
 export default function Consultor() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content:
-        "Olá! Sou o consultor financeiro do ORBE. Posso te ajudar com análise de gastos, dicas de economia e planejamento financeiro. Como posso te ajudar?",
+      content: "Olá! Sou o **Consultor Financeiro do ORBE** 🟢\n\nPosso te ajudar com análise de gastos, dicas de economia e planejamento financeiro. Como posso te ajudar?",
     },
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages]);
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
@@ -29,18 +117,31 @@ export default function Consultor() {
     setInput("");
     setLoading(true);
 
-    // Placeholder — will be connected to Lovable AI edge function
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "O consultor IA será conectado em breve via Lovable AI. Por enquanto, este é um placeholder. Quando ativo, vou analisar seus gastos e dar recomendações personalizadas!",
-        },
-      ]);
+    let assistantSoFar = "";
+    const upsertAssistant = (chunk: string) => {
+      assistantSoFar += chunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant" && prev.length > 1 && last.content === assistantSoFar.slice(0, -chunk.length)) {
+          return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
+        }
+        if (last?.role === "assistant" && assistantSoFar.length > chunk.length) {
+          return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content: assistantSoFar } : m));
+        }
+        return [...prev, { role: "assistant" as const, content: assistantSoFar }];
+      });
+    };
+
+    try {
+      await streamChat({
+        messages: [...messages, userMsg],
+        onDelta: (chunk) => upsertAssistant(chunk),
+        onDone: () => setLoading(false),
+      });
+    } catch (e) {
+      console.error(e);
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (
@@ -52,25 +153,22 @@ export default function Consultor() {
         </div>
 
         <Card className="flex-1 flex flex-col min-h-0">
-          <CardContent className="flex-1 overflow-auto p-4 space-y-4">
+          <CardContent ref={scrollRef} className="flex-1 overflow-auto p-4 space-y-4">
             {messages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-              >
+              <div key={i} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                 {msg.role === "assistant" && (
-                  <div className="shrink-0 mt-1">
-                    <OrbeIcon size={28} />
-                  </div>
+                  <div className="shrink-0 mt-1"><OrbeIcon size={28} /></div>
                 )}
-                <div
-                  className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
-                  }`}
-                >
-                  {msg.content}
+                <div className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
+                  msg.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-foreground"
+                }`}>
+                  {msg.role === "assistant" ? (
+                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : msg.content}
                 </div>
                 {msg.role === "user" && (
                   <div className="shrink-0 mt-1 w-7 h-7 rounded-full bg-secondary flex items-center justify-center">
@@ -79,7 +177,7 @@ export default function Consultor() {
                 )}
               </div>
             ))}
-            {loading && (
+            {loading && messages[messages.length - 1]?.role !== "assistant" && (
               <div className="flex gap-3">
                 <OrbeIcon size={28} />
                 <div className="bg-muted rounded-xl px-4 py-3">
@@ -94,13 +192,7 @@ export default function Consultor() {
           </CardContent>
 
           <div className="border-t border-border p-4">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                sendMessage();
-              }}
-              className="flex gap-2"
-            >
+            <form onSubmit={(e) => { e.preventDefault(); sendMessage(); }} className="flex gap-2">
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
