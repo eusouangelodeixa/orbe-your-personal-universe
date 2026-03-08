@@ -813,14 +813,50 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       }
 
       case "subject_question": {
-        // Use AI to answer the question with context
-        const { data: subjects } = await supabase.from("subjects")
-          .select("name, ementa_text").eq("user_id", userId);
-        const subjectContext = (subjects || [])
-          .map((s: any) => `${s.name}: ${s.ementa_text || "sem ementa"}`)
-          .join("\n");
-        // The AI already generated the reply_text with the question context
         return reply_text;
+      }
+
+      case "check_class_schedule": {
+        const requestedDay = normalizeText(params.day || "") || getRequestedWeekdayFromText(originalText, now);
+        if (!requestedDay) return "❌ Não entendi qual dia. Diga por exemplo: 'tenho aula na quarta?'";
+
+        const dayLabel = WEEKDAY_LABELS[requestedDay] || requestedDay;
+        const { data: subjects } = await supabase.from("subjects")
+          .select("name, schedule, color, teacher")
+          .eq("user_id", userId);
+
+        if (!subjects?.length) return "📚 Nenhuma disciplina cadastrada.";
+
+        // Filter subjects that have classes on the requested day
+        const classesOnDay: { name: string; time: string; teacher: string | null }[] = [];
+        for (const subj of subjects) {
+          const schedule = (subj.schedule || []) as any[];
+          for (const slot of schedule) {
+            const slotDay = normalizeText(slot.day || slot.dia || "");
+            const aliases = WEEKDAY_ALIASES[requestedDay] || [requestedDay];
+            if (aliases.some((a: string) => slotDay.includes(a))) {
+              classesOnDay.push({
+                name: subj.name,
+                time: slot.time || slot.horario || slot.hora || "",
+                teacher: subj.teacher,
+              });
+            }
+          }
+        }
+
+        if (!classesOnDay.length) return `✅ Nenhuma aula na *${dayLabel}*! Dia livre. 🎉`;
+
+        // Sort by time
+        classesOnDay.sort((a, b) => a.time.localeCompare(b.time));
+
+        let msg = `📚 *Aulas de ${dayLabel}*\n\n`;
+        classesOnDay.forEach((c) => {
+          msg += `📖 *${c.name}*\n`;
+          if (c.time) msg += `   🕐 ${c.time}\n`;
+          if (c.teacher) msg += `   👨‍🏫 ${c.teacher}\n`;
+          msg += "\n";
+        });
+        return msg;
       }
 
       // ===== FIT =====
