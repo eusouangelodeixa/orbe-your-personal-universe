@@ -162,66 +162,70 @@ export default function Planilha() {
   }, {});
 
   const exportPDF = () => {
-    const doc = new jsPDF();
+    const doc = createOrbeDoc();
     const monthLabel = new Date(year, month - 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
-    doc.setFontSize(18);
-    doc.text("ORBE - Planilha Doméstica", 14, 20);
-    doc.setFontSize(12);
-    doc.text(monthLabel, 14, 28);
+    let y = drawHeader(doc, `Planilha — ${monthLabel}`, "RELATÓRIO FINANCEIRO");
 
-    doc.setFontSize(10);
-    doc.text(`Renda: R$ ${totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 38);
-    doc.text(`Gastos: R$ ${totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 44);
-    doc.text(`Saldo: R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 50);
-    doc.text(`Patrimônio (Carteiras): R$ ${totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 56);
+    // Stat cards row
+    const cardW = 42;
+    const gap = 4;
+    const startX = 14;
+    drawStatCard(doc, startX, y, cardW, "Renda", `R$ ${totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.green);
+    drawStatCard(doc, startX + cardW + gap, y, cardW, "Gastos", `R$ ${totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.red);
+    drawStatCard(doc, startX + (cardW + gap) * 2, y, cardW, "Saldo", `R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, saldo >= 0 ? PDF_COLORS.green : PDF_COLORS.red);
+    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, "Patrimônio", `R$ ${totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.amber);
+    y += 36;
 
+    // Comprometimento bar
+    const pct = totalRenda > 0 ? Math.round((totalGastos / totalRenda) * 100) : 0;
+    drawProgressBar(doc, 14, y, doc.internal.pageSize.getWidth() - 28, pct, `${pct}% da renda comprometida`);
+    y += 18;
+
+    // Wallets
     if (wallets.length > 0) {
-      doc.setFontSize(12);
-      doc.text("Carteiras / Bancos", 14, 66);
-      autoTable(doc, {
-        startY: 70,
-        head: [["Nome", "Saldo"]],
-        body: wallets.map((w) => [
-          w.name + (w.is_default ? " (Principal)" : ""),
+      y = drawSectionTitle(doc, y, "Carteiras / Bancos");
+      y = drawTable(doc, y,
+        ["Nome", "Saldo"],
+        wallets.map((w) => [
+          w.name + (w.is_default ? " ★" : ""),
           `R$ ${Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-        ]),
-      });
+        ])
+      );
+      y += 8;
     }
 
+    // Incomes
     if (incomes.length > 0) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 70;
-      doc.setFontSize(12);
-      doc.text("Rendas", 14, finalY + 10);
-      autoTable(doc, {
-        startY: finalY + 14,
-        head: [["Descrição", "Valor", "Carteira"]],
-        body: incomes.map((i: any) => [
+      y = drawSectionTitle(doc, y, "Rendas");
+      y = drawTable(doc, y,
+        ["Descrição", "Valor", "Carteira"],
+        incomes.map((i: any) => [
           i.description,
           `R$ ${Number(i.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
           i.wallets?.name || "—",
-        ]),
-      });
+        ])
+      );
+      y += 8;
     }
 
+    // Expenses
     if (expenses.length > 0) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 70;
-      doc.setFontSize(12);
-      doc.text("Gastos", 14, finalY + 10);
-      autoTable(doc, {
-        startY: finalY + 14,
-        head: [["Nome", "Categoria", "Valor", "Vencimento", "Status", "Carteira"]],
-        body: expenses.map((e: any) => [
+      y = drawSectionTitle(doc, y, "Gastos");
+      y = drawTable(doc, y,
+        ["Nome", "Categoria", "Valor", "Vencimento", "Status", "Carteira"],
+        expenses.map((e: any) => [
           e.name,
           e.categories?.name || "—",
           `R$ ${Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
           new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
           e.paid ? "Pago" : "Pendente",
           e.wallets?.name || "—",
-        ]),
-      });
+        ])
+      );
     }
 
+    finalizeDoc(doc);
     doc.save(`ORBE_Planilha_${month}_${year}.pdf`);
   };
 
