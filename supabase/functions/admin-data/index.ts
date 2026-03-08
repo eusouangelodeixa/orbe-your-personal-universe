@@ -265,29 +265,22 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Settings management - enrich with real secret detection
+    // Settings management - return real secret detection directly
     if (action === "settings") {
       const { data: settings } = await adminClient
         .from("admin_settings")
         .select("*")
         .order("key");
 
-      // Check real availability of secrets
-      const realStatus: Record<string, boolean> = {
-        stripe: !!Deno.env.get("STRIPE_SECRET_KEY"),
-        uazapi: !!(Deno.env.get("UAZAPI_URL") && Deno.env.get("UAZAPI_TOKEN")),
-        ai_text: !!Deno.env.get("LOVABLE_API_KEY"),
-        ai_transcription: !!Deno.env.get("LOVABLE_API_KEY"),
-      };
+      // Always return connection statuses from env, independent of DB rows
+      const connections = [
+        { key: "stripe", connected: !!Deno.env.get("STRIPE_SECRET_KEY"), label: "Stripe", description: "Pagamentos e assinaturas" },
+        { key: "uazapi", connected: !!(Deno.env.get("UAZAPI_URL") && Deno.env.get("UAZAPI_TOKEN")), label: "uazapi (WhatsApp)", description: "Notificações via WhatsApp" },
+        { key: "ai_text", connected: !!Deno.env.get("LOVABLE_API_KEY"), label: "Lovable AI (Texto)", description: "Geração de texto com IA" },
+        { key: "ai_transcription", connected: !!Deno.env.get("LOVABLE_API_KEY"), label: "Lovable AI (Transcrição)", description: "Transcrição com IA" },
+      ];
 
-      // Enrich settings with real status
-      const enriched = (settings || []).map((s: any) => ({
-        ...s,
-        value: { ...s.value, enabled: realStatus[s.key] ?? s.value?.enabled ?? false },
-        real_connected: realStatus[s.key] ?? false,
-      }));
-
-      return new Response(JSON.stringify({ settings: enriched }), {
+      return new Response(JSON.stringify({ settings: settings || [], connections }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

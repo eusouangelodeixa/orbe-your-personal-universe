@@ -60,6 +60,7 @@ export default function Admin() {
   const [data, setData] = useState<AdminData | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<AdminSetting[]>([]);
+  const [connections, setConnections] = useState<Array<{key: string; connected: boolean; label: string; description: string}>>([]);
   const [financial, setFinancial] = useState<FinancialData | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -100,6 +101,7 @@ export default function Admin() {
         result.settings.forEach((s: AdminSetting) => { edits[s.key] = { ...s.value }; });
         setSettingEdits(edits);
       }
+      if (result?.connections) setConnections(result.connections);
     } catch (err) { console.error(err); }
   };
 
@@ -373,48 +375,36 @@ export default function Admin() {
           {/* CONNECTIONS */}
           <TabsContent value="connections" className="space-y-4">
             <p className="text-xs text-muted-foreground">Status das integrações configuradas no backend. As conexões são detectadas automaticamente.</p>
-            {settings.filter(s => s.category === "connections").map((setting) => {
-              const Icon = settingIcons[setting.key] || Link2;
-              const label = settingLabels[setting.key] || setting.key;
-              const edit = settingEdits[setting.key] || {};
-              const isConnected = !!edit.enabled;
+            {connections.map((conn) => {
+              const Icon = settingIcons[conn.key] || Link2;
 
               return (
-                <Card key={setting.key} className="bg-card border-border">
+                <Card key={conn.key} className="bg-card border-border">
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div className="flex items-center gap-3">
-                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${isConnected ? "bg-green-500/10" : "bg-muted"}`}>
-                        <Icon className={`h-5 w-5 ${isConnected ? "text-green-500" : "text-muted-foreground"}`} />
+                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${conn.connected ? "bg-green-500/10" : "bg-muted"}`}>
+                        <Icon className={`h-5 w-5 ${conn.connected ? "text-green-500" : "text-muted-foreground"}`} />
                       </div>
                       <div>
-                        <CardTitle className="text-foreground font-display tracking-wider text-sm">{label}</CardTitle>
-                        <CardDescription className="text-xs">{setting.description}</CardDescription>
+                        <CardTitle className="text-foreground font-display tracking-wider text-sm">{conn.label}</CardTitle>
+                        <CardDescription className="text-xs">{conn.description}</CardDescription>
                       </div>
                     </div>
-                    <Badge variant="outline" className={`text-[10px] ${isConnected ? "border-green-500/30 text-green-500" : "border-destructive/30 text-destructive"}`}>
-                      {isConnected ? "✓ Conectado" : "✗ Não configurado"}
+                    <Badge variant="outline" className={`text-[10px] ${conn.connected ? "border-green-500/30 text-green-500" : "border-destructive/30 text-destructive"}`}>
+                      {conn.connected ? "✓ Conectado" : "✗ Não configurado"}
                     </Badge>
                   </CardHeader>
                   <CardContent>
                     <p className="text-xs text-muted-foreground">
-                      {setting.key === "stripe" && (isConnected
-                        ? "Stripe está ativo. A chave secreta está configurada nos secrets do backend."
-                        : "Configure a STRIPE_SECRET_KEY nos secrets do backend para ativar.")}
-                      {setting.key === "uazapi" && (isConnected
-                        ? "uazapi está ativo. URL e Token estão configurados nos secrets do backend."
-                        : "Configure UAZAPI_URL e UAZAPI_TOKEN nos secrets do backend para ativar.")}
-                      {setting.key === "ai_text" && (isConnected
-                        ? "Lovable AI está ativo para geração de texto."
-                        : "Configure a LOVABLE_API_KEY nos secrets do backend para ativar.")}
-                      {setting.key === "ai_transcription" && (isConnected
-                        ? "Lovable AI está ativo para transcrição."
-                        : "Configure a LOVABLE_API_KEY nos secrets do backend para ativar.")}
+                      {conn.connected
+                        ? `${conn.label} está ativo e funcionando.`
+                        : `Configure os secrets necessários no backend para ativar ${conn.label}.`}
                     </p>
                   </CardContent>
                 </Card>
               );
             })}
-            {settings.filter(s => s.category === "connections").length === 0 && (
+            {connections.length === 0 && (
               <Card className="bg-card border-border">
                 <CardContent className="py-12 text-center text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary" />
