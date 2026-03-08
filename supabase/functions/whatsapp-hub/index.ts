@@ -125,25 +125,62 @@ async function callAI(apiKey: string, systemPrompt: string, userMessage: string,
   return data;
 }
 
-async function transcribeAudio(apiKey: string, audioInput: string, mimeType = "audio/ogg"): Promise<string> {
-  let audioBase64 = audioInput;
+async function downloadMediaFromUazapi(uazapiUrl: string, uazapiToken: string, messageId: string): Promise<{ base64: string; mimeType: string }> {
+  // Try UAZAPI media download endpoint (decrypts WA media)
+  const downloadUrl = `${uazapiUrl}/media/download`;
+  console.log(`Downloading media via UAZAPI: messageid=${messageId}`);
 
-  // If UAZAPI provides a URL, download and encode as base64 first
-  if (audioInput.startsWith("http://") || audioInput.startsWith("https://")) {
-    const mediaRes = await fetch(audioInput);
-    if (!mediaRes.ok) {
-      const mediaErr = await mediaRes.text();
-      throw new Error(`Falha ao baixar áudio [${mediaRes.status}]: ${mediaErr.slice(0, 200)}`);
-    }
-    const buffer = new Uint8Array(await mediaRes.arrayBuffer());
-    audioBase64 = uint8ToBase64(buffer);
-    // Detect mime from content-type header if available
-    const ct = mediaRes.headers.get("content-type");
-    if (ct) mimeType = ct.split(";")[0].trim();
+  const res = await fetch(downloadUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", token: uazapiToken },
+    body: JSON.stringify({ messageid: messageId }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`UAZAPI media download failed [${res.status}]:`, errText.slice(0, 300));
+    throw new Error(`UAZAPI media download failed [${res.status}]`);
   }
 
+  const data = await res.json();
+
+  // UAZAPI returns { base64: "...", mimetype: "audio/ogg; codecs=opus" } or similar
+  if (data.base64) {
+    return { base64: data.base64, mimeType: data.mimetype || data.mimeType || "audio/ogg" };
+  }
+
+  // Some UAZAPI versions return a URL to the decrypted file
+  if (data.url || data.mediaUrl) {
+    const mediaUrl = data.url || data.mediaUrl;
+    const mediaRes = await fetch(mediaUrl);
+    if (!mediaRes.ok) throw new Error(`Failed to fetch decrypted media [${mediaRes.status}]`);
+    const buffer = new Uint8Array(await mediaRes.arrayBuffer());
+    const ct = mediaRes.headers.get("content-type") || "audio/ogg";
+    return { base64: uint8ToBase64(buffer), mimeType: ct.split(";")[0].trim() };
+  }
+
+  throw new Error("UAZAPI media download returned no usable data");
+}
+
+async function downloadMediaDirect(url: string): Promise<{ base64: string; mimeType: string }> {
+  const mediaRes = await fetch(url);
+  if (!mediaRes.ok) {
+    const mediaErr = await mediaRes.text();
+    throw new Error(`Falha ao baixar áudio [${mediaRes.status}]: ${mediaErr.slice(0, 200)}`);
+  }
+  const buffer = new Uint8Array(await mediaRes.arrayBuffer());
+  const ct = mediaRes.headers.get("content-type") || "audio/ogg";
+  return { base64: uint8ToBase64(buffer), mimeType: ct.split(";")[0].trim() };
+}
+
+async function transcribeAudio(apiKey: string, audioBase64: string, mimeType = "audio/ogg"): Promise<string> {
   // Normalize mime type for Gemini (must be a clean audio/* type)
-  const cleanMime = mimeType.split(";")[0].trim() || "audio/ogg";
+  let cleanMime = mimeType.split(";")[0].trim();
+  // If mime is not audio/*, force it to audio/ogg (WhatsApp default)
+  if (!cleanMime.startsWith("audio/")) {
+    console.warn(`Non-audio mime "${cleanMime}", forcing to audio/ogg`);
+    cleanMime = "audio/ogg";
+  }
 
   console.log(`Transcribing audio: mime=${cleanMime}, base64_length=${audioBase64.length}`);
 
