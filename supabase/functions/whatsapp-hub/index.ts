@@ -161,14 +161,19 @@ async function sendWhatsApp(url: string, tokenCandidates: string[], phone: strin
 
 // ========== AI FUNCTIONS ==========
 
-async function callAI(apiKey: string, systemPrompt: string, userMessage: string, tools?: any[], toolChoice?: any) {
-  const body: any = {
-    model: "google/gemini-3-flash-preview",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-  };
+async function callAI(apiKey: string, systemPrompt: string, userMessage: string, tools?: any[], toolChoice?: any, chatHistory?: Array<{role: string, content: string}>) {
+  const messages: any[] = [
+    { role: "system", content: systemPrompt },
+  ];
+  // Add recent chat history for context
+  if (chatHistory?.length) {
+    for (const msg of chatHistory) {
+      messages.push({ role: msg.role === "assistant" ? "assistant" : "user", content: msg.content });
+    }
+  }
+  messages.push({ role: "user", content: userMessage });
+
+  const body: any = { model: "google/gemini-3-flash-preview", messages };
   if (tools) { body.tools = tools; body.tool_choice = toolChoice; }
 
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
