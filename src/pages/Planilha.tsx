@@ -295,11 +295,11 @@ export default function Planilha() {
                     <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
                       R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </p>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTxForm({ valor: "", descricao: "" })}>
-                            <ArrowUpCircle className="h-3.5 w-3.5 text-primary" /> Creditar
+                          <Button size="sm" variant="outline" className="gap-1 text-xs px-2.5 min-w-0" onClick={() => setTxForm({ valor: "", descricao: "" })}>
+                            <ArrowUpCircle className="h-3.5 w-3.5 shrink-0 text-primary" /> Creditar
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
@@ -333,8 +333,8 @@ export default function Planilha() {
                       </Dialog>
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTxForm({ valor: "", descricao: "" })}>
-                            <ArrowDownCircle className="h-3.5 w-3.5 text-destructive" /> Debitar
+                          <Button size="sm" variant="outline" className="gap-1 text-xs px-2.5 min-w-0" onClick={() => setTxForm({ valor: "", descricao: "" })}>
+                            <ArrowDownCircle className="h-3.5 w-3.5 shrink-0 text-destructive" /> Debitar
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
@@ -369,8 +369,8 @@ export default function Planilha() {
                       {savingsGoals.length > 0 && (
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setCofrinhoForm({ goalId: "", valor: "" })}>
-                              <PiggyBank className="h-3.5 w-3.5 text-primary" /> Cofrinho
+                            <Button size="sm" variant="outline" className="gap-1 text-xs px-2.5 min-w-0" onClick={() => setCofrinhoForm({ goalId: "", valor: "" })}>
+                              <PiggyBank className="h-3.5 w-3.5 shrink-0 text-primary" /> Cofrinho
                             </Button>
                           </DialogTrigger>
                           <DialogContent>
