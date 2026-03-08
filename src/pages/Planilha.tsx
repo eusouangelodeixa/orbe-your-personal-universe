@@ -78,19 +78,25 @@ export default function Planilha() {
 
   const handleAddExpense = () => {
     if (!novoGasto.nome.trim() || !novoGasto.valor || !dueDate) return;
-    addExpense.mutate({
-      name: novoGasto.nome.trim(),
-      category_id: novoGasto.categoria || null,
-      amount: parseFloat(novoGasto.valor),
-      due_date: format(dueDate, "yyyy-MM-dd"),
-      type: novoGasto.tipo,
-      wallet_id: novoGasto.walletId || null,
-      month,
-      year,
-    });
-    setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel", walletId: "" });
-    setDueDate(undefined);
-    setShowExpenseForm(false);
+    addExpense.mutate(
+      {
+        name: novoGasto.nome.trim(),
+        category_id: novoGasto.categoria || null,
+        amount: parseFloat(novoGasto.valor),
+        due_date: format(dueDate, "yyyy-MM-dd"),
+        type: novoGasto.tipo,
+        wallet_id: novoGasto.walletId || null,
+        month,
+        year,
+      },
+      {
+        onSuccess: () => {
+          setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel", walletId: "" });
+          setDueDate(undefined);
+          setShowExpenseForm(false);
+        },
+      }
+    );
   };
 
   const handleAddIncome = () => {
