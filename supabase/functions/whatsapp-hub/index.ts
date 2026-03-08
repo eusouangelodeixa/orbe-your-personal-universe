@@ -609,10 +609,19 @@ serve(async (req) => {
       const chat = body.chat || {};
       const msg = body.message || body.msg || body.data || {};
 
-      // Phone: try chat.id (which is the remoteJid) or chat.phone or various other fields
-      const chatId = chat.id || chat.jid || chat.remoteJid || "";
-      phone = chatId.replace(/@.*$/, "")
-        || chat.phone || chat.number || body.phone || body.from || "";
+      // Phone priority for UAZAPI payload
+      const chatId = chat.id || chat.jid || chat.remoteJid || chat.wa_chatid || "";
+      phone = chat.phone
+        || msg.sender_pn
+        || msg.chatid
+        || msg.owner
+        || chat.number
+        || body.phone
+        || body.from
+        || chatId;
+
+      // sanitize jid-like phone formats
+      phone = phone.replace(/@.*$/, "");
 
       // Check if it's our own message (fromMe)
       if (msg.fromMe === true || body.fromMe === true || msg.key?.fromMe === true) {
@@ -621,13 +630,20 @@ serve(async (req) => {
         });
       }
 
-      // Extract text from message
-      textMessage = msg.conversation || msg.text || msg.body || msg.content
+      // Extract text from message (UAZAPI)
+      textMessage = msg.text
+        || msg.content?.text
+        || msg.conversation
+        || msg.body
+        || msg.content
         || msg.message?.conversation
         || msg.message?.extendedTextMessage?.text
         || msg.extendedTextMessage?.text
         || msg.caption
-        || body.text || body.body || body.conversation || "";
+        || body.text
+        || body.body
+        || body.conversation
+        || "";
 
       // If message is a nested object with a key property (baileys style inside uazapi)
       if (!textMessage && msg.key && msg.message) {
@@ -644,11 +660,8 @@ serve(async (req) => {
           audioUrl = innerMsg.audioMessage.url || innerMsg.audioMessage.directPath || null;
         }
 
-        // Phone from inner key
-        if (!phone && msg.key.remoteJid) {
-          phone = msg.key.remoteJid.replace(/@.*$/, "");
-        }
-        // Ignore own
+        if (!phone && msg.key.remoteJid) phone = msg.key.remoteJid.replace(/@.*$/, "");
+
         if (msg.key.fromMe) {
           return new Response(JSON.stringify({ handled: false, reason: "own message" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -657,9 +670,15 @@ serve(async (req) => {
       }
 
       // Audio
-      if (!isAudio && (msg.type === "audio" || msg.messageType === "audioMessage" || body.type === "audio")) {
+      if (!isAudio && (
+        msg.type === "audio"
+        || msg.type === "ptt"
+        || msg.messageType === "AudioMessage"
+        || msg.messageType === "audioMessage"
+        || body.type === "audio"
+      )) {
         isAudio = true;
-        audioUrl = msg.mediaUrl || msg.url || msg.audioUrl || body.mediaUrl || null;
+        audioUrl = msg.content?.URL || msg.mediaUrl || msg.url || msg.audioUrl || body.mediaUrl || null;
       }
       if (body.base64 && isAudio) audioUrl = body.base64;
       if (body.mediaUrl) audioUrl = body.mediaUrl;
