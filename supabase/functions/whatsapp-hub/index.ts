@@ -369,6 +369,17 @@ async function executeAction(supabase: any, userId: string, intent: any): Promis
       // ===== FINANCEIRO =====
       case "add_expense": {
         const dueDate = params.due_date || now.toISOString().split("T")[0];
+        // Look up category by name if provided
+        let categoryId: string | null = null;
+        if (params.category) {
+          const { data: cats } = await supabase.from("categories")
+            .select("id, name")
+            .ilike("name", `%${params.category}%`)
+            .limit(1);
+          if (cats?.length) {
+            categoryId = cats[0].id;
+          }
+        }
         const { error } = await supabase.from("expenses").insert({
           user_id: userId,
           name: params.name || "Gasto WhatsApp",
@@ -378,7 +389,7 @@ async function executeAction(supabase: any, userId: string, intent: any): Promis
           year: new Date(dueDate).getFullYear(),
           type: params.type || "variavel",
           paid: params.paid || false,
-          category_id: null,
+          category_id: categoryId,
         });
         if (error) throw error;
         return reply_text;
