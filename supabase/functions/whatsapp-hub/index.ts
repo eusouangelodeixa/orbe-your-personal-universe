@@ -743,6 +743,7 @@ serve(async (req) => {
         if (innerMsg.audioMessage) {
           isAudio = true;
           audioUrl = innerMsg.audioMessage.url || innerMsg.audioMessage.directPath || null;
+          audioMimeType = innerMsg.audioMessage.mimetype || "audio/ogg";
         }
 
         if (!phone && msg.key.remoteJid) phone = msg.key.remoteJid.replace(/@.*$/, "");
