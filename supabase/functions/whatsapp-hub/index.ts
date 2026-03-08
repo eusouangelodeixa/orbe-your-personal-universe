@@ -729,16 +729,25 @@ serve(async (req) => {
 
     console.log(`Parsed: phone=${phone}, text=${textMessage?.slice(0, 100)}, isAudio=${isAudio}`);
 
-    // Find user by phone
-    const { data: profile } = await supabase
+    // Find user by phone (normalized match)
+    const incomingPhone = normalizePhone(phone);
+    const incomingPhoneNoCc = stripCountryCodeBR(incomingPhone);
+
+    const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
-      .select("user_id, display_name, phone_verified")
-      .eq("phone", phone)
-      .eq("phone_verified", true)
-      .single();
+      .select("user_id, display_name, phone, phone_verified")
+      .eq("phone_verified", true);
+
+    if (profilesError) throw profilesError;
+
+    const profile = (profiles || []).find((p: any) => {
+      const pNorm = normalizePhone(p.phone);
+      const pNoCc = stripCountryCodeBR(pNorm);
+      return pNorm === incomingPhone || pNoCc === incomingPhoneNoCc;
+    });
 
     if (!profile) {
-      // Unknown number - ignore silently
+      console.log(`Unknown phone. incoming=${incomingPhone} (raw=${phone})`);
       return new Response(JSON.stringify({ handled: false, reason: "unknown phone" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
