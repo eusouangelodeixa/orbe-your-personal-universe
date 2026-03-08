@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon,
-  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard,
+  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -25,6 +25,7 @@ import {
   useCategories, useIncomes, useExpenses, useAddIncome, useAddExpense,
   useToggleExpensePaid, useDeleteExpense, useDeleteIncome,
   useWallets, useAddWallet, useDeleteWallet, useAddWalletTransaction, useWalletTransactions,
+  useSavingsGoals, useUpdateSavingsGoal,
 } from "@/hooks/useFinance";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -39,6 +40,8 @@ export default function Planilha() {
   const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(month, year);
   const { data: wallets = [], isLoading: loadingWallets } = useWallets();
   const { data: transactions = [] } = useWalletTransactions();
+  const { data: savingsGoals = [] } = useSavingsGoals();
+  const updateSavingsGoal = useUpdateSavingsGoal();
 
   const addIncome = useAddIncome();
   const addExpense = useAddExpense();
@@ -61,6 +64,7 @@ export default function Planilha() {
   const [txForm, setTxForm] = useState({ valor: "", descricao: "" });
   // For marking expense as paid with wallet
   const [payWalletId, setPayWalletId] = useState("");
+  const [cofrinhoForm, setCofrinhoForm] = useState({ goalId: "", valor: "" });
 
   const totalRenda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
@@ -127,6 +131,26 @@ export default function Planilha() {
       name: expense.name,
     });
     setPayWalletId("");
+  };
+
+  const handleSaveToCofrinho = (walletId: string) => {
+    const amount = parseFloat(cofrinhoForm.valor);
+    if (!cofrinhoForm.goalId || isNaN(amount) || amount <= 0) return;
+    const goal = savingsGoals.find((g: any) => g.id === cofrinhoForm.goalId);
+    if (!goal) return;
+    addWalletTx.mutate({
+      wallet_id: walletId,
+      amount,
+      type: "debit",
+      description: `Cofrinho: ${goal.name}`,
+      reference_type: "savings",
+      reference_id: goal.id,
+    });
+    updateSavingsGoal.mutate({
+      id: goal.id,
+      current_amount: Number(goal.current_amount) + amount,
+    });
+    setCofrinhoForm({ goalId: "", valor: "" });
   };
 
   const byCategory = expenses.reduce<Record<string, typeof expenses>>((acc, e) => {
@@ -336,6 +360,55 @@ export default function Planilha() {
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
+                      {savingsGoals.length > 0 && (
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setCofrinhoForm({ goalId: "", valor: "" })}>
+                              <PiggyBank className="h-3.5 w-3.5 text-primary" /> Cofrinho
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle className="font-display flex items-center gap-2">
+                                <PiggyBank className="h-5 w-5 text-primary" />
+                                Guardar no Cofrinho
+                              </DialogTitle>
+                            </DialogHeader>
+                            <p className="text-sm text-muted-foreground">
+                              Debitar de <strong>{w.name}</strong> (R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                            </p>
+                            <div className="space-y-3 py-2">
+                              <div className="space-y-1">
+                                <Label>Meta</Label>
+                                <Select value={cofrinhoForm.goalId} onValueChange={(v) => setCofrinhoForm({ ...cofrinhoForm, goalId: v })}>
+                                  <SelectTrigger><SelectValue placeholder="Escolha a meta" /></SelectTrigger>
+                                  <SelectContent>
+                                    {savingsGoals.map((g: any) => (
+                                      <SelectItem key={g.id} value={g.id}>
+                                        {g.name} (R$ {Number(g.current_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(g.target_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-1">
+                                <Label>Valor (R$)</Label>
+                                <Input type="number" placeholder="0.00" value={cofrinhoForm.valor} onChange={(e) => setCofrinhoForm({ ...cofrinhoForm, valor: e.target.value })} min={0} step={0.01} />
+                              </div>
+                            </div>
+                            <DialogFooter>
+                              <DialogClose asChild>
+                                <Button variant="outline">Cancelar</Button>
+                              </DialogClose>
+                              <DialogClose asChild>
+                                <Button onClick={() => handleSaveToCofrinho(w.id)} disabled={!cofrinhoForm.goalId || !cofrinhoForm.valor} className="gap-1">
+                                  <PiggyBank className="h-4 w-4" /> Guardar
+                                </Button>
+                              </DialogClose>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                      )}
                     </div>
                   </div>
                 ))}
