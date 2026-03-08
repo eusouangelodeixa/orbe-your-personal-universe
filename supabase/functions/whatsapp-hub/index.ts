@@ -1372,6 +1372,7 @@ serve(async (req) => {
     // Check for pending actions (e.g. cofrinho goal selection)
     let responseText = "";
     let skipNormalFlow = false;
+    let intent: any = null;
 
     const { data: pendingActions } = await supabase.from("whatsapp_pending_actions")
       .select("*")
