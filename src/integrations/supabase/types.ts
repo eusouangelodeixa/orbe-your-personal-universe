@@ -340,6 +340,8 @@ export type Database = {
           color: string | null
           course: string | null
           created_at: string
+          ementa_text: string | null
+          ementa_url: string | null
           id: string
           name: string
           schedule: Json | null
@@ -354,6 +356,8 @@ export type Database = {
           color?: string | null
           course?: string | null
           created_at?: string
+          ementa_text?: string | null
+          ementa_url?: string | null
           id?: string
           name: string
           schedule?: Json | null
@@ -368,6 +372,8 @@ export type Database = {
           color?: string | null
           course?: string | null
           created_at?: string
+          ementa_text?: string | null
+          ementa_url?: string | null
           id?: string
           name?: string
           schedule?: Json | null
