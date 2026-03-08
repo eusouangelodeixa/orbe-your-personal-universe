@@ -105,7 +105,8 @@ export default function Admin() {
   const fetchFinancial = async () => {
     try {
       const { data: result } = await supabase.functions.invoke("admin-data?action=financial", { body: null });
-      if (result) setFinancial(result);
+      if (result && typeof result.monthlyRevenue === "number") setFinancial(result);
+      else console.warn("Financial data shape mismatch:", result);
     } catch (err) { console.error(err); }
   };
 
