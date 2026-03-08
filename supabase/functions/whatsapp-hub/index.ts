@@ -947,9 +947,49 @@ serve(async (req) => {
     let userText = textMessage;
 
     // Transcribe audio if needed
-    if (isAudio && audioUrl) {
+    if (isAudio) {
       try {
-        userText = await withTimeout(transcribeAudio(LOVABLE_API_KEY, audioUrl, audioMimeType), 20000, "audio_transcription");
+        let audioB64 = "";
+        let audioMime = audioMimeType;
+
+        // Strategy 1: Use UAZAPI media download (decrypts WA encrypted media)
+        if (messageId && UAZAPI_URL) {
+          try {
+            const tokens = [safeString(body.token).trim(), safeString(UAZAPI_TOKEN).trim()].filter(Boolean);
+            let downloaded = false;
+            for (const tok of tokens) {
+              try {
+                const media = await withTimeout(downloadMediaFromUazapi(UAZAPI_URL, tok, messageId), 10000, "uazapi_media");
+                audioB64 = media.base64;
+                audioMime = media.mimeType;
+                downloaded = true;
+                break;
+              } catch (dlErr) {
+                console.warn(`UAZAPI media download with token failed:`, dlErr);
+              }
+            }
+            if (!downloaded) throw new Error("All UAZAPI media download attempts failed");
+          } catch (uazErr) {
+            console.warn("UAZAPI media download failed, trying direct URL:", uazErr);
+          }
+        }
+
+        // Strategy 2: Direct URL download (may fail for encrypted media)
+        if (!audioB64 && audioUrl) {
+          try {
+            const direct = await withTimeout(downloadMediaDirect(audioUrl), 10000, "direct_media");
+            audioB64 = direct.base64;
+            audioMime = direct.mimeType;
+          } catch (directErr) {
+            console.warn("Direct media download failed:", directErr);
+          }
+        }
+
+        if (!audioB64) {
+          throw new Error("Could not download audio from any source");
+        }
+
+        userText = await withTimeout(transcribeAudio(LOVABLE_API_KEY, audioB64, audioMime), 20000, "audio_transcription");
         if (!userText?.trim()) {
           try {
             await sendWhatsApp(UAZAPI_URL, outboundTokens, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
