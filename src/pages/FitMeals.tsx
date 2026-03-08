@@ -12,7 +12,10 @@ import { Utensils, Loader2, Sparkles, ShoppingCart, Upload, PenLine, Trash2, Dol
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
+import {
+  createOrbeDoc, finalizeDoc, drawHeader, drawSectionTitle,
+  drawListItem, drawChecklistItem, drawKeyValue, checkPage,
+} from "@/lib/pdfTemplate";
 
 interface Meal {
   name: string;
@@ -217,47 +220,43 @@ export default function FitMeals() {
   const exportPDF = () => {
     const ap = plans.find(p => p.active);
     if (!ap) return;
-    const doc = new jsPDF();
-    let y = 20;
-    doc.setFontSize(18);
-    doc.text(ap.title || "Plano Alimentar", 14, y); y += 10;
-    doc.setFontSize(10); doc.setTextColor(100);
-    doc.text(`Gerado em ${new Date(ap.created_at).toLocaleDateString("pt-BR")}`, 14, y); y += 12;
-    doc.setTextColor(0);
+    const doc = createOrbeDoc();
+    let y = drawHeader(doc, ap.title || "Plano Alimentar", "MÓDULO FIT — ALIMENTAÇÃO");
 
     if (ap.plan_data?.meals) {
       ap.plan_data.meals.forEach((meal: Meal) => {
-        if (y > 270) { doc.addPage(); y = 20; }
-        doc.setFontSize(13); doc.setFont("helvetica", "bold");
-        doc.text(`${meal.name} — ${meal.time}`, 14, y); y += 7;
-        doc.setFontSize(10); doc.setFont("helvetica", "normal");
+        y = checkPage(doc, y, 40);
+        y = drawSectionTitle(doc, y, `${meal.name}${meal.time ? ` — ${meal.time}` : ""}`);
         meal.items?.forEach(item => {
-          if (y > 280) { doc.addPage(); y = 20; }
-          doc.text(`• ${item}`, 20, y); y += 6;
+          y = drawListItem(doc, y, item);
         });
-        if (meal.calories) { doc.text(`  ${meal.calories} kcal`, 20, y); y += 6; }
+        if (meal.calories) {
+          y = drawKeyValue(doc, y, "Calorias", `${meal.calories} kcal`);
+        }
         y += 4;
       });
       if (ap.plan_data.total_calories) {
-        y += 4; doc.setFont("helvetica", "bold");
-        doc.text(`Total: ~${ap.plan_data.total_calories} kcal/dia`, 14, y); y += 8;
+        y = checkPage(doc, y, 20);
+        y = drawKeyValue(doc, y, "Total diário", `~${ap.plan_data.total_calories} kcal/dia`);
       }
     } else {
       const text = ap.plan_data?.raw_text || JSON.stringify(ap.plan_data, null, 2);
-      doc.text(doc.splitTextToSize(text, 180), 14, y);
-    }
-
-    if (ap.shopping_list?.length) {
-      if (y > 250) { doc.addPage(); y = 20; }
-      y += 6; doc.setFontSize(14); doc.setFont("helvetica", "bold");
-      doc.text("Lista de Compras", 14, y); y += 8;
-      doc.setFontSize(10); doc.setFont("helvetica", "normal");
-      ap.shopping_list.forEach((item: string) => {
-        if (y > 280) { doc.addPage(); y = 20; }
-        doc.text(`☐ ${item}`, 18, y); y += 6;
+      const lines = doc.splitTextToSize(text, 170);
+      lines.forEach((line: string) => {
+        y = drawListItem(doc, y, line);
       });
     }
 
+    if (ap.shopping_list?.length) {
+      y = checkPage(doc, y, 30);
+      y += 6;
+      y = drawSectionTitle(doc, y, "Lista de Compras");
+      ap.shopping_list.forEach((item: string) => {
+        y = drawChecklistItem(doc, y, item, false);
+      });
+    }
+
+    finalizeDoc(doc);
     doc.save(`${ap.title || "plano-alimentar"}.pdf`);
     toast.success("PDF exportado! 📄");
   };

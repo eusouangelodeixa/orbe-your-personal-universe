@@ -12,7 +12,10 @@ import { Dumbbell, Plus, Loader2, Sparkles, CheckCircle2, Calendar, Upload, PenL
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
+import {
+  createOrbeDoc, finalizeDoc, drawHeader, drawSectionTitle,
+  drawListItem, checkPage,
+} from "@/lib/pdfTemplate";
 
 interface Exercise {
   name: string;
@@ -226,38 +229,28 @@ export default function FitWorkout() {
   const exportPDF = () => {
     const ap = plans.find(p => p.active);
     if (!ap) return;
-    const doc = new jsPDF();
-    let y = 20;
-    doc.setFontSize(18);
-    doc.text(ap.title || "Plano de Treino", 14, y);
-    y += 10;
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Gerado em ${new Date(ap.created_at).toLocaleDateString("pt-BR")}`, 14, y);
-    y += 12;
-    doc.setTextColor(0);
+    const doc = createOrbeDoc();
+    let y = drawHeader(doc, ap.title || "Plano de Treino", "MÓDULO FIT — TREINO");
 
     if (ap.plan_data?.days) {
       ap.plan_data.days.forEach((day: WorkoutDay) => {
-        if (y > 270) { doc.addPage(); y = 20; }
-        doc.setFontSize(13);
-        doc.setFont("helvetica", "bold");
-        doc.text(day.name, 14, y);
-        y += 7;
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
+        y = checkPage(doc, y, 40);
+        y = drawSectionTitle(doc, y, day.name);
         day.exercises?.forEach(ex => {
-          if (y > 280) { doc.addPage(); y = 20; }
-          doc.text(`• ${ex.name}  —  ${ex.sets}×${ex.reps}${ex.weight ? ` · ${ex.weight}` : ""}${ex.rest ? ` · Descanso: ${ex.rest}` : ""}`, 20, y);
-          y += 6;
+          const detail = `${ex.name}  —  ${ex.sets}×${ex.reps}${ex.weight ? ` · ${ex.weight}` : ""}${ex.rest ? ` · Descanso: ${ex.rest}` : ""}`;
+          y = drawListItem(doc, y, detail);
         });
-        y += 6;
+        y += 4;
       });
     } else {
       const text = ap.plan_data?.raw_text || JSON.stringify(ap.plan_data, null, 2);
-      const lines = doc.splitTextToSize(text, 180);
-      doc.text(lines, 14, y);
+      const lines = doc.splitTextToSize(text, 170);
+      lines.forEach((line: string) => {
+        y = drawListItem(doc, y, line);
+      });
     }
+
+    finalizeDoc(doc);
     doc.save(`${ap.title || "plano-treino"}.pdf`);
     toast.success("PDF exportado! 📄");
   };
