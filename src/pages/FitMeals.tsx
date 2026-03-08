@@ -12,7 +12,10 @@ import { Utensils, Loader2, Sparkles, ShoppingCart, Upload, PenLine, Trash2, Dol
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import jsPDF from "jspdf";
+import {
+  createOrbeDoc, finalizeDoc, drawHeader, drawSectionTitle,
+  drawListItem, drawChecklistItem, drawKeyValue, checkPage,
+} from "@/lib/pdfTemplate";
 
 interface Meal {
   name: string;
