@@ -60,7 +60,7 @@ function ensureMermaidInitialized() {
   if (mermaidInitialized) return;
   mermaid.initialize({
     startOnLoad: false,
-    securityLevel: "loose",
+    securityLevel: "strict",
     theme: "neutral",
   });
   mermaidInitialized = true;
