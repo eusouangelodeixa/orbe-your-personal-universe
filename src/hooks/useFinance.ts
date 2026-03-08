@@ -150,6 +150,20 @@ export function useAddWalletTransaction() {
       reference_type?: string;
       reference_id?: string;
     }) => {
+      // Check balance before debit
+      if (tx.type === "debit") {
+        const { data: wallet, error: wErr } = await supabase
+          .from("wallets")
+          .select("balance, name")
+          .eq("id", tx.wallet_id)
+          .single();
+        if (wErr) throw wErr;
+        if (Number(wallet.balance) < tx.amount) {
+          throw new Error(
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}.`
+          );
+        }
+      }
       const { data, error } = await supabase
         .from("wallet_transactions")
         .insert({ ...tx, user_id: user!.id })
