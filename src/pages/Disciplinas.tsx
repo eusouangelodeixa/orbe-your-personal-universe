@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Clock, BookOpen, User, GraduationCap, Loader2, MessageSquare, Calendar, Pencil } from "lucide-react";
+import { Plus, Trash2, Clock, User, GraduationCap, Loader2, Calendar, Pencil } from "lucide-react";
 import { useSubjects, useAddSubject, useUpdateSubject, useDeleteSubject, Subject } from "@/hooks/useStudies";
 import { useNavigate } from "react-router-dom";
 
@@ -51,7 +51,7 @@ export default function Disciplinas() {
     const payload = {
       name: form.name, teacher: form.teacher || null, course: form.course || null,
       semester: form.semester || null, type: form.type, weekly_hours: form.weekly_hours,
-      schedule: form.schedule, color: form.color,
+      schedule: form.schedule, color: form.color, ementa_url: null, ementa_text: null,
     };
     if (editingId) {
       updateSubject.mutate({ id: editingId, ...payload }, { onSuccess: () => setOpen(false) });
@@ -149,12 +149,12 @@ export default function Disciplinas() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {subjects.map((sub) => (
-              <Card key={sub.id} className="group relative overflow-hidden">
+              <Card key={sub.id} className="group relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/disciplina/${sub.id}`)}>
                 <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: sub.color }} />
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-lg">{sub.name}</CardTitle>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(sub)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -176,14 +176,7 @@ export default function Disciplinas() {
                       ))}
                     </div>
                   )}
-                  <div className="flex gap-2 pt-2">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate(`/agenda?disciplina=${sub.id}`)}>
-                      <BookOpen className="h-3.5 w-3.5 mr-1" /> Agenda
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate(`/chatbot/${sub.id}`)}>
-                      <MessageSquare className="h-3.5 w-3.5 mr-1" /> Chatbot
-                    </Button>
-                  </div>
+                  {sub.ementa_url && <Badge variant="secondary" className="text-xs">📄 Ementa</Badge>}
                 </CardContent>
               </Card>
             ))}
