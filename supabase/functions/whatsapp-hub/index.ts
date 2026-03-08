@@ -305,7 +305,7 @@ const INTENT_TOOLS = [
               "add_expense", "add_income", "mark_paid", "list_expenses", "list_incomes",
               "wallet_balance", "monthly_summary", "financial_projection", "check_savings_goal", "save_to_cofrinho",
               // Estudos
-              "list_events", "add_event", "list_subjects", "subject_question",
+              "list_events", "add_event", "list_subjects", "subject_question", "check_class_schedule",
               // Fit
               "log_workout", "active_plan", "check_progress", "nutrition_question",
               // Tarefas
@@ -370,6 +370,7 @@ REGRAS:
   • Provas, trabalhos, seminários, apresentações, entregas de disciplina, atividades acadêmicas → use "add_event" (módulo estudos). Preencha params.subject_name com a disciplina, params.type com "prova", "trabalho" ou "seminario", e params.due_date com a data.
   • Tarefas do dia-a-dia (comprar algo, ligar, pagar, resolver algo pessoal) → use "add_task" (módulo tarefas).
   • Se mencionar disciplina, matéria, faculdade, professor, ou termos acadêmicos → SEMPRE é add_event, NUNCA add_task.
+- IMPORTANTE: Quando o usuário perguntar "tenho aula hoje?", "quais aulas de quarta?", "tenho aula amanhã?" ou qualquer pergunta sobre HORÁRIO/GRADE de aulas, use action "check_class_schedule" com params.day preenchido (ex: "quarta", "hoje", "amanha"). NÃO use list_events — list_events é para provas/trabalhos/eventos, NÃO para grade de aulas.
 - IMPORTANTE: Ao responder sobre treinos, dieta ou agenda, responda APENAS sobre o dia específico perguntado. NÃO liste a semana inteira. Se perguntaram "treino de segunda", mostre SÓ o de segunda. Se perguntaram "treino de hoje", mostre SÓ o de hoje.
 - IMPORTANTE: Quando o usuário perguntar sobre metas de economia, cofrinho, reserva de emergência, quanto falta para alcançar uma meta, use action "check_savings_goal" e preencha params.goal_name. NÃO use monthly_summary para perguntas sobre metas.
 - IMPORTANTE: Quando o usuário quiser GUARDAR/DEPOSITAR dinheiro no cofrinho (ex: "guardei 500 no cofrinho", "depositar 200 na reserva"), use action "save_to_cofrinho". Preencha params.amount, params.wallet_name (de onde sai o dinheiro) e params.goal_name (meta destino). Se o usuário NÃO mencionar o nome da meta, deixe goal_name vazio — o sistema vai listar as opções.
@@ -812,14 +813,50 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       }
 
       case "subject_question": {
-        // Use AI to answer the question with context
-        const { data: subjects } = await supabase.from("subjects")
-          .select("name, ementa_text").eq("user_id", userId);
-        const subjectContext = (subjects || [])
-          .map((s: any) => `${s.name}: ${s.ementa_text || "sem ementa"}`)
-          .join("\n");
-        // The AI already generated the reply_text with the question context
         return reply_text;
+      }
+
+      case "check_class_schedule": {
+        const requestedDay = normalizeText(params.day || "") || getRequestedWeekdayFromText(originalText, now);
+        if (!requestedDay) return "❌ Não entendi qual dia. Diga por exemplo: 'tenho aula na quarta?'";
+
+        const dayLabel = WEEKDAY_LABELS[requestedDay] || requestedDay;
+        const { data: subjects } = await supabase.from("subjects")
+          .select("name, schedule, color, teacher")
+          .eq("user_id", userId);
+
+        if (!subjects?.length) return "📚 Nenhuma disciplina cadastrada.";
+
+        // Filter subjects that have classes on the requested day
+        const classesOnDay: { name: string; time: string; teacher: string | null }[] = [];
+        for (const subj of subjects) {
+          const schedule = (subj.schedule || []) as any[];
+          for (const slot of schedule) {
+            const slotDay = normalizeText(slot.day || slot.dia || "");
+            const aliases = WEEKDAY_ALIASES[requestedDay] || [requestedDay];
+            if (aliases.some((a: string) => slotDay.includes(a))) {
+              classesOnDay.push({
+                name: subj.name,
+                time: slot.time || slot.horario || slot.hora || "",
+                teacher: subj.teacher,
+              });
+            }
+          }
+        }
+
+        if (!classesOnDay.length) return `✅ Nenhuma aula na *${dayLabel}*! Dia livre. 🎉`;
+
+        // Sort by time
+        classesOnDay.sort((a, b) => a.time.localeCompare(b.time));
+
+        let msg = `📚 *Aulas de ${dayLabel}*\n\n`;
+        classesOnDay.forEach((c) => {
+          msg += `📖 *${c.name}*\n`;
+          if (c.time) msg += `   🕐 ${c.time}\n`;
+          if (c.teacher) msg += `   👨‍🏫 ${c.teacher}\n`;
+          msg += "\n";
+        });
+        return msg;
       }
 
       // ===== FIT =====
@@ -1437,14 +1474,16 @@ serve(async (req) => {
     }
 
     // Send reply and expose send status
+    const intentModule = intent?.module || "geral";
+    const intentAction = intent?.action || "pending_action";
     try {
       await withTimeout(sendWhatsApp(UAZAPI_URL, outboundTokens, phone, responseText), 12000, "send_reply");
     } catch (sendError) {
       console.error("Reply send failed:", sendError);
       return new Response(JSON.stringify({
         handled: true,
-        module: intent.module,
-        action: intent.action,
+        module: intentModule,
+        action: intentAction,
         transcribed: isAudio ? userText : undefined,
         send_status: "failed",
         send_error: sendError instanceof Error ? sendError.message : "unknown",
@@ -1455,8 +1494,8 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       handled: true,
-      module: intent.module,
-      action: intent.action,
+      module: intentModule,
+      action: intentAction,
       transcribed: isAudio ? userText : undefined,
       send_status: "sent",
     }), {
