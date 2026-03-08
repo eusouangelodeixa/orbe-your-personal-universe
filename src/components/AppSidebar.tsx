@@ -35,8 +35,12 @@ const financeItems = [
   { title: "Consultor IA", url: "/consultor", icon: Bot },
 ];
 
+const studiesItems = [
+  { title: "Disciplinas", url: "/disciplinas", icon: GraduationCap },
+  { title: "Agenda", url: "/agenda", icon: Receipt },
+];
+
 const comingSoon = [
-  { title: "Estudos", icon: GraduationCap },
   { title: "Fit", icon: Dumbbell },
   { title: "Tarefas", icon: CheckSquare },
 ];

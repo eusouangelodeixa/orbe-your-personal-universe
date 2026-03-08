@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.whatsapp-alert]
 verify_jwt = false
+
+[functions.subject-chat]
+verify_jwt = false
