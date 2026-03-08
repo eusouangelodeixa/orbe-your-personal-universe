@@ -149,12 +149,12 @@ export default function Disciplinas() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {subjects.map((sub) => (
-              <Card key={sub.id} className="group relative overflow-hidden">
+              <Card key={sub.id} className="group relative overflow-hidden cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/disciplina/${sub.id}`)}>
                 <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: sub.color }} />
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-lg">{sub.name}</CardTitle>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(sub)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
@@ -176,14 +176,7 @@ export default function Disciplinas() {
                       ))}
                     </div>
                   )}
-                  <div className="flex gap-2 pt-2">
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate(`/agenda?disciplina=${sub.id}`)}>
-                      <BookOpen className="h-3.5 w-3.5 mr-1" /> Agenda
-                    </Button>
-                    <Button variant="outline" size="sm" className="flex-1" onClick={() => navigate(`/chatbot/${sub.id}`)}>
-                      <MessageSquare className="h-3.5 w-3.5 mr-1" /> Chatbot
-                    </Button>
-                  </div>
+                  {sub.ementa_url && <Badge variant="secondary" className="text-xs">📄 Ementa</Badge>}
                 </CardContent>
               </Card>
             ))}
