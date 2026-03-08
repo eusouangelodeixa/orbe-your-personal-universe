@@ -637,8 +637,17 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         const { data: plan } = await supabase.from("fit_workout_plans")
           .select("title, plan_data").eq("user_id", userId).eq("active", true).maybeSingle();
         if (!plan) return "🏋️ Nenhum plano de treino ativo. Crie um no app.";
-        let msg = `🏋️ *${plan.title}*\n\n`;
+
         const workouts = (plan.plan_data as any)?.workouts || (plan.plan_data as any)?.days || [];
+        const requestedWeekday = normalizeText(params.day || params.weekday || params.dia) || getRequestedWeekdayFromText(originalText, now);
+
+        if (requestedWeekday) {
+          const workout = workouts.find((w: any) => workoutMatchesWeekday(w, requestedWeekday));
+          if (!workout) return `❌ Não encontrei treino para *${WEEKDAY_LABELS[requestedWeekday] || requestedWeekday}* no seu plano atual.`;
+          return formatWorkoutMessage(plan.title, workout);
+        }
+
+        let msg = `🏋️ *${plan.title}*\n\n`;
         workouts.slice(0, 7).forEach((w: any) => {
           msg += `📌 *${w.name || w.day}*\n`;
           (w.exercises || []).slice(0, 5).forEach((ex: any) => {
