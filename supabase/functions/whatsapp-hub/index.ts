@@ -489,7 +489,7 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         if (error) throw error;
         // If wallet specified, create debit transaction
         if (shouldAutoPay && expenseData) {
-          await supabase.from("wallet_transactions").insert({
+          const { error: txError } = await supabase.from("wallet_transactions").insert({
             wallet_id: walletId,
             user_id: userId,
             amount: params.amount || 0,
@@ -498,6 +498,12 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
             reference_type: "expense",
             reference_id: expenseData.id,
           });
+
+          if (txError) {
+            // Rollback: never keep paid expense without successful debit
+            await supabase.from("expenses").delete().eq("id", expenseData.id);
+            throw txError;
+          }
         }
         return reply_text;
       }
