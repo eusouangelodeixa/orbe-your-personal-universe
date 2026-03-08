@@ -701,10 +701,10 @@ export default function Planilha() {
             <div className="border-t border-border pt-4 flex justify-between items-center">
               <div>
                 <p className="text-sm text-muted-foreground">Projeção Patrimonial</p>
-                <p className="text-xs text-muted-foreground">Carteiras + Renda − Gastos</p>
+                <p className="text-xs text-muted-foreground">Carteiras − Gastos pendentes</p>
               </div>
               {(() => {
-                const projecaoPatrimonial = totalCarteiras + saldo;
+                const projecaoPatrimonial = totalCarteiras - gastosPendentes;
                 return (
                   <p className={`text-2xl font-bold font-display ${projecaoPatrimonial < 0 ? "text-destructive" : "text-primary"}`}>
                     R$ {projecaoPatrimonial.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
