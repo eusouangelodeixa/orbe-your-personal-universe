@@ -61,7 +61,7 @@ export function AppSidebar() {
         </div>
 
         {/* Financeiro */}
-        <SidebarGroup defaultOpen>
+        <SidebarGroup>
           <SidebarGroupLabel className="flex items-center gap-2">
             <Wallet className="h-4 w-4 text-primary" />
             {!collapsed && <span>Financeiro</span>}
