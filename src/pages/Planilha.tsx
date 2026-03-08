@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Plus, Check, Clock, Trash2, Loader2, DollarSign } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { cn } from "@/lib/utils";
+import { MonthSelector } from "@/components/MonthSelector";
+import { DueDateAlerts } from "@/components/DueDateAlerts";
 import {
   useCategories,
   useIncomes,
@@ -18,11 +25,13 @@ import {
   useDeleteExpense,
   useDeleteIncome,
 } from "@/hooks/useFinance";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export default function Planilha() {
   const now = new Date();
-  const [month] = useState(now.getMonth() + 1);
-  const [year] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
 
   const { data: categories = [] } = useCategories();
   const { data: incomes = [], isLoading: loadingIncomes } = useIncomes(month, year);
@@ -36,9 +45,10 @@ export default function Planilha() {
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
+  const [dueDate, setDueDate] = useState<Date>();
 
   const [novoGasto, setNovoGasto] = useState({
-    nome: "", categoria: "", valor: "", vencimento: "", tipo: "variavel" as "fixo" | "variavel",
+    nome: "", categoria: "", valor: "", tipo: "variavel" as "fixo" | "variavel",
   });
   const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "" });
 
@@ -47,21 +57,22 @@ export default function Planilha() {
   const gastosPagos = expenses.filter((e) => e.paid).reduce((a, e) => a + Number(e.amount), 0);
   const gastosPendentes = totalGastos - gastosPagos;
   const saldo = totalRenda - totalGastos;
-  const projecao = totalRenda - totalGastos;
   const percentual = totalRenda > 0 ? Math.round((totalGastos / totalRenda) * 100) : 0;
 
   const handleAddExpense = () => {
-    if (!novoGasto.nome.trim() || !novoGasto.valor || !novoGasto.vencimento) return;
+    if (!novoGasto.nome.trim() || !novoGasto.valor || !dueDate) return;
+    const dueDateStr = format(dueDate, "yyyy-MM-dd");
     addExpense.mutate({
       name: novoGasto.nome.trim(),
       category_id: novoGasto.categoria || null,
       amount: parseFloat(novoGasto.valor),
-      due_date: novoGasto.vencimento,
+      due_date: dueDateStr,
       type: novoGasto.tipo,
       month,
       year,
     });
-    setNovoGasto({ nome: "", categoria: "", valor: "", vencimento: "", tipo: "variavel" });
+    setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel" });
+    setDueDate(undefined);
     setShowExpenseForm(false);
   };
 
@@ -77,12 +88,63 @@ export default function Planilha() {
     setShowIncomeForm(false);
   };
 
-  // Group expenses by category name
   const byCategory = expenses.reduce<Record<string, typeof expenses>>((acc, e) => {
     const catName = (e as any).categories?.name || "Sem categoria";
     (acc[catName] = acc[catName] || []).push(e);
     return acc;
   }, {});
+
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    const monthLabel = new Date(year, month - 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
+    doc.setFontSize(18);
+    doc.text(`ORBE - Planilha Doméstica`, 14, 20);
+    doc.setFontSize(12);
+    doc.text(monthLabel, 14, 28);
+
+    // Summary
+    doc.setFontSize(10);
+    doc.text(`Renda: R$ ${totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 38);
+    doc.text(`Gastos: R$ ${totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 44);
+    doc.text(`Saldo: R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 50);
+    doc.text(`Comprometimento: ${percentual}%`, 14, 56);
+
+    // Incomes table
+    if (incomes.length > 0) {
+      doc.setFontSize(12);
+      doc.text("Rendas", 14, 66);
+      autoTable(doc, {
+        startY: 70,
+        head: [["Descrição", "Valor"]],
+        body: incomes.map((i) => [
+          i.description,
+          `R$ ${Number(i.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        ]),
+      });
+    }
+
+    // Expenses table
+    if (expenses.length > 0) {
+      const finalY = (doc as any).lastAutoTable?.finalY || 70;
+      doc.setFontSize(12);
+      doc.text("Gastos", 14, finalY + 10);
+      autoTable(doc, {
+        startY: finalY + 14,
+        head: [["Nome", "Categoria", "Valor", "Vencimento", "Status", "Tipo"]],
+        body: expenses.map((e) => [
+          e.name,
+          (e as any).categories?.name || "—",
+          `R$ ${Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
+          e.paid ? "Pago" : "Pendente",
+          e.type === "fixo" ? "Fixo" : "Variável",
+        ]),
+      });
+    }
+
+    doc.save(`ORBE_Planilha_${month}_${year}.pdf`);
+  };
 
   const isLoading = loadingIncomes || loadingExpenses;
 
@@ -102,11 +164,12 @@ export default function Planilha() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-3xl font-bold font-display">Planilha Doméstica</h1>
-            <p className="text-muted-foreground">
-              {new Date(year, month - 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
-            </p>
+            <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={exportPDF} className="gap-2 font-display">
+              <FileDown className="h-4 w-4" /> PDF
+            </Button>
             <Button variant="outline" onClick={() => setShowIncomeForm(!showIncomeForm)} className="gap-2 font-display">
               <DollarSign className="h-4 w-4" /> Renda
             </Button>
@@ -115,6 +178,9 @@ export default function Planilha() {
             </Button>
           </div>
         </div>
+
+        {/* Due date alerts */}
+        <DueDateAlerts expenses={expenses as any} />
 
         {/* Summary */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -213,7 +279,17 @@ export default function Planilha() {
                 </div>
                 <div className="space-y-1">
                   <Label>Vencimento</Label>
-                  <Input type="date" value={novoGasto.vencimento} onChange={(e) => setNovoGasto({ ...novoGasto, vencimento: e.target.value })} />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !dueDate && "text-muted-foreground")}>
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {dueDate ? format(dueDate, "dd/MM/yyyy") : "Selecione"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={dueDate} onSelect={setDueDate} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-1">
                   <Label>Tipo</Label>
@@ -326,8 +402,8 @@ export default function Planilha() {
                 <p className="text-sm text-muted-foreground">Projeção do mês</p>
                 <p className="text-xs text-muted-foreground">Saldo após todos os gastos</p>
               </div>
-              <p className={`text-2xl font-bold font-display ${projecao < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {projecao.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              <p className={`text-2xl font-bold font-display ${saldo < 0 ? "text-destructive" : "text-primary"}`}>
+                R$ {saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </p>
             </div>
           </CardContent>
