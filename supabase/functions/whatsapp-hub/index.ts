@@ -727,7 +727,13 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Parsed: phone=${phone}, text=${textMessage?.slice(0, 100)}, isAudio=${isAudio}`);
+    // Ensure textMessage is always a string
+    if (typeof textMessage !== "string") {
+      textMessage = textMessage?.text || textMessage?.body || JSON.stringify(textMessage) || "";
+    }
+    textMessage = String(textMessage || "");
+
+    console.log(`Parsed: phone=${phone}, text=${textMessage.slice(0, 100)}, isAudio=${isAudio}`);
 
     // Find user by phone (normalized match)
     const incomingPhone = normalizePhone(phone);
