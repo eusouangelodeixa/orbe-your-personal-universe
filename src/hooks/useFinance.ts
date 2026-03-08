@@ -285,7 +285,12 @@ export function useAddExpense() {
             reference_type: "expense",
             reference_id: data.id,
           });
-        if (txError) throw txError;
+
+        if (txError) {
+          // Safety rollback to avoid a paid expense without transaction
+          await supabase.from("expenses").delete().eq("id", data.id);
+          throw new Error(txError.message);
+        }
       }
 
       return data;
@@ -336,7 +341,10 @@ export function useToggleExpensePaid() {
             reference_type: "expense",
             reference_id: id,
           });
-        if (txError) throw txError;
+        if (txError) {
+          await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
+          throw new Error(txError.message);
+        }
       }
 
       // When unmarking as paid, remove the related transaction
