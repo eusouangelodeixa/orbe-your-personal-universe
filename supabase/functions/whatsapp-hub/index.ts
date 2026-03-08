@@ -735,15 +735,17 @@ serve(async (req) => {
       const msg = body.message || body.msg || body.data || {};
 
       // Phone priority for UAZAPI payload
-      const chatId = chat.id || chat.jid || chat.remoteJid || chat.wa_chatid || "";
-      phone = chat.phone
-        || msg.sender_pn
+      const chatId = safeString(chat.id || chat.jid || chat.remoteJid || chat.wa_chatid || "");
+      phone = safeString(
+        msg.sender_pn
         || msg.chatid
-        || msg.owner
+        || chat.phone
         || chat.number
+        || msg.owner
         || body.phone
         || body.from
-        || chatId;
+        || chatId
+      );
 
       // sanitize jid-like phone formats
       phone = phone.replace(/@.*$/, "");
