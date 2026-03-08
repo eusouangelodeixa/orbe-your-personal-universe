@@ -25,6 +25,7 @@ import {
   useCategories, useIncomes, useExpenses, useAddIncome, useAddExpense,
   useToggleExpensePaid, useDeleteExpense, useDeleteIncome,
   useWallets, useAddWallet, useDeleteWallet, useAddWalletTransaction, useWalletTransactions,
+  useSavingsGoals, useUpdateSavingsGoal,
 } from "@/hooks/useFinance";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
