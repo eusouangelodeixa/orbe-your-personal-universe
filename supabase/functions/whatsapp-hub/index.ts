@@ -16,6 +16,68 @@ function brNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
 
+function normalizeText(value: unknown): string {
+  return safeString(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const WEEKDAY_KEYS = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const;
+const WEEKDAY_LABELS: Record<string, string> = {
+  domingo: "domingo",
+  segunda: "segunda-feira",
+  terca: "terça-feira",
+  quarta: "quarta-feira",
+  quinta: "quinta-feira",
+  sexta: "sexta-feira",
+  sabado: "sábado",
+};
+const WEEKDAY_ALIASES: Record<string, string[]> = {
+  domingo: ["domingo", "dom"],
+  segunda: ["segunda", "segunda feira", "seg", "monday"],
+  terca: ["terca", "terca feira", "ter", "tuesday"],
+  quarta: ["quarta", "quarta feira", "qua", "wednesday"],
+  quinta: ["quinta", "quinta feira", "qui", "thursday"],
+  sexta: ["sexta", "sexta feira", "sex", "friday"],
+  sabado: ["sabado", "sab", "saturday"],
+};
+
+function getRequestedWeekdayFromText(text: string, now = brNow()): string | null {
+  const normalized = normalizeText(text);
+  if (!normalized) return null;
+
+  if (normalized.includes("hoje")) {
+    return WEEKDAY_KEYS[now.getDay()];
+  }
+  if (normalized.includes("amanha")) {
+    return WEEKDAY_KEYS[(now.getDay() + 1) % 7];
+  }
+
+  for (const [dayKey, aliases] of Object.entries(WEEKDAY_ALIASES)) {
+    if (aliases.some((alias) => normalized.includes(alias))) return dayKey;
+  }
+
+  return null;
+}
+
+function workoutMatchesWeekday(workout: any, weekday: string): boolean {
+  const haystack = normalizeText(`${safeString(workout?.day)} ${safeString(workout?.name)}`);
+  const aliases = WEEKDAY_ALIASES[weekday] || [weekday];
+  return aliases.some((alias) => haystack.includes(alias));
+}
+
+function formatWorkoutMessage(planTitle: string, workout: any): string {
+  const label = safeString(workout?.day) || safeString(workout?.name) || "Treino";
+  let msg = `🏋️ *${planTitle}*\n\n📌 *${label}*\n`;
+  (workout?.exercises || []).slice(0, 8).forEach((ex: any) => {
+    msg += `\n• ${safeString(ex?.name)}${ex?.sets ? ` ${ex.sets}x${ex.reps || ""}` : ""}`;
+  });
+  return msg;
+}
+
 function safeString(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
@@ -269,6 +331,7 @@ const INTENT_TOOLS = [
               duration: { type: "number" },
               task_title: { type: "string" },
               type: { type: "string" },
+              day: { type: "string", description: "Target weekday when asking for routine by day (ex: segunda, terça, hoje, amanhã)." },
               month: { type: "number" },
               year: { type: "number" },
               wallet_name: { type: "string" },
@@ -361,7 +424,7 @@ function parseFallbackIntent(text: string) {
 
 // ========== ACTION EXECUTORS ==========
 
-async function executeAction(supabase: any, userId: string, intent: any): Promise<string> {
+async function executeAction(supabase: any, userId: string, intent: any, originalText = ""): Promise<string> {
   const { module, action, params = {}, reply_text } = intent;
   const now = brNow();
   const currentMonth = params.month || now.getMonth() + 1;
@@ -574,8 +637,17 @@ async function executeAction(supabase: any, userId: string, intent: any): Promis
         const { data: plan } = await supabase.from("fit_workout_plans")
           .select("title, plan_data").eq("user_id", userId).eq("active", true).maybeSingle();
         if (!plan) return "🏋️ Nenhum plano de treino ativo. Crie um no app.";
-        let msg = `🏋️ *${plan.title}*\n\n`;
+
         const workouts = (plan.plan_data as any)?.workouts || (plan.plan_data as any)?.days || [];
+        const requestedWeekday = normalizeText(params.day || params.weekday || params.dia) || getRequestedWeekdayFromText(originalText, now);
+
+        if (requestedWeekday) {
+          const workout = workouts.find((w: any) => workoutMatchesWeekday(w, requestedWeekday));
+          if (!workout) return `❌ Não encontrei treino para *${WEEKDAY_LABELS[requestedWeekday] || requestedWeekday}* no seu plano atual.`;
+          return formatWorkoutMessage(plan.title, workout);
+        }
+
+        let msg = `🏋️ *${plan.title}*\n\n`;
         workouts.slice(0, 7).forEach((w: any) => {
           msg += `📌 *${w.name || w.day}*\n`;
           (w.exercises || []).slice(0, 5).forEach((ex: any) => {
@@ -1055,7 +1127,7 @@ serve(async (req) => {
     // Execute action with timeout
     let responseText = "";
     try {
-      responseText = await withTimeout(executeAction(supabase, userId, intent), 12000, "execute_action");
+      responseText = await withTimeout(executeAction(supabase, userId, intent, userText), 12000, "execute_action");
     } catch (actionError) {
       console.error("Action execution failed:", actionError);
       responseText = "❌ Tive um erro ao executar sua solicitação. Tente novamente em instantes.";
