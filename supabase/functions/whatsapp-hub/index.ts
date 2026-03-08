@@ -1358,8 +1358,9 @@ serve(async (req) => {
 
         // Match by number or name
         let selectedGoal: any = null;
-        const num = parseInt(input);
-        if (!isNaN(num) && num >= 1 && num <= goals.length) {
+        const numMatch = input.match(/\d+/);
+        const num = numMatch ? Number(numMatch[0]) : Number.NaN;
+        if (!Number.isNaN(num) && num >= 1 && num <= goals.length) {
           selectedGoal = goals[num - 1];
         } else {
           const normalized = input.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
