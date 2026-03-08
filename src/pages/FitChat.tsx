@@ -9,6 +9,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { sanitizeLatex } from "@/lib/sanitizeLatex";
 
 interface Message {
   id: string;
@@ -181,7 +183,7 @@ export default function FitChat() {
                   {msg.content ? (
                     msg.role === "assistant" ? (
                       <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{sanitizeLatex(msg.content)}</ReactMarkdown>
                       </div>
                     ) : msg.content
                   ) : (

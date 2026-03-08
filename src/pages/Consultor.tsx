@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Send, User } from "lucide-react";
 import { OrbeIcon } from "@/components/OrbeIcon";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { sanitizeLatex } from "@/lib/sanitizeLatex";
 import { toast } from "sonner";
 import { useIncomes, useExpenses, useWallets, useSavingsGoals } from "@/hooks/useFinance";
 
@@ -229,7 +231,7 @@ export default function Consultor() {
                 }`}>
                   {msg.role === "assistant" ? (
                     <div className="prose prose-sm dark:prose-invert max-w-none">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{sanitizeLatex(msg.content)}</ReactMarkdown>
                     </div>
                   ) : msg.content}
                 </div>

@@ -26,6 +26,7 @@ import rehypeKatex from "rehype-katex";
 import mermaid from "mermaid";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { sanitizeLatex } from "@/lib/sanitizeLatex";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   useSubjects, useUpdateSubject, useDeleteSubject,
@@ -538,7 +539,7 @@ export default function SubjectDetail() {
                                 },
                               }}
                             >
-                              {msg.content}
+                              {sanitizeLatex(msg.content)}
                             </ReactMarkdown>
                           </div>
                         ) : msg.content}
