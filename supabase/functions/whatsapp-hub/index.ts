@@ -300,7 +300,8 @@ REGRAS:
 - reply_text deve ser amigável, curto e usar emojis
 - Valores financeiros em BRL
 - Se o usuário pedir resumo do dia, use "daily_summary"
-- Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente`;
+- Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente
+- IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".`;
 
   const result = await callAI(apiKey, systemPrompt, text, INTENT_TOOLS, { type: "function", function: { name: "execute_action" } });
 
@@ -369,6 +370,17 @@ async function executeAction(supabase: any, userId: string, intent: any): Promis
       // ===== FINANCEIRO =====
       case "add_expense": {
         const dueDate = params.due_date || now.toISOString().split("T")[0];
+        // Look up category by name if provided
+        let categoryId: string | null = null;
+        if (params.category) {
+          const { data: cats } = await supabase.from("categories")
+            .select("id, name")
+            .ilike("name", `%${params.category}%`)
+            .limit(1);
+          if (cats?.length) {
+            categoryId = cats[0].id;
+          }
+        }
         const { error } = await supabase.from("expenses").insert({
           user_id: userId,
           name: params.name || "Gasto WhatsApp",
@@ -378,7 +390,7 @@ async function executeAction(supabase: any, userId: string, intent: any): Promis
           year: new Date(dueDate).getFullYear(),
           type: params.type || "variavel",
           paid: params.paid || false,
-          category_id: null,
+          category_id: categoryId,
         });
         if (error) throw error;
         return reply_text;
