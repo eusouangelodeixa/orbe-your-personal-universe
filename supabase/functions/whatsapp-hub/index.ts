@@ -601,6 +601,34 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           `💰 Disponível: ${fmtBRL(totalWal - (totalExp - paidExp))}`;
       }
 
+      case "check_savings_goal": {
+        let query = supabase.from("savings_goals")
+          .select("name, target_amount, current_amount, deadline")
+          .eq("user_id", userId);
+        if (params.goal_name) {
+          query = query.ilike("name", `%${params.goal_name}%`);
+        }
+        const { data } = await query;
+        if (!data?.length) return params.goal_name
+          ? `🐷 Meta "${params.goal_name}" não encontrada.`
+          : "🐷 Nenhuma meta de economia cadastrada.";
+        
+        let msg = "";
+        for (const g of data) {
+          const target = Number(g.target_amount);
+          const current = Number(g.current_amount);
+          const remaining = Math.max(target - current, 0);
+          const pct = target > 0 ? Math.round((current / target) * 100) : 0;
+          msg += `🐷 *${g.name}*\n`;
+          msg += `🎯 Meta: ${fmtBRL(target)}\n`;
+          msg += `💰 Guardado: ${fmtBRL(current)} (${pct}%)\n`;
+          msg += `📌 Falta: ${fmtBRL(remaining)}\n`;
+          if (g.deadline) msg += `📅 Prazo: ${new Date(g.deadline).toLocaleDateString("pt-BR")}\n`;
+          msg += "\n";
+        }
+        return msg.trim();
+      }
+
       // ===== ESTUDOS =====
       case "list_events": {
         const startDate = now.toISOString().split("T")[0];
