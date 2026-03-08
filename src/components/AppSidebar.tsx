@@ -52,6 +52,8 @@ const fitItems = [
   { title: "Alimentação", url: "/fit/alimentacao", icon: Utensils },
   { title: "Evolução", url: "/fit/progresso", icon: TrendingUp },
   { title: "Nutricionista IA", url: "/fit/chat", icon: Bot },
+];
+
 const taskItems = [
   { title: "Tarefas", url: "/tarefas", icon: CheckSquare },
 ];
