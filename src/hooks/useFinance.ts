@@ -296,8 +296,21 @@ export function useToggleExpensePaid() {
       const { error } = await supabase.from("expenses").update({ paid, wallet_id: wallet_id || null }).eq("id", id);
       if (error) throw error;
 
-      // When marking as paid with a wallet, create a debit transaction
+      // When marking as paid with a wallet, check balance first
       if (paid && wallet_id && amount) {
+        const { data: wallet, error: wErr } = await supabase
+          .from("wallets")
+          .select("balance, name")
+          .eq("id", wallet_id)
+          .single();
+        if (wErr) throw wErr;
+        if (Number(wallet.balance) < amount) {
+          // Revert the paid status
+          await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
+          throw new Error(
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}.`
+          );
+        }
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
