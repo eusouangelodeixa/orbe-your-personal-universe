@@ -301,7 +301,9 @@ REGRAS:
 - Valores financeiros em BRL
 - Se o usuário pedir resumo do dia, use "daily_summary"
 - Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente
-- IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".`;
+- IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".
+- IMPORTANTE: Ao responder sobre treinos, dieta ou agenda, responda APENAS sobre o dia específico perguntado. NÃO liste a semana inteira. Se perguntaram "treino de segunda", mostre SÓ o de segunda. Se perguntaram "treino de hoje", mostre SÓ o de hoje.
+- Mantenha respostas CONCISAS. Máximo 10-15 linhas no WhatsApp.`;
 
   const result = await callAI(apiKey, systemPrompt, text, INTENT_TOOLS, { type: "function", function: { name: "execute_action" } });
 
