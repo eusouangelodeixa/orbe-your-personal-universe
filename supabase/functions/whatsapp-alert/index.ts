@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,12 +24,11 @@ serve(async (req) => {
       });
     }
 
-    // Send message via uazapi
-    const response = await fetch(`${UAZAPI_URL}/send/text`, {
+    // Send message via uazapi - endpoint /message/sendText with Instance Token
+    const response = await fetch(`${UAZAPI_URL}/message/sendText/${UAZAPI_TOKEN}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${UAZAPI_TOKEN}`,
       },
       body: JSON.stringify({
         number: phone,
