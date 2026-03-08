@@ -331,6 +331,7 @@ const INTENT_TOOLS = [
               duration: { type: "number" },
               task_title: { type: "string" },
               type: { type: "string" },
+              day: { type: "string", description: "Target weekday when asking for routine by day (ex: segunda, terça, hoje, amanhã)." },
               month: { type: "number" },
               year: { type: "number" },
               wallet_name: { type: "string" },
