@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.task-reminders]
 verify_jwt = false
+
+[functions.whatsapp-hub]
+verify_jwt = false
