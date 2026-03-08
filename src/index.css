@@ -176,3 +176,12 @@
     0 4px 12px hsl(var(--foreground) / 0.06),
     0 0 0 1px hsl(var(--border) / 0.5);
 }
+
+/* Marquee animation */
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+.animate-marquee {
+  animation: marquee 30s linear infinite;
+}
