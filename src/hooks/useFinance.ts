@@ -7,6 +7,7 @@ import { toast } from "sonner";
 type Expense = Tables<"expenses">;
 type Income = Tables<"incomes">;
 type Category = Tables<"categories">;
+type Wallet = Tables<"wallets">;
 
 const now = new Date();
 
@@ -58,6 +59,93 @@ export function useExpenses(month = now.getMonth() + 1, year = now.getFullYear()
     },
   });
 }
+
+// ========== WALLETS ==========
+
+export function useWallets() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["wallets", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("wallets")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("is_default", { ascending: false })
+        .order("name");
+      if (error) throw error;
+      return data as Wallet[];
+    },
+  });
+}
+
+export function useAddWallet() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (wallet: { name: string; balance?: number }) => {
+      const { data, error } = await supabase
+        .from("wallets")
+        .insert({ name: wallet.name, balance: wallet.balance ?? 0, user_id: user!.id })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      toast.success("Carteira criada");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteWallet() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("wallets").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      toast.success("Carteira removida");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateWalletBalance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount, operation }: { id: string; amount: number; operation: "credit" | "debit" }) => {
+      // Get current balance
+      const { data: wallet, error: fetchError } = await supabase
+        .from("wallets")
+        .select("balance")
+        .eq("id", id)
+        .single();
+      if (fetchError) throw fetchError;
+
+      const currentBalance = Number(wallet.balance);
+      const newBalance = operation === "credit" ? currentBalance + amount : currentBalance - amount;
+
+      const { error } = await supabase
+        .from("wallets")
+        .update({ balance: newBalance })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      toast.success(vars.operation === "credit" ? "Crédito adicionado" : "Débito registrado");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ========== INCOMES ==========
 
 export function useAddIncome() {
   const qc = useQueryClient();

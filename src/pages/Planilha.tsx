@@ -9,7 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon } from "lucide-react";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
+} from "@/components/ui/dialog";
+import { Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon, Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -24,6 +27,10 @@ import {
   useToggleExpensePaid,
   useDeleteExpense,
   useDeleteIncome,
+  useWallets,
+  useAddWallet,
+  useDeleteWallet,
+  useUpdateWalletBalance,
 } from "@/hooks/useFinance";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -36,12 +43,16 @@ export default function Planilha() {
   const { data: categories = [] } = useCategories();
   const { data: incomes = [], isLoading: loadingIncomes } = useIncomes(month, year);
   const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(month, year);
+  const { data: wallets = [], isLoading: loadingWallets } = useWallets();
 
   const addIncome = useAddIncome();
   const addExpense = useAddExpense();
   const togglePaid = useToggleExpensePaid();
   const deleteExpense = useDeleteExpense();
   const deleteIncome = useDeleteIncome();
+  const addWallet = useAddWallet();
+  const deleteWallet = useDeleteWallet();
+  const updateWalletBalance = useUpdateWalletBalance();
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
@@ -51,6 +62,8 @@ export default function Planilha() {
     nome: "", categoria: "", valor: "", tipo: "variavel" as "fixo" | "variavel",
   });
   const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "" });
+  const [novaCarteira, setNovaCarteira] = useState({ nome: "", saldoInicial: "" });
+  const [transacao, setTransacao] = useState({ walletId: "", valor: "", operation: "credit" as "credit" | "debit" });
 
   const totalRenda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
@@ -58,6 +71,7 @@ export default function Planilha() {
   const gastosPendentes = totalGastos - gastosPagos;
   const saldo = totalRenda - totalGastos;
   const percentual = totalRenda > 0 ? Math.round((totalGastos / totalRenda) * 100) : 0;
+  const totalCarteiras = wallets.reduce((a, w) => a + Number(w.balance), 0);
 
   const handleAddExpense = () => {
     if (!novoGasto.nome.trim() || !novoGasto.valor || !dueDate) return;
@@ -88,6 +102,25 @@ export default function Planilha() {
     setShowIncomeForm(false);
   };
 
+  const handleAddWallet = () => {
+    if (!novaCarteira.nome.trim()) return;
+    addWallet.mutate({
+      name: novaCarteira.nome.trim(),
+      balance: novaCarteira.saldoInicial ? parseFloat(novaCarteira.saldoInicial) : 0,
+    });
+    setNovaCarteira({ nome: "", saldoInicial: "" });
+  };
+
+  const handleTransaction = () => {
+    if (!transacao.walletId || !transacao.valor) return;
+    updateWalletBalance.mutate({
+      id: transacao.walletId,
+      amount: parseFloat(transacao.valor),
+      operation: transacao.operation,
+    });
+    setTransacao({ walletId: "", valor: "", operation: "credit" });
+  };
+
   const byCategory = expenses.reduce<Record<string, typeof expenses>>((acc, e) => {
     const catName = (e as any).categories?.name || "Sem categoria";
     (acc[catName] = acc[catName] || []).push(e);
@@ -103,19 +136,34 @@ export default function Planilha() {
     doc.setFontSize(12);
     doc.text(monthLabel, 14, 28);
 
-    // Summary
     doc.setFontSize(10);
     doc.text(`Renda: R$ ${totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 38);
     doc.text(`Gastos: R$ ${totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 44);
     doc.text(`Saldo: R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 50);
     doc.text(`Comprometimento: ${percentual}%`, 14, 56);
+    doc.text(`Total Carteiras: R$ ${totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 62);
+
+    // Wallets table
+    if (wallets.length > 0) {
+      doc.setFontSize(12);
+      doc.text("Carteiras / Bancos", 14, 72);
+      autoTable(doc, {
+        startY: 76,
+        head: [["Nome", "Saldo"]],
+        body: wallets.map((w) => [
+          w.name + (w.is_default ? " (Principal)" : ""),
+          `R$ ${Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+        ]),
+      });
+    }
 
     // Incomes table
     if (incomes.length > 0) {
+      const finalY = (doc as any).lastAutoTable?.finalY || 76;
       doc.setFontSize(12);
-      doc.text("Rendas", 14, 66);
+      doc.text("Rendas", 14, finalY + 10);
       autoTable(doc, {
-        startY: 70,
+        startY: finalY + 14,
         head: [["Descrição", "Valor"]],
         body: incomes.map((i) => [
           i.description,
@@ -126,7 +174,7 @@ export default function Planilha() {
 
     // Expenses table
     if (expenses.length > 0) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 70;
+      const finalY = (doc as any).lastAutoTable?.finalY || 76;
       doc.setFontSize(12);
       doc.text("Gastos", 14, finalY + 10);
       autoTable(doc, {
@@ -146,7 +194,7 @@ export default function Planilha() {
     doc.save(`ORBE_Planilha_${month}_${year}.pdf`);
   };
 
-  const isLoading = loadingIncomes || loadingExpenses;
+  const isLoading = loadingIncomes || loadingExpenses || loadingWallets;
 
   if (isLoading) {
     return (
@@ -181,6 +229,123 @@ export default function Planilha() {
 
         {/* Due date alerts */}
         <DueDateAlerts expenses={expenses as any} />
+
+        {/* Wallets / Banks Section */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                <CardTitle className="font-display text-lg">Carteiras & Bancos</CardTitle>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-display font-bold text-primary">
+                  Total: R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Wallet list */}
+            {wallets.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {wallets.map((w) => (
+                  <div key={w.id} className="flex flex-col p-4 rounded-lg border border-border bg-card space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4 text-muted-foreground" />
+                        <p className="font-medium text-sm">{w.name}</p>
+                        {w.is_default && <Badge variant="outline" className="text-[10px]">Principal</Badge>}
+                      </div>
+                      <button onClick={() => deleteWallet.mutate(w.id)} className="text-muted-foreground hover:text-destructive">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
+                      R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </p>
+                    <div className="flex gap-2">
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTransacao({ walletId: w.id, valor: "", operation: "credit" })}>
+                            <ArrowUpCircle className="h-3.5 w-3.5 text-primary" /> Creditar
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle className="font-display">Creditar em {w.name}</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-3 py-2">
+                            <div className="space-y-1">
+                              <Label>Valor (R$)</Label>
+                              <Input type="number" placeholder="0.00" value={transacao.walletId === w.id ? transacao.valor : ""} onChange={(e) => setTransacao({ walletId: w.id, valor: e.target.value, operation: "credit" })} min={0} step={0.01} />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <DialogClose asChild>
+                              <Button variant="outline">Cancelar</Button>
+                            </DialogClose>
+                            <DialogClose asChild>
+                              <Button onClick={() => { if (transacao.valor) updateWalletBalance.mutate({ id: w.id, amount: parseFloat(transacao.valor), operation: "credit" }); }} disabled={!transacao.valor}>
+                                Confirmar Crédito
+                              </Button>
+                            </DialogClose>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTransacao({ walletId: w.id, valor: "", operation: "debit" })}>
+                            <ArrowDownCircle className="h-3.5 w-3.5 text-destructive" /> Debitar
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle className="font-display">Debitar de {w.name}</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-3 py-2">
+                            <div className="space-y-1">
+                              <Label>Valor (R$)</Label>
+                              <Input type="number" placeholder="0.00" value={transacao.walletId === w.id ? transacao.valor : ""} onChange={(e) => setTransacao({ walletId: w.id, valor: e.target.value, operation: "debit" })} min={0} step={0.01} />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <DialogClose asChild>
+                              <Button variant="outline">Cancelar</Button>
+                            </DialogClose>
+                            <DialogClose asChild>
+                              <Button variant="destructive" onClick={() => { if (transacao.valor) updateWalletBalance.mutate({ id: w.id, amount: parseFloat(transacao.valor), operation: "debit" }); }} disabled={!transacao.valor}>
+                                Confirmar Débito
+                              </Button>
+                            </DialogClose>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma carteira cadastrada. Adicione uma abaixo.</p>
+            )}
+
+            {/* Add wallet form */}
+            <div className="flex items-end gap-3 pt-2 border-t border-border">
+              <div className="space-y-1 flex-1">
+                <Label className="text-xs">Nome</Label>
+                <Input placeholder="Ex: Nubank, Itaú, Carteira física" value={novaCarteira.nome} onChange={(e) => setNovaCarteira({ ...novaCarteira, nome: e.target.value })} maxLength={50} />
+              </div>
+              <div className="space-y-1 w-36">
+                <Label className="text-xs">Saldo inicial (R$)</Label>
+                <Input type="number" placeholder="0.00" value={novaCarteira.saldoInicial} onChange={(e) => setNovaCarteira({ ...novaCarteira, saldoInicial: e.target.value })} min={0} step={0.01} />
+              </div>
+              <Button onClick={handleAddWallet} disabled={addWallet.isPending || !novaCarteira.nome.trim()} size="sm" className="gap-1 font-display">
+                {addWallet.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Adicionar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Summary */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
@@ -387,10 +552,10 @@ export default function Planilha() {
           </Card>
         ))}
 
-        {expenses.length === 0 && incomes.length === 0 && (
+        {expenses.length === 0 && incomes.length === 0 && wallets.length === 0 && (
           <Card className="py-12 flex flex-col items-center justify-center text-center">
             <p className="text-muted-foreground mb-2">Nenhum lançamento este mês</p>
-            <p className="text-sm text-muted-foreground">Adicione sua renda e gastos para começar</p>
+            <p className="text-sm text-muted-foreground">Adicione sua renda, carteiras e gastos para começar</p>
           </Card>
         )}
 
