@@ -265,13 +265,29 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Settings management
+    // Settings management - enrich with real secret detection
     if (action === "settings") {
       const { data: settings } = await adminClient
         .from("admin_settings")
         .select("*")
         .order("key");
-      return new Response(JSON.stringify({ settings }), {
+
+      // Check real availability of secrets
+      const realStatus: Record<string, boolean> = {
+        stripe: !!Deno.env.get("STRIPE_SECRET_KEY"),
+        uazapi: !!(Deno.env.get("UAZAPI_URL") && Deno.env.get("UAZAPI_TOKEN")),
+        ai_text: !!Deno.env.get("LOVABLE_API_KEY"),
+        ai_transcription: !!Deno.env.get("LOVABLE_API_KEY"),
+      };
+
+      // Enrich settings with real status
+      const enriched = (settings || []).map((s: any) => ({
+        ...s,
+        value: { ...s.value, enabled: realStatus[s.key] ?? s.value?.enabled ?? false },
+        real_connected: realStatus[s.key] ?? false,
+      }));
+
+      return new Response(JSON.stringify({ settings: enriched }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
