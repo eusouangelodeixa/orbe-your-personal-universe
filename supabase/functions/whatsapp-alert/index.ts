@@ -15,7 +15,22 @@ serve(async (req) => {
     if (!UAZAPI_URL) throw new Error("UAZAPI_URL não configurada");
     if (!UAZAPI_TOKEN) throw new Error("UAZAPI_TOKEN não configurado");
 
-    const { phone, message } = await req.json();
+    const body = await req.json();
+
+    // Debug mode: check instance status
+    if (body.debug === true) {
+      const statusRes = await fetch(`${UAZAPI_URL}/instance/status`, {
+        method: "GET",
+        headers: { "token": UAZAPI_TOKEN },
+      });
+      const statusData = await statusRes.json();
+      return new Response(JSON.stringify({ status: statusRes.status, data: statusData }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { phone, message } = body;
 
     if (!phone || !message) {
       return new Response(JSON.stringify({ error: "phone e message são obrigatórios" }), {
@@ -24,8 +39,8 @@ serve(async (req) => {
       });
     }
 
-    // Try uazapi v2 endpoint
-    const response = await fetch(`${UAZAPI_URL}/chat/send/text`, {
+    // uazapi v2: POST /message/sendText with header 'token'
+    const response = await fetch(`${UAZAPI_URL}/message/sendText`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
