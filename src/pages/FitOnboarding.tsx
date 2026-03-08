@@ -194,7 +194,7 @@ export default function FitOnboarding() {
       height: form.height ? parseFloat(form.height) : null,
       goal: form.goal || null,
       experience_level: form.experience_level || null,
-      weekly_availability: form.weekly_days.map(day => ({ day })),
+      weekly_availability: form.weekly_days.map(day => ({ day, time: form.weekly_times[day] || "18:00" })),
       training_location: form.training_location || null,
       available_equipment: form.available_equipment,
       diet_type: form.diet_type || null,
