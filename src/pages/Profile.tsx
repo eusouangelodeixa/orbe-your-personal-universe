@@ -17,7 +17,7 @@ import { z } from "zod";
 
 const profileSchema = z.object({
   display_name: z.string().trim().min(2, "Nome deve ter pelo menos 2 caracteres").max(100, "Nome muito longo"),
-  phone: z.string().regex(/^(\+?\d{10,15})?$/, "Telefone inválido (use formato: +5511999999999)").optional().or(z.literal("")),
+  phone: z.string().regex(/^(\+\d{10,15})?$/, "Telefone inválido").optional().or(z.literal("")),
 });
 
 interface ProfileData {
