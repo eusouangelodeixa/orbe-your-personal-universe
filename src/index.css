@@ -696,3 +696,18 @@
   .landing-root { cursor: auto; }
   .landing-btn-primary, .landing-btn-secondary, .landing-btn-nav, .landing-btn-nav-ghost, .landing-btn-price, .landing-toggle-btn, .landing-faq-q, .landing-nav-links a, .landing-footer-links a, .landing-social-btn { cursor: pointer; }
 }
+
+/* KaTeX spacing fixes */
+.katex-display {
+  margin: 0.75em 0 !important;
+}
+.prose .katex {
+  margin: 0 0.15em;
+}
+.prose p > .katex + .katex,
+.prose span > .katex + .katex {
+  margin-left: 1.5em;
+}
+.prose p {
+  word-spacing: 0.05em;
+}
