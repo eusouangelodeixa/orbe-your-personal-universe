@@ -38,7 +38,6 @@ const SPECIALIST_MAP: Record<string, string> = {
 
 function getSpecialist(subjectName: string): string {
   const lower = subjectName.toLowerCase().trim();
-  // Try exact match first, then partial
   if (SPECIALIST_MAP[lower]) return SPECIALIST_MAP[lower];
   for (const [key, value] of Object.entries(SPECIALIST_MAP)) {
     if (lower.includes(key) || key.includes(lower)) return value;
@@ -50,12 +49,17 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, subjectName, subjectType } = await req.json();
+    const { messages, subjectName, subjectType, ementaText } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const specialist = getSpecialist(subjectName);
     const typeLabel = subjectType === "pratica" ? "prática" : subjectType === "laboratorio" ? "de laboratório" : "teórica";
+
+    let ementaSection = "";
+    if (ementaText) {
+      ementaSection = `\n\n--- EMENTA DA DISCIPLINA ---\nO aluno enviou a ementa oficial desta disciplina. Use este conteúdo como base principal para suas respostas, exercícios e revisões:\n\n${ementaText}\n--- FIM DA EMENTA ---\n\nIMPORTANTE: Priorize o conteúdo da ementa ao gerar exercícios, resumos e simulados. Foque nos tópicos listados na ementa.`;
+    }
 
     const systemPrompt = `Você é um ${specialist}. Você é o tutor particular do aluno para a disciplina "${subjectName}" (disciplina ${typeLabel}).
 
@@ -77,7 +81,7 @@ REGRAS:
 - Para mapas mentais, use indentação e marcadores organizados.
 - Responda em português brasileiro.
 - Use emojis com parcimônia para destacar seções.
-- Formate com markdown para melhor legibilidade.`;
+- Formate com markdown para melhor legibilidade.${ementaSection}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

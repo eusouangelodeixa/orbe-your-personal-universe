@@ -14,6 +14,8 @@ export interface Subject {
   weekly_hours: number;
   schedule: { day: string; start: string; end: string }[];
   color: string;
+  ementa_url: string | null;
+  ementa_text: string | null;
   created_at: string;
   updated_at: string;
 }
