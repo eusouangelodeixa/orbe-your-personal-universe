@@ -222,96 +222,35 @@ export default function FitDashboard() {
           </Link>
         </div>
 
-        {/* Reminders */}
+        {/* Smart Reminders Info */}
         <Card>
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2"><Bell className="h-4 w-4" /> Lembretes via WhatsApp</CardTitle>
-              <Dialog open={reminderOpen} onOpenChange={setReminderOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="h-7 gap-1"><Plus className="h-3 w-3" /> Novo</Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader><DialogTitle>Novo lembrete</DialogTitle></DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Título</Label>
-                      <Input value={reminderForm.title} onChange={e => setReminderForm(f => ({ ...f, title: e.target.value }))} placeholder="Ex: Hora do treino!" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Tipo</Label>
-                        <Select value={reminderForm.type} onValueChange={v => setReminderForm(f => ({ ...f, type: v }))}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="treino">🏋️ Treino</SelectItem>
-                            <SelectItem value="refeicao">🍽️ Refeição</SelectItem>
-                            <SelectItem value="hidratacao">💧 Hidratação</SelectItem>
-                            <SelectItem value="suplemento">💊 Suplemento</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Horário</Label>
-                        <Input type="time" value={reminderForm.time} onChange={e => setReminderForm(f => ({ ...f, time: e.target.value }))} />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Dias da semana</Label>
-                      <div className="flex gap-2 flex-wrap">
-                        {DAYS.map(d => (
-                          <label key={d.value} className="flex items-center gap-1.5 cursor-pointer">
-                            <Checkbox
-                              checked={reminderForm.days.includes(d.value)}
-                              onCheckedChange={(checked) => {
-                                setReminderForm(f => ({
-                                  ...f,
-                                  days: checked ? [...f.days, d.value] : f.days.filter(x => x !== d.value),
-                                }));
-                              }}
-                            />
-                            <span className="text-sm">{d.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Deixe vazio para todos os dias</p>
-                    </div>
-                    <Button onClick={saveReminder} className="w-full">Criar lembrete</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
+            <CardTitle className="text-base flex items-center gap-2"><Bell className="h-4 w-4" /> Lembretes Automáticos</CardTitle>
           </CardHeader>
           <CardContent>
-            {reminders.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Nenhum lembrete configurado</p>
-            ) : (
-              <div className="space-y-2">
-                {reminders.map(r => {
-                  const emojiMap: Record<string, string> = { treino: "🏋️", refeicao: "🍽️", hidratacao: "💧", suplemento: "💊" };
-                  return (
-                    <div key={r.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                      <div className="flex items-center gap-2">
-                        <span>{emojiMap[r.type] || "⏰"}</span>
-                        <div>
-                          <p className="font-medium text-sm">{r.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {r.time}
-                            {r.days?.length > 0 && ` · ${r.days.join(", ")}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Switch checked={r.enabled} onCheckedChange={(v) => toggleReminder(r.id, v)} />
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteReminder(r.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+            <p className="text-sm text-muted-foreground">
+              O ORBE Fit envia lembretes inteligentes via WhatsApp automaticamente com base no seu perfil:
+            </p>
+            <div className="mt-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <span>🏋️</span> <span>Treino nos dias da sua disponibilidade semanal</span>
               </div>
-            )}
+              <div className="flex items-center gap-2 text-sm">
+                <span>🍽️</span> <span>Refeições nos horários do seu plano alimentar</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span>💧</span> <span>Hidratação ao longo do dia</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span>💊</span> <span>Suplementos (se cadastrados)</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span>⚠️</span> <span>Alerta de inatividade após 3 dias sem treinar</span>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-3">
+              Ative as notificações WhatsApp no seu perfil para receber os lembretes.
+            </p>
           </CardContent>
         </Card>
 
