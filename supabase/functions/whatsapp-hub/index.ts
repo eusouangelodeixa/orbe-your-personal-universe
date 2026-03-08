@@ -336,6 +336,7 @@ const INTENT_TOOLS = [
               year: { type: "number" },
               wallet_name: { type: "string" },
               paid: { type: "boolean" },
+              goal_name: { type: "string", description: "Name of a savings goal (cofrinho/meta). E.g. 'reserva emergência', 'viagem'." },
             },
           },
           reply_text: { type: "string", description: "Friendly reply message to send back to user via WhatsApp. Portuguese Brazilian." },
