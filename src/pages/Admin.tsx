@@ -3,67 +3,59 @@ import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate } from "react-router-dom";
-import { Loader2, Users, BarChart3, FolderCog, Activity, Shield, Mail, Phone, Calendar, CheckCircle2, XCircle, Trash2, Plus, Pencil } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Loader2, Users, BarChart3, FolderCog, Activity, Shield, Mail, Phone,
+  Calendar, CheckCircle2, XCircle, Trash2, Plus, Pencil, Link2, DollarSign,
+  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown, Wallet
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 
 interface AdminData {
   users: Array<{
-    id: string;
-    email: string;
-    display_name: string | null;
-    phone: string | null;
-    phone_verified: boolean;
-    created_at: string;
-    last_sign_in_at: string | null;
-    email_confirmed_at: string | null;
+    id: string; email: string; display_name: string | null; phone: string | null;
+    phone_verified: boolean; created_at: string; last_sign_in_at: string | null; email_confirmed_at: string | null;
   }>;
-  metrics: {
-    totalUsers: number;
-    totalTasks: number;
-    totalExpenses: number;
-    totalSubjects: number;
-    totalFitProfiles: number;
-  };
+  metrics: { totalUsers: number; totalTasks: number; totalExpenses: number; totalSubjects: number; totalFitProfiles: number };
   recentActivity: {
-    tasks: Array<{
-      id: string;
-      title: string;
-      status: string;
-      category: string;
-      created_at: string;
-      user_id: string;
-    }>;
-    expenses: Array<{
-      id: string;
-      name: string;
-      amount: number;
-      type: string;
-      created_at: string;
-      user_id: string;
-    }>;
+    tasks: Array<{ id: string; title: string; status: string; category: string; created_at: string; user_id: string }>;
+    expenses: Array<{ id: string; name: string; amount: number; type: string; created_at: string; user_id: string }>;
   };
 }
 
-interface Category {
-  id: string;
-  name: string;
-  color: string | null;
-  icon: string | null;
+interface Category { id: string; name: string; color: string | null; icon: string | null; }
+
+interface AdminSetting {
+  id: string; key: string; value: Record<string, any>; description: string | null; category: string;
 }
+
+interface FinancialData {
+  totalUsers: number;
+  currentMonth: { revenue: number; expenses: number; paid: number; pending: number };
+  mrr: number;
+  totalWalletBalance: number;
+  wallets: Array<{ name: string; balance: number }>;
+  monthlyHistory: Array<{ month: number; year: number; revenue: number; expenses: number }>;
+}
+
+const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
   const [data, setData] = useState<AdminData | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [settings, setSettings] = useState<AdminSetting[]>([]);
+  const [financial, setFinancial] = useState<FinancialData | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [catName, setCatName] = useState("");
@@ -71,123 +63,112 @@ export default function Admin() {
   const [catIcon, setCatIcon] = useState("");
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [showCatDialog, setShowCatDialog] = useState(false);
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  const [settingEdits, setSettingEdits] = useState<Record<string, Record<string, any>>>({});
+  const [savingSettings, setSavingSettings] = useState<Record<string, boolean>>({});
 
   const fetchData = async () => {
     try {
-      const { data: result, error } = await supabase.functions.invoke("admin-data", {
-        body: null,
-        headers: {},
-      });
-      if (error) {
-        if (error.message?.includes("403") || error.message?.includes("Forbidden")) {
-          setForbidden(true);
-        }
-        throw error;
-      }
-      // Check if result contains error
-      if (result?.error === "Forbidden") {
-        setForbidden(true);
-        return;
-      }
+      const { data: result, error } = await supabase.functions.invoke("admin-data", { body: null, headers: {} });
+      if (error) { if (error.message?.includes("403") || error.message?.includes("Forbidden")) setForbidden(true); throw error; }
+      if (result?.error === "Forbidden") { setForbidden(true); return; }
       setData(result);
     } catch (err: any) {
       console.error("Admin fetch error:", err);
-      if (err?.message?.includes("Forbidden") || err?.status === 403) {
-        setForbidden(true);
-      }
-    } finally {
-      setLoading(false);
-    }
+      if (err?.message?.includes("Forbidden") || err?.status === 403) setForbidden(true);
+    } finally { setLoading(false); }
   };
 
   const fetchCategories = async () => {
     try {
-      const { data: result } = await supabase.functions.invoke("admin-data?action=categories", {
-        body: null,
-      });
+      const { data: result } = await supabase.functions.invoke("admin-data?action=categories", { body: null });
       if (result?.categories) setCategories(result.categories);
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchSettings = async () => {
+    try {
+      const { data: result } = await supabase.functions.invoke("admin-data?action=settings", { body: null });
+      if (result?.settings) {
+        setSettings(result.settings);
+        const edits: Record<string, Record<string, any>> = {};
+        result.settings.forEach((s: AdminSetting) => { edits[s.key] = { ...s.value }; });
+        setSettingEdits(edits);
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const fetchFinancial = async () => {
+    try {
+      const { data: result } = await supabase.functions.invoke("admin-data?action=financial", { body: null });
+      if (result) setFinancial(result);
+    } catch (err) { console.error(err); }
   };
 
   useEffect(() => {
     if (!authLoading && user) {
       fetchData();
       fetchCategories();
+      fetchSettings();
+      fetchFinancial();
     }
   }, [authLoading, user]);
 
   const handleSaveCategory = async () => {
     try {
       const action = editingCat ? "update-category" : "create-category";
-      const body = editingCat
-        ? { id: editingCat.id, name: catName, color: catColor, icon: catIcon || null }
-        : { name: catName, color: catColor, icon: catIcon || null };
-
+      const body = editingCat ? { id: editingCat.id, name: catName, color: catColor, icon: catIcon || null } : { name: catName, color: catColor, icon: catIcon || null };
       await supabase.functions.invoke(`admin-data?action=${action}`, { body });
       toast.success(editingCat ? "Categoria atualizada" : "Categoria criada");
-      setShowCatDialog(false);
-      setCatName("");
-      setCatColor("#E87C1E");
-      setCatIcon("");
-      setEditingCat(null);
+      setShowCatDialog(false); setCatName(""); setCatColor("#E87C1E"); setCatIcon(""); setEditingCat(null);
       fetchCategories();
-    } catch {
-      toast.error("Erro ao salvar categoria");
-    }
+    } catch { toast.error("Erro ao salvar categoria"); }
   };
 
   const handleDeleteCategory = async (id: string) => {
     try {
-      await supabase.functions.invoke("admin-data?action=delete-category", {
-        body: { id },
-      });
-      toast.success("Categoria removida");
-      fetchCategories();
-    } catch {
-      toast.error("Erro ao remover");
-    }
+      await supabase.functions.invoke("admin-data?action=delete-category", { body: { id } });
+      toast.success("Categoria removida"); fetchCategories();
+    } catch { toast.error("Erro ao remover"); }
   };
 
-  const openEditCat = (cat: Category) => {
-    setEditingCat(cat);
-    setCatName(cat.name);
-    setCatColor(cat.color || "#E87C1E");
-    setCatIcon(cat.icon || "");
-    setShowCatDialog(true);
+  const handleSaveSetting = async (key: string) => {
+    setSavingSettings(p => ({ ...p, [key]: true }));
+    try {
+      await supabase.functions.invoke("admin-data?action=update-setting", { body: { key, value: settingEdits[key] } });
+      toast.success("Configuração salva");
+      fetchSettings();
+    } catch { toast.error("Erro ao salvar"); }
+    finally { setSavingSettings(p => ({ ...p, [key]: false })); }
   };
 
-  const openNewCat = () => {
-    setEditingCat(null);
-    setCatName("");
-    setCatColor("#E87C1E");
-    setCatIcon("");
-    setShowCatDialog(true);
+  const updateSettingField = (key: string, field: string, value: any) => {
+    setSettingEdits(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
   };
+
+  const openEditCat = (cat: Category) => { setEditingCat(cat); setCatName(cat.name); setCatColor(cat.color || "#E87C1E"); setCatIcon(cat.icon || ""); setShowCatDialog(true); };
+  const openNewCat = () => { setEditingCat(null); setCatName(""); setCatColor("#E87C1E"); setCatIcon(""); setShowCatDialog(true); };
 
   if (authLoading || loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-full">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </AppLayout>
-    );
+    return <AppLayout><div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
-
-  if (forbidden) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  if (forbidden) return <Navigate to="/dashboard" replace />;
 
   const userMap = new Map(data?.users.map((u) => [u.id, u]) || []);
-
   const getUserEmail = (userId: string) => userMap.get(userId)?.email || userId.slice(0, 8);
+
+  const settingIcons: Record<string, any> = { uazapi: MessageSquare, ai_transcription: Bot, ai_text: Zap, stripe: CreditCard };
+  const settingLabels: Record<string, string> = { uazapi: "uazapi (WhatsApp)", ai_transcription: "Modelo IA – Transcrição", ai_text: "Modelo IA – Geração de Texto", stripe: "Stripe (Pagamentos)" };
+
+  const chartData = financial?.monthlyHistory.map(h => ({
+    name: `${MONTH_NAMES[h.month - 1]}/${String(h.year).slice(2)}`,
+    Receita: h.revenue,
+    Despesas: h.expenses,
+  })) || [];
 
   return (
     <AppLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex items-center gap-3">
           <Shield className="h-7 w-7 text-primary" />
           <div>
@@ -197,19 +178,13 @@ export default function Admin() {
         </div>
 
         <Tabs defaultValue="metrics" className="space-y-4">
-          <TabsList className="bg-card border border-border">
-            <TabsTrigger value="metrics" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-              <BarChart3 className="h-4 w-4" /> Métricas
-            </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-              <Users className="h-4 w-4" /> Usuários
-            </TabsTrigger>
-            <TabsTrigger value="content" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-              <FolderCog className="h-4 w-4" /> Conteúdo
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="gap-2 data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-              <Activity className="h-4 w-4" /> Atividade
-            </TabsTrigger>
+          <TabsList className="bg-card border border-border flex-wrap h-auto gap-1 p-1">
+            <TabsTrigger value="metrics" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><BarChart3 className="h-3.5 w-3.5" /> Métricas</TabsTrigger>
+            <TabsTrigger value="users" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Users className="h-3.5 w-3.5" /> Usuários</TabsTrigger>
+            <TabsTrigger value="content" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><FolderCog className="h-3.5 w-3.5" /> Conteúdo</TabsTrigger>
+            <TabsTrigger value="activity" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Activity className="h-3.5 w-3.5" /> Atividade</TabsTrigger>
+            <TabsTrigger value="connections" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Link2 className="h-3.5 w-3.5" /> Conexões</TabsTrigger>
+            <TabsTrigger value="financial" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><DollarSign className="h-3.5 w-3.5" /> Financeiro</TabsTrigger>
           </TabsList>
 
           {/* METRICS */}
@@ -241,9 +216,7 @@ export default function Admin() {
           <TabsContent value="users">
             <Card className="bg-card border-border">
               <CardHeader>
-                <CardTitle className="text-foreground font-display tracking-wider">
-                  Usuários Cadastrados ({data?.users.length || 0})
-                </CardTitle>
+                <CardTitle className="text-foreground font-display tracking-wider">Usuários Cadastrados ({data?.users.length || 0})</CardTitle>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -260,45 +233,23 @@ export default function Admin() {
                   <TableBody>
                     {data?.users.map((u) => (
                       <TableRow key={u.id} className="border-border">
-                        <TableCell className="text-foreground font-medium">
-                          {u.display_name || "—"}
-                        </TableCell>
-                        <TableCell className="text-foreground flex items-center gap-1.5">
-                          <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-xs">{u.email}</span>
-                        </TableCell>
+                        <TableCell className="text-foreground font-medium">{u.display_name || "—"}</TableCell>
+                        <TableCell className="text-foreground flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" /><span className="text-xs">{u.email}</span></TableCell>
                         <TableCell className="text-foreground">
                           {u.phone ? (
                             <span className="flex items-center gap-1.5 text-xs">
-                              <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                              {u.phone}
-                              {u.phone_verified ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                              ) : (
-                                <XCircle className="h-3.5 w-3.5 text-destructive" />
-                              )}
+                              <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />{u.phone}
+                              {u.phone_verified ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <XCircle className="h-3.5 w-3.5 text-destructive" />}
                             </span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">—</span>
-                          )}
+                          ) : <span className="text-muted-foreground text-xs">—</span>}
                         </TableCell>
-                        <TableCell className="text-foreground text-xs">
-                          {format(new Date(u.created_at), "dd/MM/yyyy", { locale: ptBR })}
-                        </TableCell>
-                        <TableCell className="text-foreground text-xs">
-                          {u.last_sign_in_at
-                            ? format(new Date(u.last_sign_in_at), "dd/MM/yyyy HH:mm", { locale: ptBR })
-                            : "—"}
-                        </TableCell>
+                        <TableCell className="text-foreground text-xs">{format(new Date(u.created_at), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
+                        <TableCell className="text-foreground text-xs">{u.last_sign_in_at ? format(new Date(u.last_sign_in_at), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "—"}</TableCell>
                         <TableCell>
                           {u.email_confirmed_at ? (
-                            <Badge variant="outline" className="border-green-500/30 text-green-500 text-[10px]">
-                              Verificado
-                            </Badge>
+                            <Badge variant="outline" className="border-green-500/30 text-green-500 text-[10px]">Verificado</Badge>
                           ) : (
-                            <Badge variant="outline" className="border-destructive/30 text-destructive text-[10px]">
-                              Pendente
-                            </Badge>
+                            <Badge variant="outline" className="border-destructive/30 text-destructive text-[10px]">Pendente</Badge>
                           )}
                         </TableCell>
                       </TableRow>
@@ -314,9 +265,7 @@ export default function Admin() {
             <Card className="bg-card border-border">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-foreground font-display tracking-wider">Categorias</CardTitle>
-                <Button size="sm" onClick={openNewCat} className="gap-1.5">
-                  <Plus className="h-4 w-4" /> Nova
-                </Button>
+                <Button size="sm" onClick={openNewCat} className="gap-1.5"><Plus className="h-4 w-4" /> Nova</Button>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -331,70 +280,32 @@ export default function Admin() {
                   <TableBody>
                     {categories.map((cat) => (
                       <TableRow key={cat.id} className="border-border">
-                        <TableCell>
-                          <div
-                            className="h-5 w-5 rounded-sm border border-border"
-                            style={{ backgroundColor: cat.color || "#888" }}
-                          />
-                        </TableCell>
+                        <TableCell><div className="h-5 w-5 rounded-sm border border-border" style={{ backgroundColor: cat.color || "#888" }} /></TableCell>
                         <TableCell className="text-foreground font-medium">{cat.name}</TableCell>
                         <TableCell className="text-muted-foreground text-xs">{cat.icon || "—"}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => openEditCat(cat)}>
-                              <Pencil className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.id)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => openEditCat(cat)}><Pencil className="h-4 w-4 text-muted-foreground" /></Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
                     ))}
                     {categories.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
-                          Nenhuma categoria cadastrada
-                        </TableCell>
-                      </TableRow>
+                      <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Nenhuma categoria cadastrada</TableCell></TableRow>
                     )}
                   </TableBody>
                 </Table>
               </CardContent>
             </Card>
-
-            {/* Category Dialog */}
             <Dialog open={showCatDialog} onOpenChange={setShowCatDialog}>
               <DialogContent className="bg-card border-border">
-                <DialogHeader>
-                  <DialogTitle className="text-foreground font-display">
-                    {editingCat ? "Editar Categoria" : "Nova Categoria"}
-                  </DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle className="text-foreground font-display">{editingCat ? "Editar Categoria" : "Nova Categoria"}</DialogTitle></DialogHeader>
                 <div className="space-y-4">
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Nome</label>
-                    <Input value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="Nome da categoria" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Cor</label>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="color"
-                        value={catColor}
-                        onChange={(e) => setCatColor(e.target.value)}
-                        className="h-10 w-10 rounded border border-border cursor-pointer bg-transparent"
-                      />
-                      <Input value={catColor} onChange={(e) => setCatColor(e.target.value)} className="flex-1" />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Ícone (emoji ou texto)</label>
-                    <Input value={catIcon} onChange={(e) => setCatIcon(e.target.value)} placeholder="🏠" />
-                  </div>
-                  <Button onClick={handleSaveCategory} disabled={!catName.trim()} className="w-full">
-                    Salvar
-                  </Button>
+                  <div><label className="text-xs text-muted-foreground mb-1 block">Nome</label><Input value={catName} onChange={(e) => setCatName(e.target.value)} placeholder="Nome da categoria" /></div>
+                  <div><label className="text-xs text-muted-foreground mb-1 block">Cor</label><div className="flex items-center gap-3"><input type="color" value={catColor} onChange={(e) => setCatColor(e.target.value)} className="h-10 w-10 rounded border border-border cursor-pointer bg-transparent" /><Input value={catColor} onChange={(e) => setCatColor(e.target.value)} className="flex-1" /></div></div>
+                  <div><label className="text-xs text-muted-foreground mb-1 block">Ícone (emoji ou texto)</label><Input value={catIcon} onChange={(e) => setCatIcon(e.target.value)} placeholder="🏠" /></div>
+                  <Button onClick={handleSaveCategory} disabled={!catName.trim()} className="w-full">Salvar</Button>
                 </div>
               </DialogContent>
             </Dialog>
@@ -404,57 +315,215 @@ export default function Admin() {
           <TabsContent value="activity" className="space-y-4">
             <div className="grid md:grid-cols-2 gap-4">
               <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-foreground font-display tracking-wider text-sm">
-                    Últimas Tarefas
-                  </CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Últimas Tarefas</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   {data?.recentActivity.tasks.map((t) => (
                     <div key={t.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
                       <div>
                         <p className="text-sm text-foreground">{t.title}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {getUserEmail(t.user_id)} · {format(new Date(t.created_at), "dd/MM HH:mm")}
-                        </p>
+                        <p className="text-[10px] text-muted-foreground">{getUserEmail(t.user_id)} · {format(new Date(t.created_at), "dd/MM HH:mm")}</p>
                       </div>
-                      <Badge variant="outline" className="text-[10px] border-border">
-                        {t.status}
-                      </Badge>
+                      <Badge variant="outline" className="text-[10px] border-border">{t.status}</Badge>
                     </div>
                   ))}
-                  {(!data?.recentActivity.tasks.length) && (
-                    <p className="text-muted-foreground text-sm text-center py-4">Sem atividade recente</p>
-                  )}
+                  {(!data?.recentActivity.tasks.length) && <p className="text-muted-foreground text-sm text-center py-4">Sem atividade recente</p>}
                 </CardContent>
               </Card>
-
               <Card className="bg-card border-border">
-                <CardHeader>
-                  <CardTitle className="text-foreground font-display tracking-wider text-sm">
-                    Últimas Despesas
-                  </CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Últimas Despesas</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   {data?.recentActivity.expenses.map((e) => (
                     <div key={e.id} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
                       <div>
                         <p className="text-sm text-foreground">{e.name}</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {getUserEmail(e.user_id)} · {format(new Date(e.created_at), "dd/MM HH:mm")}
-                        </p>
+                        <p className="text-[10px] text-muted-foreground">{getUserEmail(e.user_id)} · {format(new Date(e.created_at), "dd/MM HH:mm")}</p>
                       </div>
-                      <span className="text-sm font-medium text-foreground">
-                        R$ {Number(e.amount).toFixed(2)}
-                      </span>
+                      <span className="text-sm font-medium text-foreground">R$ {Number(e.amount).toFixed(2)}</span>
                     </div>
                   ))}
-                  {(!data?.recentActivity.expenses.length) && (
-                    <p className="text-muted-foreground text-sm text-center py-4">Sem atividade recente</p>
-                  )}
+                  {(!data?.recentActivity.expenses.length) && <p className="text-muted-foreground text-sm text-center py-4">Sem atividade recente</p>}
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          {/* CONNECTIONS */}
+          <TabsContent value="connections" className="space-y-4">
+            {settings.filter(s => s.category === "connections").map((setting) => {
+              const Icon = settingIcons[setting.key] || Link2;
+              const label = settingLabels[setting.key] || setting.key;
+              const edit = settingEdits[setting.key] || {};
+              const isSecret = (field: string) => ["token", "api_key", "secret_key", "webhook_secret"].includes(field);
+              const visibleKey = `${setting.key}`;
+
+              return (
+                <Card key={setting.key} className="bg-card border-border">
+                  <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Icon className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-foreground font-display tracking-wider text-sm">{label}</CardTitle>
+                        <CardDescription className="text-xs">{setting.description}</CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">{edit.enabled ? "Ativo" : "Inativo"}</span>
+                      <Switch
+                        checked={!!edit.enabled}
+                        onCheckedChange={(v) => updateSettingField(setting.key, "enabled", v)}
+                      />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {Object.entries(edit).filter(([k]) => k !== "enabled").map(([field, value]) => (
+                      <div key={field}>
+                        <label className="text-xs text-muted-foreground mb-1 block capitalize">{field.replace(/_/g, " ")}</label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type={isSecret(field) && !showSecrets[`${setting.key}-${field}`] ? "password" : "text"}
+                            value={String(value || "")}
+                            onChange={(e) => updateSettingField(setting.key, field, e.target.value)}
+                            placeholder={isSecret(field) ? "••••••••" : `Informe ${field}`}
+                            className="flex-1"
+                          />
+                          {isSecret(field) && (
+                            <Button
+                              variant="ghost" size="icon"
+                              onClick={() => setShowSecrets(p => ({ ...p, [`${setting.key}-${field}`]: !p[`${setting.key}-${field}`] }))}
+                            >
+                              {showSecrets[`${setting.key}-${field}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      onClick={() => handleSaveSetting(setting.key)}
+                      disabled={savingSettings[setting.key]}
+                      size="sm" className="mt-2"
+                    >
+                      {savingSettings[setting.key] ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
+                      Salvar Configuração
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+            {settings.filter(s => s.category === "connections").length === 0 && (
+              <Card className="bg-card border-border">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Link2 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+                  <p>Carregando conexões...</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* FINANCIAL */}
+          <TabsContent value="financial" className="space-y-4">
+            {financial ? (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { label: "Receita Mensal", value: `R$ ${financial.currentMonth.revenue.toFixed(2)}`, icon: TrendingUp, color: "text-green-500" },
+                    { label: "Despesas Mensal", value: `R$ ${financial.currentMonth.expenses.toFixed(2)}`, icon: TrendingDown, color: "text-destructive" },
+                    { label: "MRR (Recorrente)", value: `R$ ${financial.mrr.toFixed(2)}`, icon: DollarSign, color: "text-primary" },
+                    { label: "Saldo Carteiras", value: `R$ ${financial.totalWalletBalance.toFixed(2)}`, icon: Wallet, color: "text-foreground" },
+                  ].map((m) => (
+                    <Card key={m.label} className="bg-card border-border">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{m.label}</p>
+                            <p className={`text-xl font-display mt-1 ${m.color}`}>{m.value}</p>
+                          </div>
+                          <m.icon className={`h-7 w-7 ${m.color} opacity-40`} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Card className="bg-card border-border">
+                    <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Receita vs Despesas (6 meses)</CardTitle></CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                          <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                            labelStyle={{ color: "hsl(var(--foreground))" }}
+                          />
+                          <Bar dataKey="Receita" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
+                          <Bar dataKey="Despesas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-card border-border">
+                    <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Mês Atual – Detalhes</CardTitle></CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center border-b border-border pb-2">
+                          <span className="text-sm text-muted-foreground">Total Receitas</span>
+                          <span className="text-sm font-medium text-green-500">R$ {financial.currentMonth.revenue.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-border pb-2">
+                          <span className="text-sm text-muted-foreground">Total Despesas</span>
+                          <span className="text-sm font-medium text-destructive">R$ {financial.currentMonth.expenses.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-border pb-2">
+                          <span className="text-sm text-muted-foreground">Despesas Pagas</span>
+                          <span className="text-sm font-medium text-foreground">R$ {financial.currentMonth.paid.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-border pb-2">
+                          <span className="text-sm text-muted-foreground">Despesas Pendentes</span>
+                          <span className="text-sm font-medium text-amber-500">R$ {financial.currentMonth.pending.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1">
+                          <span className="text-sm font-medium text-foreground">Lucro Líquido</span>
+                          <span className={`text-lg font-display ${(financial.currentMonth.revenue - financial.currentMonth.expenses) >= 0 ? "text-green-500" : "text-destructive"}`}>
+                            R$ {(financial.currentMonth.revenue - financial.currentMonth.expenses).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {financial.wallets.length > 0 && (
+                        <div className="pt-3 border-t border-border">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Carteiras</p>
+                          {financial.wallets.map((w, i) => (
+                            <div key={i} className="flex justify-between items-center py-1">
+                              <span className="text-sm text-foreground">{w.name}</span>
+                              <span className="text-sm font-medium text-foreground">R$ {Number(w.balance).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="pt-3 border-t border-border">
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-muted-foreground">Total de Usuários</span>
+                          <Badge variant="outline" className="border-primary/30 text-primary">{financial.totalUsers}</Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            ) : (
+              <Card className="bg-card border-border">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary" />
+                  <p>Carregando dados financeiros...</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
