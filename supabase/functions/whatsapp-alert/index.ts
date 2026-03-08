@@ -15,51 +15,7 @@ serve(async (req) => {
     if (!UAZAPI_URL) throw new Error("UAZAPI_URL não configurada");
     if (!UAZAPI_TOKEN) throw new Error("UAZAPI_TOKEN não configurado");
 
-    const body = await req.json();
-
-    // Debug: try multiple endpoints
-    if (body.debug === true) {
-      const endpoints = [
-        "/message/sendText",
-        "/message/send-text",
-        "/message/text",
-        "/sendText",
-        "/send-text",
-        "/send/text",
-        "/chat/sendText",
-      ];
-      
-      const results: Record<string, any> = {};
-      
-      for (const ep of endpoints) {
-        try {
-          const res = await fetch(`${UAZAPI_URL}${ep}`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "token": UAZAPI_TOKEN,
-            },
-            body: JSON.stringify({
-              number: "553498925759",
-              text: "teste endpoint",
-            }),
-          });
-          const data = await res.json();
-          results[ep] = { status: res.status, data };
-          // If we get a success, stop trying
-          if (res.ok) break;
-        } catch (err) {
-          results[ep] = { error: String(err) };
-        }
-      }
-      
-      return new Response(JSON.stringify(results), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { phone, message } = body;
+    const { phone, message } = await req.json();
 
     if (!phone || !message) {
       return new Response(JSON.stringify({ error: "phone e message são obrigatórios" }), {
@@ -68,7 +24,8 @@ serve(async (req) => {
       });
     }
 
-    const response = await fetch(`${UAZAPI_URL}/message/sendText`, {
+    // uazapi: POST /send/text with header 'token'
+    const response = await fetch(`${UAZAPI_URL}/send/text`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
