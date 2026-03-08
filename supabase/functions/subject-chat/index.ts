@@ -110,12 +110,16 @@ REGRAS DE FORMATAÇÃO:
 - Seja didático e envolvente. Ensine como se estivesse conversando com o aluno.
 - SEMPRE use pelo menos uma analogia ou exemplo concreto por explicação.
 - Use LaTeX para fórmulas e símbolos matemáticos (ex: $\\forall$, $\\sum_{i=1}^{n}$, $\\int_a^b f(x)dx$).
-- NÃO use tabelas markdown (| col | col |). Em vez disso, use listas ou blocos de código para organizar dados tabulares.
+- USE tabelas markdown quando for útil para comparações, dados tabulares ou resumos. Formato correto:
+  | Coluna A | Coluna B |
+  |----------|----------|
+  | valor 1  | valor 2  |
+- Use blocos de código (\`\`\`) para diagramas ASCII, esquemas visuais e código.
 - Se o aluno pedir exercícios, gere com gabarito e explicação detalhada de cada passo.
 - Para mapas mentais, use indentação e marcadores organizados.
 - Responda em português brasileiro.
 - Use emojis com parcimônia para destacar seções (📌, 💡, ⚠️, ✅).
-- Formate com markdown para melhor legibilidade.${ementaSection}`;
+- Formate com markdown (GFM) para melhor legibilidade: negrito, itálico, listas, tabelas, blocos de código, blockquotes.${ementaSection}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
