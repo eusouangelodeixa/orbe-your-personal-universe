@@ -663,7 +663,7 @@ serve(async (req) => {
     const UAZAPI_TOKEN = Deno.env.get("UAZAPI_TOKEN");
 
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-    if (!UAZAPI_URL || !UAZAPI_TOKEN) throw new Error("UAZAPI not configured");
+    if (!UAZAPI_URL) throw new Error("UAZAPI_URL not configured");
 
     const supabase = createClient(supabaseUrl, serviceKey);
     const body = await req.json();
