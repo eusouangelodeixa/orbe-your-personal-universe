@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { useEffect } from "react";
+import { ORBE_PLANS, PlanKey } from "@/contexts/AuthContext";
 import { OrbeIcon } from "@/components/OrbeIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,11 +16,32 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { session } = useAuth();
+  const selectedPlan = searchParams.get("plan") as PlanKey | null;
 
   useEffect(() => {
-    if (session) navigate("/dashboard", { replace: true });
-  }, [session, navigate]);
+    if (!session) return;
+    // If user came from pricing with a plan, trigger checkout
+    if (selectedPlan && ORBE_PLANS[selectedPlan]) {
+      const triggerCheckout = async () => {
+        try {
+          const plan = ORBE_PLANS[selectedPlan];
+          const { data, error } = await supabase.functions.invoke("create-checkout", {
+            body: { priceId: plan.price_id },
+          });
+          if (error) throw error;
+          if (data?.url) window.open(data.url, "_blank");
+        } catch (err) {
+          console.error("Checkout error:", err);
+        }
+        navigate("/dashboard", { replace: true });
+      };
+      triggerCheckout();
+    } else {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [session, navigate, selectedPlan]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
