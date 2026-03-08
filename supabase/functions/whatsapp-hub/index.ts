@@ -25,12 +25,41 @@ function stripCountryCodeBR(value: string) {
   return digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
 }
 
+function uint8ToBase64(bytes: Uint8Array) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label}_timeout`)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 async function sendWhatsApp(url: string, token: string, phone: string, text: string) {
-  await fetch(`${url}/send/text`, {
+  const response = await fetch(`${url}/send/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json", token },
     body: JSON.stringify({ number: phone, text: `*ORBE*\n\n${text}` }),
   });
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`UAZAPI send error [${response.status}]: ${responseText.slice(0, 400)}`);
+  }
+
+  return responseText;
 }
 
 // ========== AI FUNCTIONS ==========
@@ -61,31 +90,47 @@ async function callAI(apiKey: string, systemPrompt: string, userMessage: string,
   return data;
 }
 
-async function transcribeAudio(apiKey: string, audioUrl: string): Promise<string> {
-  // Use Gemini multimodal to transcribe audio
+async function transcribeAudio(apiKey: string, audioInput: string, mimeType = "audio/ogg"): Promise<string> {
+  let audioBase64 = audioInput;
+
+  // If UAZAPI provides an URL, download and encode as base64 first
+  if (audioInput.startsWith("http://") || audioInput.startsWith("https://")) {
+    const mediaRes = await fetch(audioInput);
+    if (!mediaRes.ok) {
+      const mediaErr = await mediaRes.text();
+      throw new Error(`Falha ao baixar áudio [${mediaRes.status}]: ${mediaErr.slice(0, 200)}`);
+    }
+    const buffer = new Uint8Array(await mediaRes.arrayBuffer());
+    audioBase64 = uint8ToBase64(buffer);
+  }
+
+  const format = mimeType.includes("mpeg") ? "mp3" : mimeType.includes("wav") ? "wav" : "ogg";
+
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "Transcreva o áudio a seguir em texto em português brasileiro. Retorne APENAS a transcrição, sem nenhum comentário adicional." },
-        { role: "user", content: [
-          { type: "input_audio", input_audio: { data: audioUrl, format: "mp3" } },
-        ]},
+        { role: "system", content: "Transcreva o áudio a seguir em texto em português brasileiro. Retorne APENAS a transcrição, sem comentários." },
+        {
+          role: "user",
+          content: [
+            { type: "input_audio", input_audio: { data: audioBase64, format } },
+          ],
+        },
       ],
     }),
   });
 
   if (!res.ok) {
-    // Fallback: try with URL as text
     const t = await res.text();
     console.error("Audio transcription error:", res.status, t);
-    throw new Error("Não consegui transcrever o áudio");
+    throw new Error(`Não consegui transcrever o áudio [${res.status}]`);
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
+  return (data.choices?.[0]?.message?.content || "").trim();
 }
 
 // ========== INTENT PARSER ==========
@@ -178,6 +223,45 @@ REGRAS:
     module: "geral",
     action: "chat",
     reply_text: result.choices?.[0]?.message?.content || "Não entendi. Diga 'ajuda' para ver o que posso fazer.",
+  };
+}
+
+function parseFallbackIntent(text: string) {
+  const t = text.trim().toLowerCase();
+
+  if (t.startsWith("tarefa:") || t.startsWith("tarefa ") || t.includes("adicionar tarefa")) {
+    const title = text.replace(/^tarefa\s*:\s*/i, "").replace(/^adicionar tarefa\s*/i, "").trim() || "Tarefa WhatsApp";
+    return {
+      module: "tarefas",
+      action: "add_task",
+      params: { task_title: title, category: "geral", priority: "media" },
+      reply_text: `✅ Tarefa criada: *${title}*`,
+    };
+  }
+
+  if (t.includes("minhas tarefas") || t.includes("tarefas pendentes")) {
+    return {
+      module: "tarefas",
+      action: "list_tasks",
+      params: {},
+      reply_text: "📋 Aqui estão suas tarefas pendentes:",
+    };
+  }
+
+  if (t.includes("resumo financeiro") || t.includes("como está minha grana")) {
+    return {
+      module: "financeiro",
+      action: "monthly_summary",
+      params: {},
+      reply_text: "📊 Aqui vai seu resumo financeiro:",
+    };
+  }
+
+  return {
+    module: "geral",
+    action: "chat",
+    params: {},
+    reply_text: "Recebi sua mensagem 👍. Tente 'tarefa: ...', 'minhas tarefas' ou 'resumo financeiro'.",
   };
 }
 
@@ -579,7 +663,7 @@ serve(async (req) => {
     const UAZAPI_TOKEN = Deno.env.get("UAZAPI_TOKEN");
 
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-    if (!UAZAPI_URL || !UAZAPI_TOKEN) throw new Error("UAZAPI not configured");
+    if (!UAZAPI_URL) throw new Error("UAZAPI_URL not configured");
 
     const supabase = createClient(supabaseUrl, serviceKey);
     const body = await req.json();
@@ -595,6 +679,10 @@ serve(async (req) => {
       if (body[k] !== undefined) console.log(`body.${k}:`, JSON.stringify(body[k]).slice(0, 500));
     }
 
+    // Prefer configured token; fallback to webhook token only if needed
+    const outboundToken = UAZAPI_TOKEN || body.token;
+    if (!outboundToken) throw new Error("No UAZAPI token available to send reply");
+
     // ===== PARSE UAZAPI WEBHOOK FORMAT =====
     // UAZAPI v2 format: { BaseUrl, EventType: "messages", chat: {...}, message?: {...}, ... }
     // The actual message content and phone number location needs to be determined from logs.
@@ -602,6 +690,7 @@ serve(async (req) => {
     let phone = "";
     let textMessage = "";
     let audioUrl: string | null = null;
+    let audioMimeType = "audio/ogg";
     let isAudio = false;
 
     if (body.EventType === "messages" || body.EventType === "message") {
@@ -658,6 +747,7 @@ serve(async (req) => {
         if (innerMsg.audioMessage) {
           isAudio = true;
           audioUrl = innerMsg.audioMessage.url || innerMsg.audioMessage.directPath || null;
+          audioMimeType = innerMsg.audioMessage.mimetype || "audio/ogg";
         }
 
         if (!phone && msg.key.remoteJid) phone = msg.key.remoteJid.replace(/@.*$/, "");
@@ -679,6 +769,7 @@ serve(async (req) => {
       )) {
         isAudio = true;
         audioUrl = msg.content?.URL || msg.mediaUrl || msg.url || msg.audioUrl || body.mediaUrl || null;
+        audioMimeType = msg.content?.mimetype || msg.mimetype || "audio/ogg";
       }
       if (body.base64 && isAudio) audioUrl = body.base64;
       if (body.mediaUrl) audioUrl = body.mediaUrl;
@@ -701,6 +792,7 @@ serve(async (req) => {
       if (msg.audioMessage) {
         isAudio = true;
         audioUrl = msg.audioMessage.url || data.mediaUrl || null;
+        audioMimeType = msg.audioMessage.mimetype || "audio/ogg";
       }
       if (!textMessage) {
         textMessage = msg.imageMessage?.caption || msg.documentMessage?.caption || msg.videoMessage?.caption || "";
@@ -765,22 +857,27 @@ serve(async (req) => {
     // Transcribe audio if needed
     if (isAudio && audioUrl) {
       try {
-        userText = await transcribeAudio(LOVABLE_API_KEY, audioUrl);
-        if (!userText) {
-          await sendWhatsApp(UAZAPI_URL, UAZAPI_TOKEN, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
+        userText = await withTimeout(transcribeAudio(LOVABLE_API_KEY, audioUrl, audioMimeType), 20000, "audio_transcription");
+        if (!userText?.trim()) {
+          try {
+            await sendWhatsApp(UAZAPI_URL, outboundToken, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
+          } catch (sendErr) {
+            console.error("Failed to send audio_fail message:", sendErr);
+          }
           return new Response(JSON.stringify({ handled: true, action: "audio_fail" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
       } catch (e) {
         console.error("Audio transcription failed:", e);
-        // Fallback: try to use whatever text was sent
-        if (!userText) {
-          await sendWhatsApp(UAZAPI_URL, UAZAPI_TOKEN, phone, "❌ Não consegui processar o áudio. Envie por texto, por favor.");
-          return new Response(JSON.stringify({ handled: true, action: "audio_fail" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        try {
+          await sendWhatsApp(UAZAPI_URL, outboundToken, phone, "❌ Não consegui processar o áudio. Envie por texto, por favor.");
+        } catch (sendErr) {
+          console.error("Failed to send audio error message:", sendErr);
         }
+        return new Response(JSON.stringify({ handled: true, action: "audio_fail" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
@@ -794,20 +891,47 @@ serve(async (req) => {
     const nome = profile.display_name?.split(" ")[0] || "Usuário";
     const context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
 
-    // Parse intent
-    const intent = await parseIntent(LOVABLE_API_KEY, userText, context);
+    // Parse intent with timeout + deterministic fallback
+    let intent: any;
+    try {
+      intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context), 18000, "parse_intent");
+    } catch (intentError) {
+      console.error("Intent parsing failed, using fallback:", intentError);
+      intent = parseFallbackIntent(userText);
+    }
 
-    // Execute action
-    const response = await executeAction(supabase, userId, intent);
+    // Execute action with timeout
+    let responseText = "";
+    try {
+      responseText = await withTimeout(executeAction(supabase, userId, intent), 12000, "execute_action");
+    } catch (actionError) {
+      console.error("Action execution failed:", actionError);
+      responseText = "❌ Tive um erro ao executar sua solicitação. Tente novamente em instantes.";
+    }
 
-    // Send reply
-    await sendWhatsApp(UAZAPI_URL, UAZAPI_TOKEN, phone, response);
+    // Send reply and expose send status
+    try {
+      await withTimeout(sendWhatsApp(UAZAPI_URL, outboundToken, phone, responseText), 12000, "send_reply");
+    } catch (sendError) {
+      console.error("Reply send failed:", sendError);
+      return new Response(JSON.stringify({
+        handled: true,
+        module: intent.module,
+        action: intent.action,
+        transcribed: isAudio ? userText : undefined,
+        send_status: "failed",
+        send_error: sendError instanceof Error ? sendError.message : "unknown",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({
       handled: true,
       module: intent.module,
       action: intent.action,
       transcribed: isAudio ? userText : undefined,
+      send_status: "sent",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
