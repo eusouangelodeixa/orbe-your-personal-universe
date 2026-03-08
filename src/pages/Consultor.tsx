@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Send, User } from "lucide-react";
 import { OrbeIcon } from "@/components/OrbeIcon";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
+import { useIncomes, useExpenses, useWallets, useSavingsGoals } from "@/hooks/useFinance";
 
 interface Message {
   role: "user" | "assistant";
@@ -17,10 +18,12 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 async function streamChat({
   messages,
+  financialContext,
   onDelta,
   onDone,
 }: {
   messages: Message[];
+  financialContext: object;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
@@ -30,7 +33,7 @@ async function streamChat({
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, financialContext }),
   });
 
   if (resp.status === 429) {
