@@ -119,6 +119,9 @@ export default function FitOnboarding() {
     if (data) {
       // Pre-fill form with existing data
       const d = data as any;
+      const availability = d.weekly_availability || [];
+      const times: Record<string, string> = {};
+      availability.forEach((a: any) => { if (a.time) times[a.day] = a.time; });
       setForm(f => ({
         ...f,
         age: d.age?.toString() || "",
@@ -127,7 +130,8 @@ export default function FitOnboarding() {
         height: d.height?.toString() || "",
         goal: d.goal || "",
         experience_level: d.experience_level || "",
-        weekly_days: (d.weekly_availability || []).map((a: any) => a.day),
+        weekly_days: availability.map((a: any) => a.day),
+        weekly_times: times,
         training_location: d.training_location || "",
         available_equipment: d.available_equipment || [],
         diet_type: d.diet_type || "",
