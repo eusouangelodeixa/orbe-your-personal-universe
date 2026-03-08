@@ -341,7 +341,10 @@ export function useToggleExpensePaid() {
             reference_type: "expense",
             reference_id: id,
           });
-        if (txError) throw txError;
+        if (txError) {
+          await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
+          throw new Error(txError.message);
+        }
       }
 
       // When unmarking as paid, remove the related transaction
