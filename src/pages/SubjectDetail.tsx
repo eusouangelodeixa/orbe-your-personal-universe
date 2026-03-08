@@ -411,7 +411,7 @@ export default function SubjectDetail() {
 
           {/* ─── POMODORO TAB ─── */}
           <TabsContent value="pomodoro">
-            <PomodoroTimer subjectName={subject.name} />
+            <PomodoroTimer subjectName={subject.name} subjectId={subject.id} />
           </TabsContent>
 
           {/* ─── CHATBOT TAB ─── */}
