@@ -446,7 +446,20 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
             categoryId = cats[0].id;
           }
         }
-        const { error } = await supabase.from("expenses").insert({
+        // Look up wallet by name if provided
+        let walletId: string | null = null;
+        if (params.wallet_name) {
+          const { data: wallets } = await supabase.from("wallets")
+            .select("id, name")
+            .eq("user_id", userId)
+            .ilike("name", `%${params.wallet_name}%`)
+            .limit(1);
+          if (wallets?.length) {
+            walletId = wallets[0].id;
+          }
+        }
+        const shouldAutoPay = !!walletId;
+        const { data: expenseData, error } = await supabase.from("expenses").insert({
           user_id: userId,
           name: params.name || "Gasto WhatsApp",
           amount: params.amount || 0,
@@ -454,10 +467,23 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           month: new Date(dueDate).getMonth() + 1,
           year: new Date(dueDate).getFullYear(),
           type: params.type || "variavel",
-          paid: params.paid || false,
+          paid: shouldAutoPay,
           category_id: categoryId,
-        });
+          wallet_id: walletId,
+        }).select("id").single();
         if (error) throw error;
+        // If wallet specified, create debit transaction
+        if (shouldAutoPay && expenseData) {
+          await supabase.from("wallet_transactions").insert({
+            wallet_id: walletId,
+            user_id: userId,
+            amount: params.amount || 0,
+            type: "debit",
+            description: `Gasto: ${params.name || "Despesa WhatsApp"}`,
+            reference_type: "expense",
+            reference_id: expenseData.id,
+          });
+        }
         return reply_text;
       }
 
