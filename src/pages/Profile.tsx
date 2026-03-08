@@ -198,11 +198,10 @@ export default function Profile() {
             {/* Phone */}
             <div className="space-y-2">
               <Label htmlFor="phone">Telefone (WhatsApp)</Label>
-              <Input
+              <PhoneInput
                 id="phone"
                 value={form.phone}
-                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                placeholder="+5511999999999"
+                onChange={(phone) => setForm(f => ({ ...f, phone }))}
               />
               {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
               <p className="text-xs text-muted-foreground">
