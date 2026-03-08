@@ -631,17 +631,17 @@ serve(async (req) => {
       }
 
       // Extract text from message (UAZAPI)
+      // IMPORTANT: msg.content can be an object {text, contextInfo}, so only use .text from it
       textMessage = msg.text
-        || msg.content?.text
+        || (typeof msg.content === "string" ? msg.content : msg.content?.text)
         || msg.conversation
         || msg.body
-        || msg.content
         || msg.message?.conversation
         || msg.message?.extendedTextMessage?.text
         || msg.extendedTextMessage?.text
         || msg.caption
-        || body.text
-        || body.body
+        || (typeof body.text === "string" ? body.text : "")
+        || (typeof body.body === "string" ? body.body : "")
         || body.conversation
         || "";
 
