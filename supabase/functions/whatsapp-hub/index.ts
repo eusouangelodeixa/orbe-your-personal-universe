@@ -303,7 +303,7 @@ const INTENT_TOOLS = [
             enum: [
               // Financeiro
               "add_expense", "add_income", "mark_paid", "list_expenses", "list_incomes",
-              "wallet_balance", "monthly_summary", "financial_projection", "check_savings_goal",
+              "wallet_balance", "monthly_summary", "financial_projection", "check_savings_goal", "save_to_cofrinho",
               // Estudos
               "list_events", "add_event", "list_subjects", "subject_question",
               // Fit
@@ -368,6 +368,7 @@ REGRAS:
 - IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".
 - IMPORTANTE: Ao responder sobre treinos, dieta ou agenda, responda APENAS sobre o dia específico perguntado. NÃO liste a semana inteira. Se perguntaram "treino de segunda", mostre SÓ o de segunda. Se perguntaram "treino de hoje", mostre SÓ o de hoje.
 - IMPORTANTE: Quando o usuário perguntar sobre metas de economia, cofrinho, reserva de emergência, quanto falta para alcançar uma meta, use action "check_savings_goal" e preencha params.goal_name. NÃO use monthly_summary para perguntas sobre metas.
+- IMPORTANTE: Quando o usuário quiser GUARDAR/DEPOSITAR dinheiro no cofrinho (ex: "guardei 500 no cofrinho", "depositar 200 na reserva"), use action "save_to_cofrinho". Preencha params.amount, params.wallet_name (de onde sai o dinheiro) e params.goal_name (meta destino). Se o usuário NÃO mencionar o nome da meta, deixe goal_name vazio — o sistema vai listar as opções.
 - IMPORTANTE: Quando o usuário perguntar sobre saldo, gastos ou informações de uma carteira/conta ESPECÍFICA, preencha params.wallet_name com o nome da carteira. Responda APENAS com os dados da carteira pedida. NÃO inclua dados de outras carteiras, resumo geral ou patrimônio total a menos que o usuário peça explicitamente.
 - Mantenha respostas CONCISAS e FOCADAS no que foi perguntado. Máximo 10-15 linhas no WhatsApp.`;
 
@@ -651,6 +652,83 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           msg += "\n";
         }
         return msg.trim();
+      }
+
+      case "save_to_cofrinho": {
+        const amount = params.amount || 0;
+        if (amount <= 0) return "❌ Informe o valor a guardar no cofrinho.";
+
+        // Look up wallet
+        let cofWalletId: string | null = null;
+        let cofWalletName = "";
+        if (params.wallet_name) {
+          const { data: wallets } = await supabase.from("wallets")
+            .select("id, name").eq("user_id", userId)
+            .ilike("name", `%${params.wallet_name}%`).limit(1);
+          if (wallets?.length) {
+            cofWalletId = wallets[0].id;
+            cofWalletName = wallets[0].name;
+          }
+        }
+
+        // Look up savings goals
+        const { data: goals } = await supabase.from("savings_goals")
+          .select("id, name, target_amount, current_amount")
+          .eq("user_id", userId);
+        
+        if (!goals?.length) return "🐷 Você não tem metas de economia cadastradas. Crie uma no app primeiro!";
+
+        // If goal_name specified, find it
+        let targetGoal: any = null;
+        if (params.goal_name) {
+          const normalized = params.goal_name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          targetGoal = goals.find((g: any) => 
+            g.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalized)
+          );
+        }
+
+        // If no goal found and user didn't specify, list options
+        if (!targetGoal) {
+          let msg = `🐷 Em qual meta deseja guardar ${fmtBRL(amount)}?\n\n`;
+          goals.forEach((g: any, i: number) => {
+            const current = Number(g.current_amount);
+            const target = Number(g.target_amount);
+            const remaining = Math.max(target - current, 0);
+            msg += `${i + 1}️⃣ *${g.name}* (falta ${fmtBRL(remaining)})\n`;
+          });
+          msg += `\nResponda com o número ou nome da meta.`;
+          return msg;
+        }
+
+        // Debit from wallet if specified
+        if (cofWalletId) {
+          await supabase.from("wallet_transactions").insert({
+            wallet_id: cofWalletId,
+            user_id: userId,
+            amount,
+            type: "debit",
+            description: `Cofrinho: ${targetGoal.name}`,
+            reference_type: "savings",
+            reference_id: targetGoal.id,
+          });
+        }
+
+        // Update savings goal amount
+        const newAmount = Number(targetGoal.current_amount) + amount;
+        await supabase.from("savings_goals")
+          .update({ current_amount: newAmount })
+          .eq("id", targetGoal.id);
+
+        const target = Number(targetGoal.target_amount);
+        const remaining = Math.max(target - newAmount, 0);
+        const pct = target > 0 ? Math.round((newAmount / target) * 100) : 0;
+
+        let msg = `🐷 *${fmtBRL(amount)}* guardado em *${targetGoal.name}*!`;
+        if (cofWalletName) msg += `\n💳 Debitado de: ${cofWalletName}`;
+        msg += `\n\n💰 Guardado: ${fmtBRL(newAmount)} (${pct}%)`;
+        msg += `\n📌 Falta: ${fmtBRL(remaining)}`;
+        if (remaining === 0) msg += `\n\n🎉 Parabéns! Meta alcançada!`;
+        return msg;
       }
 
       // ===== ESTUDOS =====
