@@ -393,6 +393,39 @@ export default function FitOnboarding() {
                   </p>
                 </div>
 
+                {form.weekly_days.length > 0 && (
+                  <div className="space-y-3">
+                    <Label>Horário do treino por dia</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Você receberá uma mensagem no WhatsApp 1h antes do treino com os detalhes do dia
+                    </p>
+                    <div className="grid gap-2">
+                      {DAYS.filter(d => form.weekly_days.includes(d)).map(day => (
+                        <div key={day} className="flex items-center gap-3 rounded-lg border p-3">
+                          <span className="font-medium text-sm w-12">{DAY_LABELS[day]}</span>
+                          <Input
+                            type="time"
+                            value={form.weekly_times[day] || "18:00"}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              weekly_times: { ...f.weekly_times, [day]: e.target.value }
+                            }))}
+                            className="w-32"
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            Lembrete às {(() => {
+                              const t = form.weekly_times[day] || "18:00";
+                              const [h, m] = t.split(":").map(Number);
+                              const reminderH = h - 1 < 0 ? 23 : h - 1;
+                              return `${String(reminderH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                            })()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <Separator />
 
                 <div className="space-y-2">
