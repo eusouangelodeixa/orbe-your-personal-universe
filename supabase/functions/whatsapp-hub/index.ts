@@ -575,76 +575,125 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const body = await req.json();
 
-    console.log("Webhook received:", JSON.stringify(body).slice(0, 500));
+    // Log full structure keys for debugging
+    console.log("Webhook keys:", JSON.stringify(Object.keys(body)));
+    console.log("EventType:", body.EventType);
+    if (body.chat) console.log("chat keys:", JSON.stringify(Object.keys(body.chat)));
+    if (body.message) console.log("message obj:", JSON.stringify(body.message).slice(0, 800));
+    if (body.messages) console.log("messages obj:", JSON.stringify(body.messages).slice(0, 800));
+    // Log any key that might contain the actual text
+    for (const k of ["text", "body", "content", "conversation", "msg", "data", "Info"]) {
+      if (body[k] !== undefined) console.log(`body.${k}:`, JSON.stringify(body[k]).slice(0, 500));
+    }
 
     // ===== PARSE UAZAPI WEBHOOK FORMAT =====
-    // UAZAPI (whatsmeow-based) sends messages in baileys format:
-    // { event: "messages.upsert", data: { key: { remoteJid, fromMe, id }, message: { conversation, extendedTextMessage, audioMessage, ... }, pushName } }
-    // OR flat format: { phone, message, type, ... }
+    // UAZAPI v2 format: { BaseUrl, EventType: "messages", chat: {...}, message?: {...}, ... }
+    // The actual message content and phone number location needs to be determined from logs.
 
     let phone = "";
     let textMessage = "";
     let audioUrl: string | null = null;
     let isAudio = false;
 
-    if (body.event === "messages.upsert" || body.data?.key) {
-      // Baileys/whatsmeow format (UAZAPI v2)
+    if (body.EventType === "messages" || body.EventType === "message") {
+      // UAZAPI proprietary format
+      const chat = body.chat || {};
+      const msg = body.message || body.msg || body.data || {};
+
+      // Phone: try chat.id (which is the remoteJid) or chat.phone or various other fields
+      const chatId = chat.id || chat.jid || chat.remoteJid || "";
+      phone = chatId.replace(/@.*$/, "")
+        || chat.phone || chat.number || body.phone || body.from || "";
+
+      // Check if it's our own message (fromMe)
+      if (msg.fromMe === true || body.fromMe === true || msg.key?.fromMe === true) {
+        return new Response(JSON.stringify({ handled: false, reason: "own message" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Extract text from message
+      textMessage = msg.conversation || msg.text || msg.body || msg.content
+        || msg.message?.conversation
+        || msg.message?.extendedTextMessage?.text
+        || msg.extendedTextMessage?.text
+        || msg.caption
+        || body.text || body.body || body.conversation || "";
+
+      // If message is a nested object with a key property (baileys style inside uazapi)
+      if (!textMessage && msg.key && msg.message) {
+        const innerMsg = msg.message;
+        textMessage = innerMsg.conversation
+          || innerMsg.extendedTextMessage?.text
+          || innerMsg.imageMessage?.caption
+          || innerMsg.videoMessage?.caption
+          || innerMsg.documentMessage?.caption
+          || "";
+
+        if (innerMsg.audioMessage) {
+          isAudio = true;
+          audioUrl = innerMsg.audioMessage.url || innerMsg.audioMessage.directPath || null;
+        }
+
+        // Phone from inner key
+        if (!phone && msg.key.remoteJid) {
+          phone = msg.key.remoteJid.replace(/@.*$/, "");
+        }
+        // Ignore own
+        if (msg.key.fromMe) {
+          return new Response(JSON.stringify({ handled: false, reason: "own message" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // Audio
+      if (!isAudio && (msg.type === "audio" || msg.messageType === "audioMessage" || body.type === "audio")) {
+        isAudio = true;
+        audioUrl = msg.mediaUrl || msg.url || msg.audioUrl || body.mediaUrl || null;
+      }
+      if (body.base64 && isAudio) audioUrl = body.base64;
+      if (body.mediaUrl) audioUrl = body.mediaUrl;
+
+    } else if (body.event === "messages.upsert" || body.data?.key) {
+      // Baileys/whatsmeow direct format
       const data = body.data || body;
       const key = data.key || {};
       const msg = data.message || {};
 
-      // Ignore own messages
       if (key.fromMe) {
         return new Response(JSON.stringify({ handled: false, reason: "own message" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
-      // Extract phone from remoteJid: "5511999999999@s.whatsapp.net" -> "5511999999999"
-      const jid = key.remoteJid || "";
-      phone = jid.replace(/@.*$/, "");
+      phone = (key.remoteJid || "").replace(/@.*$/, "");
+      textMessage = msg.conversation || msg.extendedTextMessage?.text || "";
 
-      // Extract text from different message types
-      textMessage = msg.conversation
-        || msg.extendedTextMessage?.text
-        || msg.buttonsResponseMessage?.selectedDisplayText
-        || msg.listResponseMessage?.title
-        || msg.templateButtonReplyMessage?.selectedDisplayText
-        || "";
-
-      // Audio message
       if (msg.audioMessage) {
         isAudio = true;
-        audioUrl = msg.audioMessage.url || msg.audioMessage.directPath || null;
-        // UAZAPI may provide base64 or a download URL
-        if (data.base64 || data.mediaBase64) {
-          audioUrl = data.base64 || data.mediaBase64;
-        }
-        if (data.mediaUrl) {
-          audioUrl = data.mediaUrl;
-        }
+        audioUrl = msg.audioMessage.url || data.mediaUrl || null;
       }
-
-      // Image/document with caption
-      if (!textMessage && (msg.imageMessage?.caption || msg.documentMessage?.caption || msg.videoMessage?.caption)) {
+      if (!textMessage) {
         textMessage = msg.imageMessage?.caption || msg.documentMessage?.caption || msg.videoMessage?.caption || "";
       }
     } else {
-      // Flat/legacy format fallback
+      // Generic fallback
       phone = body.phone || body.from || body.number || body.remoteJid?.replace(/@.*$/, "") || "";
       textMessage = body.message || body.text || body.body || body.conversation || "";
       audioUrl = body.audioUrl || body.audio_url || body.mediaUrl || null;
-      isAudio = body.isAudio || body.type === "audio" || body.messageType === "audioMessage" || !!audioUrl;
+      isAudio = body.isAudio || body.type === "audio" || !!audioUrl;
     }
 
-    // Ignore group messages (JID contains @g.us)
-    if (phone.includes("@g.us") || body.data?.key?.remoteJid?.includes("@g.us")) {
+    // Ignore group messages
+    if (phone.includes("-") || body.chat?.id?.includes("@g.us")) {
       return new Response(JSON.stringify({ handled: false, reason: "group message" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     if (!phone) {
+      console.log("No phone found. Full body:", JSON.stringify(body).slice(0, 2000));
       return new Response(JSON.stringify({ error: "no phone found in payload" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
