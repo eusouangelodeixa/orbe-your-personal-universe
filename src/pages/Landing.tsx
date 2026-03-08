@@ -615,7 +615,7 @@ export default function Landing() {
         </div>
 
         <div className="landing-price-guarantee fade-up">
-          🔒 <span>Garantia de 7 dias.</span> Se não gostar, devolvemos 100% do seu dinheiro. Sem perguntas.
+          🔒 <span>Garantia de 3 dias.</span> Se não gostar, devolvemos 100% do seu dinheiro. Sem perguntas.
         </div>
       </section>
 
