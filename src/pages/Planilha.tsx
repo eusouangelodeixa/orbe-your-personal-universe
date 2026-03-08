@@ -711,6 +711,7 @@ export default function Planilha() {
                   </p>
                 );
               })()}
+            </div>
           </CardContent>
         </Card>
       </div>
