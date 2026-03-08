@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/PhoneInput";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -16,7 +17,7 @@ import { z } from "zod";
 
 const profileSchema = z.object({
   display_name: z.string().trim().min(2, "Nome deve ter pelo menos 2 caracteres").max(100, "Nome muito longo"),
-  phone: z.string().regex(/^(\+?\d{10,15})?$/, "Telefone inválido (use formato: +5511999999999)").optional().or(z.literal("")),
+  phone: z.string().regex(/^(\+\d{10,15})?$/, "Telefone inválido").optional().or(z.literal("")),
 });
 
 interface ProfileData {
@@ -197,11 +198,10 @@ export default function Profile() {
             {/* Phone */}
             <div className="space-y-2">
               <Label htmlFor="phone">Telefone (WhatsApp)</Label>
-              <Input
+              <PhoneInput
                 id="phone"
                 value={form.phone}
-                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                placeholder="+5511999999999"
+                onChange={(phone) => setForm(f => ({ ...f, phone }))}
               />
               {errors.phone && <p className="text-xs text-destructive">{errors.phone}</p>}
               <p className="text-xs text-muted-foreground">
