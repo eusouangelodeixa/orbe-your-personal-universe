@@ -9,6 +9,7 @@ import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Planilha from "./pages/Planilha";
+import Cofrinho from "./pages/Cofrinho";
 import Consultor from "./pages/Consultor";
 import NotFound from "./pages/NotFound";
 
@@ -26,6 +27,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/planilha" element={<ProtectedRoute><Planilha /></ProtectedRoute>} />
+            <Route path="/cofrinho" element={<ProtectedRoute><Cofrinho /></ProtectedRoute>} />
             <Route path="/consultor" element={<ProtectedRoute><Consultor /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
