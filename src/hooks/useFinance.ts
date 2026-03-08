@@ -235,16 +235,37 @@ export function useAddExpense() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (expense: Omit<TablesInsert<"expenses">, "user_id">) => {
+      // If wallet is specified, auto-mark as paid
+      const shouldAutoPay = !!expense.wallet_id;
       const { data, error } = await supabase
         .from("expenses")
-        .insert({ ...expense, user_id: user!.id })
+        .insert({ ...expense, paid: shouldAutoPay, user_id: user!.id })
         .select("*, categories(name, icon, color)")
         .single();
       if (error) throw error;
+
+      // If linked to a wallet, create a debit transaction
+      if (shouldAutoPay && expense.wallet_id) {
+        const { error: txError } = await supabase
+          .from("wallet_transactions")
+          .insert({
+            wallet_id: expense.wallet_id,
+            user_id: user!.id,
+            amount: expense.amount,
+            type: "debit",
+            description: `Gasto: ${expense.name}`,
+            reference_type: "expense",
+            reference_id: data.id,
+          });
+        if (txError) throw txError;
+      }
+
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
       toast.success("Gasto adicionado");
     },
     onError: (e: Error) => toast.error(e.message),
