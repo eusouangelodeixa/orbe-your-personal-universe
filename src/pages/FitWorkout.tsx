@@ -41,7 +41,7 @@ export default function FitWorkout() {
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<WorkoutDay | null>(null);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, { sets: { reps: string; weight: string }[] }>>({});
-  const [logForm, setLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "" });
+  const [logForm, setLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: new Date().toISOString().slice(0, 10) });
 
   // Manual plan dialog
   const [manualOpen, setManualOpen] = useState(false);
