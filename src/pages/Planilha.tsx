@@ -333,8 +333,8 @@ export default function Planilha() {
                       </Dialog>
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTxForm({ valor: "", descricao: "" })}>
-                            <ArrowDownCircle className="h-3.5 w-3.5 text-destructive" /> Debitar
+                          <Button size="sm" variant="outline" className="gap-1 text-xs px-2.5 min-w-0" onClick={() => setTxForm({ valor: "", descricao: "" })}>
+                            <ArrowDownCircle className="h-3.5 w-3.5 shrink-0 text-destructive" /> Debitar
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
