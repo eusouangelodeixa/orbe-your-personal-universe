@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.academic-reminders]
 verify_jwt = false
+
+[functions.parse-pdf]
+verify_jwt = false

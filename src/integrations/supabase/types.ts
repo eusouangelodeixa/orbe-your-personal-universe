@@ -243,6 +243,47 @@ export type Database = {
         }
         Relationships: []
       }
+      pomodoro_sessions: {
+        Row: {
+          completed_pomodoros: number
+          created_at: string
+          id: string
+          session_date: string
+          subject_id: string
+          total_focus_seconds: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_pomodoros?: number
+          created_at?: string
+          id?: string
+          session_date?: string
+          subject_id: string
+          total_focus_seconds?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_pomodoros?: number
+          created_at?: string
+          id?: string
+          session_date?: string
+          subject_id?: string
+          total_focus_seconds?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pomodoro_sessions_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

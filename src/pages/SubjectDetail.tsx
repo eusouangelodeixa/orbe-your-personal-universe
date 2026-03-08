@@ -142,27 +142,42 @@ export default function SubjectDetail() {
       const { error: uploadErr } = await supabase.storage.from("ementas").upload(path, file, { upsert: true });
       if (uploadErr) throw uploadErr;
 
-      // Extract text from the file for AI context
-      let ementaText = "";
-      if (file.type === "text/plain" || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
-        ementaText = await file.text();
+      // For text files, extract directly; for PDFs, use edge function
+      const isPdf = file.name.toLowerCase().endsWith(".pdf");
+      const isText = file.type.includes("text") || file.name.endsWith(".txt") || file.name.endsWith(".md") || file.name.endsWith(".csv");
+
+      if (isText) {
+        const ementaText = await file.text();
+        updateSubject.mutate({
+          id: subject.id,
+          ementa_url: path,
+          ementa_text: ementaText.slice(0, 50000),
+        } as any);
+        toast.success("Ementa enviada! O chatbot agora usará como referência.");
+      } else if (isPdf) {
+        // Update URL immediately, then trigger PDF parsing via edge function
+        updateSubject.mutate({ id: subject.id, ementa_url: path } as any);
+        toast.info("Enviado! Extraindo texto do PDF...");
+
+        const parseFnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/parse-pdf`;
+        const resp = await fetch(parseFnUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+          body: JSON.stringify({ subjectId: subject.id, filePath: path }),
+        });
+        if (resp.ok) {
+          toast.success("Texto extraído do PDF! O chatbot agora usará como referência.");
+        } else {
+          toast.warning("PDF enviado, mas não foi possível extrair o texto automaticamente.");
+        }
       } else {
-        // For PDFs and other files, we store the path and let the edge function handle it
-        ementaText = `[Arquivo: ${file.name}] - Ementa enviada pelo aluno. Use o nome do arquivo como referência.`;
+        updateSubject.mutate({
+          id: subject.id,
+          ementa_url: path,
+          ementa_text: `[Arquivo: ${file.name}] - Ementa enviada pelo aluno.`,
+        } as any);
+        toast.success("Ementa enviada!");
       }
-
-      // Try to read text content for common formats
-      if (file.type.includes("text") || file.name.endsWith(".csv")) {
-        ementaText = await file.text();
-      }
-
-      updateSubject.mutate({
-        id: subject.id,
-        ementa_url: path,
-        ementa_text: ementaText.slice(0, 50000), // limit to 50k chars
-      } as any);
-
-      toast.success("Ementa enviada! O chatbot agora usará como referência.");
     } catch (err) {
       console.error("Upload error:", err);
       toast.error("Erro ao enviar ementa");
@@ -411,7 +426,7 @@ export default function SubjectDetail() {
 
           {/* ─── POMODORO TAB ─── */}
           <TabsContent value="pomodoro">
-            <PomodoroTimer subjectName={subject.name} />
+            <PomodoroTimer subjectName={subject.name} subjectId={subject.id} />
           </TabsContent>
 
           {/* ─── CHATBOT TAB ─── */}
