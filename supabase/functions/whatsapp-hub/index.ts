@@ -679,6 +679,10 @@ serve(async (req) => {
       if (body[k] !== undefined) console.log(`body.${k}:`, JSON.stringify(body[k]).slice(0, 500));
     }
 
+    // Prefer token from inbound webhook payload; fallback to configured token
+    const outboundToken = body.token || UAZAPI_TOKEN;
+    if (!outboundToken) throw new Error("No UAZAPI token available to send reply");
+
     // ===== PARSE UAZAPI WEBHOOK FORMAT =====
     // UAZAPI v2 format: { BaseUrl, EventType: "messages", chat: {...}, message?: {...}, ... }
     // The actual message content and phone number location needs to be determined from logs.
