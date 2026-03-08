@@ -80,6 +80,7 @@ export default {
           DEFAULT: "hsl(var(--info))",
           foreground: "hsl(var(--info-foreground))",
         },
+        "green-haze": "hsl(143, 34%, 75%)",
         orbe: {
           glow: "hsl(var(--orbe-glow))",
           surface: "hsl(var(--orbe-surface))",
