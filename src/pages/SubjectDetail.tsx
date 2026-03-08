@@ -54,7 +54,65 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/subject-chat
 // ─── Chat streaming ───
 interface Message { role: "user" | "assistant"; content: string; }
 
+let mermaidInitialized = false;
+
+function ensureMermaidInitialized() {
+  if (mermaidInitialized) return;
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "loose",
+    theme: "neutral",
+  });
+  mermaidInitialized = true;
+}
+
+function MermaidBlock({ chart }: { chart: string }) {
+  const [svg, setSvg] = useState("");
+  const [hasError, setHasError] = useState(false);
+  const renderId = useMemo(() => `mermaid-${Math.random().toString(36).slice(2)}`, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const draw = async () => {
+      try {
+        ensureMermaidInitialized();
+        const { svg: generatedSvg } = await mermaid.render(renderId, chart);
+        if (!active) return;
+        setSvg(generatedSvg);
+        setHasError(false);
+      } catch (error) {
+        console.error("Mermaid render error:", error);
+        if (!active) return;
+        setHasError(true);
+        setSvg("");
+      }
+    };
+
+    void draw();
+
+    return () => {
+      active = false;
+    };
+  }, [chart, renderId]);
+
+  if (hasError) {
+    return (
+      <pre className="my-2 overflow-x-auto rounded-md border border-border bg-muted p-3 text-xs text-muted-foreground">
+        {chart}
+      </pre>
+    );
+  }
+
+  return (
+    <div className="my-2 overflow-x-auto rounded-md border border-border bg-card p-2">
+      <div className="min-w-[320px]" dangerouslySetInnerHTML={{ __html: svg }} />
+    </div>
+  );
+}
+
 async function streamChat({ messages, subjectName, subjectType, ementaText, onDelta, onDone }: {
+
   messages: Message[]; subjectName: string; subjectType: string; ementaText?: string | null;
   onDelta: (t: string) => void; onDone: () => void;
 }) {
