@@ -114,8 +114,15 @@ REGRAS DE FORMATAÇÃO:
   | Coluna A | Coluna B |
   |----------|----------|
   | valor 1  | valor 2  |
-- NUNCA use diagramas ASCII com traços (──, ──▶, ◀──, ===, ----, ****). Eles ficam ilegíveis. Use tabelas ou listas.
-- Para fluxos, use: 1. Cliente → envia request  2. Servidor → processa  3. Banco → retorna dados
+- Para pedidos de gráfico visual, gere Mermaid (não ASCII). Exemplo para função:
+  \`\`\`mermaid
+  xychart-beta
+    title "y = x²"
+    x-axis [-3, -2, -1, 0, 1, 2, 3]
+    y-axis "y" 0 --> 9
+    line [9, 4, 1, 0, 1, 4, 9]
+  \`\`\`
+- NUNCA use arte ASCII com traços para simular gráfico.
 - Se o aluno pedir exercícios, gere com gabarito e explicação detalhada de cada passo.
 - Para mapas mentais, use indentação e marcadores organizados.
 - Responda em português brasileiro.
