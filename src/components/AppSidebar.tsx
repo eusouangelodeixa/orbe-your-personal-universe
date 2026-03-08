@@ -158,18 +158,26 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
+        {/* Tarefas */}
         <SidebarGroup>
-          <SidebarGroupLabel>
-            {!collapsed ? "Em breve" : ""}
+          <SidebarGroupLabel className="flex items-center gap-2">
+            <CheckSquare className="h-4 w-4 text-primary" />
+            {!collapsed && <span>Tarefas</span>}
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {comingSoon.map((item) => (
+              {taskItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton disabled className="opacity-40 cursor-not-allowed">
-                    <item.icon className="mr-2 h-4 w-4" />
-                    {!collapsed && <span>{item.title}</span>}
-                    {!collapsed && <Lock className="ml-auto h-3 w-3" />}
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end
+                      className="hover:bg-sidebar-accent/50"
+                      activeClassName="bg-sidebar-accent text-primary font-medium"
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span>{item.title}</span>}
+                    </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}

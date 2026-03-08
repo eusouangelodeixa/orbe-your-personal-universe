@@ -52,6 +52,7 @@ const App = () => (
             <Route path="/fit/alimentacao" element={<ProtectedRoute><FitMeals /></ProtectedRoute>} />
             <Route path="/fit/progresso" element={<ProtectedRoute><FitProgress /></ProtectedRoute>} />
             <Route path="/fit/chat" element={<ProtectedRoute><FitChat /></ProtectedRoute>} />
+            <Route path="/tarefas" element={<ProtectedRoute><Tarefas /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
