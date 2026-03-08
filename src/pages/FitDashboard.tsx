@@ -189,28 +189,30 @@ export default function FitDashboard() {
             <CardTitle className="text-base flex items-center gap-2"><Bell className="h-4 w-4" /> Lembretes Automáticos</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              O ORBE Fit envia lembretes inteligentes via WhatsApp automaticamente com base no seu perfil:
+            <p className="text-sm text-muted-foreground mb-3">
+              Você recebe lembretes via WhatsApp 1h antes do treino com os detalhes do dia.
             </p>
-            <div className="mt-3 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <span>🏋️</span> <span>Treino nos dias da sua disponibilidade semanal</span>
+            {profile?.weekly_availability?.length > 0 && (
+              <div className="space-y-1.5 mb-3">
+                {(profile.weekly_availability as any[]).map((a: any) => {
+                  const dayLabel: Record<string, string> = { seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo" };
+                  return (
+                    <div key={a.day} className="flex items-center gap-2 text-sm">
+                      <Badge variant="outline" className="w-20 justify-center">{dayLabel[a.day] || a.day}</Badge>
+                      <span>🏋️ Treino às {a.time || "18:00"}</span>
+                      <span className="text-muted-foreground text-xs">· Lembrete às {(() => {
+                        const t = a.time || "18:00";
+                        const [h, m] = t.split(":").map(Number);
+                        const rH = h - 1 < 0 ? 23 : h - 1;
+                        return `${String(rH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                      })()}</span>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span>🍽️</span> <span>Refeições nos horários do seu plano alimentar</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span>💧</span> <span>Hidratação ao longo do dia</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span>💊</span> <span>Suplementos (se cadastrados)</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span>⚠️</span> <span>Alerta de inatividade após 3 dias sem treinar</span>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground mt-3">
-              Ative as notificações WhatsApp no seu perfil para receber os lembretes.
+            )}
+            <p className="text-xs text-muted-foreground">
+              Ative as notificações WhatsApp no seu perfil para receber. Edite os horários em "Editar perfil".
             </p>
           </CardContent>
         </Card>
