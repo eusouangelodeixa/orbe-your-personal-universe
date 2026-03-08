@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Send, User } from "lucide-react";
 import { OrbeIcon } from "@/components/OrbeIcon";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
+import { useIncomes, useExpenses, useWallets, useSavingsGoals } from "@/hooks/useFinance";
 
 interface Message {
   role: "user" | "assistant";
@@ -17,10 +18,12 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 async function streamChat({
   messages,
+  financialContext,
   onDelta,
   onDone,
 }: {
   messages: Message[];
+  financialContext: object;
   onDelta: (deltaText: string) => void;
   onDone: () => void;
 }) {
@@ -30,7 +33,7 @@ async function streamChat({
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, financialContext }),
   });
 
   if (resp.status === 429) {
@@ -96,10 +99,69 @@ async function streamChat({
 }
 
 export default function Consultor() {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+
+  // Fetch financial data
+  const { data: incomes = [] } = useIncomes(month, year);
+  const { data: expenses = [] } = useExpenses(month, year);
+  const { data: wallets = [] } = useWallets();
+  const { data: savingsGoals = [] } = useSavingsGoals();
+
+  // Build financial context for AI
+  const financialContext = useMemo(() => {
+    const totalIncome = incomes.reduce((a, i) => a + Number(i.amount), 0);
+    const totalExpenses = expenses.reduce((a, e) => a + Number(e.amount), 0);
+    const paidExpenses = expenses.filter(e => e.paid).reduce((a, e) => a + Number(e.amount), 0);
+    const pendingExpenses = totalExpenses - paidExpenses;
+    const totalWallets = wallets.reduce((a, w) => a + Number(w.balance), 0);
+    const availableBalance = totalWallets - pendingExpenses;
+    const monthlyFlow = totalIncome - totalExpenses;
+    const commitmentPercent = totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 100) : 0;
+
+    return {
+      month,
+      year,
+      totalIncome,
+      totalExpenses,
+      paidExpenses,
+      pendingExpenses,
+      totalWallets,
+      availableBalance,
+      monthlyFlow,
+      commitmentPercent,
+      incomes: incomes.map((i: any) => ({
+        description: i.description,
+        amount: Number(i.amount),
+        wallet: i.wallets?.name || null,
+      })),
+      expenses: expenses.map((e: any) => ({
+        name: e.name,
+        amount: Number(e.amount),
+        paid: e.paid,
+        due_date: e.due_date,
+        category: e.categories?.name || null,
+        wallet: e.wallets?.name || null,
+      })),
+      wallets: wallets.map(w => ({
+        name: w.name,
+        balance: Number(w.balance),
+        is_default: w.is_default,
+      })),
+      savingsGoals: savingsGoals.map((g: any) => ({
+        name: g.name,
+        target_amount: Number(g.target_amount),
+        current_amount: Number(g.current_amount),
+        deadline: g.deadline,
+      })),
+    };
+  }, [incomes, expenses, wallets, savingsGoals, month, year]);
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
-      content: "Olá! Sou o **Consultor Financeiro do ORBE** 🟢\n\nPosso te ajudar com análise de gastos, dicas de economia e planejamento financeiro. Como posso te ajudar?",
+      content: "Olá! Sou o **Consultor Financeiro do ORBE** 🟢\n\nTenho acesso completo aos seus dados financeiros: saldos, gastos, rendas e metas. Pergunte qualquer coisa sobre suas finanças!",
     },
   ]);
   const [input, setInput] = useState("");
@@ -135,6 +197,7 @@ export default function Consultor() {
     try {
       await streamChat({
         messages: [...messages, userMsg],
+        financialContext,
         onDelta: (chunk) => upsertAssistant(chunk),
         onDone: () => setLoading(false),
       });

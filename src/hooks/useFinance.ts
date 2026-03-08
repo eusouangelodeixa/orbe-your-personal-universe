@@ -342,3 +342,22 @@ export function useDeleteIncome() {
     onError: (e: Error) => toast.error(e.message),
   });
 }
+
+// ========== SAVINGS GOALS ==========
+
+export function useSavingsGoals() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["savings_goals", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("savings_goals")
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("deadline", { ascending: true, nullsFirst: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
