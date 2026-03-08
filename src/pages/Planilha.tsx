@@ -295,7 +295,7 @@ export default function Planilha() {
                     <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
                       R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </p>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-1.5">
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTxForm({ valor: "", descricao: "" })}>
