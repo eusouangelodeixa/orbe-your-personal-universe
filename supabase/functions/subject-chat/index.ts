@@ -84,15 +84,20 @@ PROIBIDO (texto duplicado após a fórmula):
 
 Regra: após fechar o cifrão "$", a próxima coisa DEVE ser espaço, pontuação ou quebra de linha. NUNCA repita o conteúdo.
 
-GRÁFICOS:
-Use blocos mermaid (nunca ASCII art):
+GRÁFICOS (use EXATAMENTE esta sintaxe mermaid):
 \`\`\`mermaid
 xychart-beta
-  title "título"
-  x-axis [valores]
-  y-axis "y" min --> max
-  line [valores]
+  title "y = x²"
+  x-axis [-3, -2, -1, 0, 1, 2, 3]
+  y-axis "y" 0 --> 9
+  line [9, 4, 1, 0, 1, 4, 9]
 \`\`\`
+REGRAS MERMAID:
+- x-axis SEMPRE usa array de valores: x-axis [-3, -2, -1, 0, 1, 2, 3]
+- y-axis usa "label" min --> max: y-axis "y" 0 --> 9
+- PROIBIDO usar "min" ou "max" como palavras. Use apenas números e "-->".
+- NUNCA use: x-axis "x" min -2 max 2 ← SINTAXE INVÁLIDA
+- Cada eixo e linha DEVE estar em sua própria linha (quebra de linha obrigatória).
 
 OUTROS:
 - Tabelas markdown para comparações.
