@@ -160,6 +160,302 @@ export type Database = {
           },
         ]
       }
+      fit_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      fit_meal_plans: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          id: string
+          pdf_url: string | null
+          plan_data: Json
+          shopping_list: Json | null
+          source: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          id?: string
+          pdf_url?: string | null
+          plan_data?: Json
+          shopping_list?: Json | null
+          source?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          id?: string
+          pdf_url?: string | null
+          plan_data?: Json
+          shopping_list?: Json | null
+          source?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      fit_profiles: {
+        Row: {
+          age: number | null
+          available_equipment: Json | null
+          bmi: number | null
+          created_at: string
+          diet_type: string | null
+          experience_level: string | null
+          food_allergies: Json | null
+          food_intolerances: Json | null
+          goal: string | null
+          has_nutritionist: boolean | null
+          height: number | null
+          id: string
+          medical_conditions: Json | null
+          monthly_food_budget: number | null
+          nutritional_program: string | null
+          onboarding_completed: boolean | null
+          sex: string | null
+          supplements: Json | null
+          training_location: string | null
+          updated_at: string
+          user_id: string
+          weekly_availability: Json | null
+          weight: number | null
+        }
+        Insert: {
+          age?: number | null
+          available_equipment?: Json | null
+          bmi?: number | null
+          created_at?: string
+          diet_type?: string | null
+          experience_level?: string | null
+          food_allergies?: Json | null
+          food_intolerances?: Json | null
+          goal?: string | null
+          has_nutritionist?: boolean | null
+          height?: number | null
+          id?: string
+          medical_conditions?: Json | null
+          monthly_food_budget?: number | null
+          nutritional_program?: string | null
+          onboarding_completed?: boolean | null
+          sex?: string | null
+          supplements?: Json | null
+          training_location?: string | null
+          updated_at?: string
+          user_id: string
+          weekly_availability?: Json | null
+          weight?: number | null
+        }
+        Update: {
+          age?: number | null
+          available_equipment?: Json | null
+          bmi?: number | null
+          created_at?: string
+          diet_type?: string | null
+          experience_level?: string | null
+          food_allergies?: Json | null
+          food_intolerances?: Json | null
+          goal?: string | null
+          has_nutritionist?: boolean | null
+          height?: number | null
+          id?: string
+          medical_conditions?: Json | null
+          monthly_food_budget?: number | null
+          nutritional_program?: string | null
+          onboarding_completed?: boolean | null
+          sex?: string | null
+          supplements?: Json | null
+          training_location?: string | null
+          updated_at?: string
+          user_id?: string
+          weekly_availability?: Json | null
+          weight?: number | null
+        }
+        Relationships: []
+      }
+      fit_progress: {
+        Row: {
+          body_fat_pct: number | null
+          created_at: string
+          id: string
+          measurements: Json | null
+          notes: string | null
+          photos: Json | null
+          record_date: string
+          user_id: string
+          weight: number | null
+        }
+        Insert: {
+          body_fat_pct?: number | null
+          created_at?: string
+          id?: string
+          measurements?: Json | null
+          notes?: string | null
+          photos?: Json | null
+          record_date?: string
+          user_id: string
+          weight?: number | null
+        }
+        Update: {
+          body_fat_pct?: number | null
+          created_at?: string
+          id?: string
+          measurements?: Json | null
+          notes?: string | null
+          photos?: Json | null
+          record_date?: string
+          user_id?: string
+          weight?: number | null
+        }
+        Relationships: []
+      }
+      fit_reminders: {
+        Row: {
+          created_at: string
+          days: Json | null
+          enabled: boolean | null
+          id: string
+          time: string
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          days?: Json | null
+          enabled?: boolean | null
+          id?: string
+          time: string
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          days?: Json | null
+          enabled?: boolean | null
+          id?: string
+          time?: string
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      fit_workout_logs: {
+        Row: {
+          created_at: string
+          duration_minutes: number | null
+          exercises: Json
+          id: string
+          mood: string | null
+          notes: string | null
+          plan_id: string | null
+          user_id: string
+          workout_date: string
+          workout_name: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number | null
+          exercises?: Json
+          id?: string
+          mood?: string | null
+          notes?: string | null
+          plan_id?: string | null
+          user_id: string
+          workout_date?: string
+          workout_name: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number | null
+          exercises?: Json
+          id?: string
+          mood?: string | null
+          notes?: string | null
+          plan_id?: string | null
+          user_id?: string
+          workout_date?: string
+          workout_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fit_workout_logs_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "fit_workout_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fit_workout_plans: {
+        Row: {
+          active: boolean | null
+          created_at: string
+          id: string
+          pdf_url: string | null
+          plan_data: Json
+          source: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string
+          id?: string
+          pdf_url?: string | null
+          plan_data?: Json
+          source?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string
+          id?: string
+          pdf_url?: string | null
+          plan_data?: Json
+          source?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       incomes: {
         Row: {
           amount: number

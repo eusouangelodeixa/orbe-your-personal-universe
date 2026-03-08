@@ -1,0 +1,234 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { AppLayout } from "@/components/AppLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import {
+  Dumbbell, Utensils, TrendingUp, MessageCircle, Bell, ChevronRight,
+  Loader2, Scale, Target, Calendar, Sparkles, Plus
+} from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
+
+export default function FitDashboard() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+  const [workoutLogs, setWorkoutLogs] = useState<any[]>([]);
+  const [progressRecords, setProgressRecords] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user) return;
+    loadData();
+  }, [user]);
+
+  const loadData = async () => {
+    const [profileRes, logsRes, progressRes] = await Promise.all([
+      supabase.from("fit_profiles" as any).select("*").eq("user_id", user!.id).maybeSingle(),
+      supabase.from("fit_workout_logs" as any).select("*").eq("user_id", user!.id).order("workout_date", { ascending: false }).limit(7),
+      supabase.from("fit_progress" as any).select("*").eq("user_id", user!.id).order("record_date", { ascending: false }).limit(10),
+    ]);
+
+    if (!profileRes.data || !(profileRes.data as any).onboarding_completed) {
+      navigate("/fit/onboarding");
+      return;
+    }
+
+    setProfile(profileRes.data);
+    setWorkoutLogs((logsRes.data as any) || []);
+    setProgressRecords((progressRes.data as any) || []);
+    setLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  const bmi = profile?.bmi ? parseFloat(profile.bmi).toFixed(1) : "—";
+  const goalLabels: Record<string, string> = {
+    perda_gordura: "🔥 Perda de gordura",
+    ganho_massa: "💪 Ganho de massa",
+    hipertrofia: "🏋️ Hipertrofia",
+    manutencao: "⚖️ Manutenção",
+    condicionamento: "🏃 Condicionamento",
+    saude_geral: "❤️ Saúde geral",
+  };
+
+  const weeklyTarget = profile?.weekly_availability?.length || 0;
+  const thisWeekLogs = workoutLogs.filter(l => {
+    const d = new Date(l.workout_date);
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    return d >= weekStart;
+  }).length;
+
+  return (
+    <AppLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold font-display flex items-center gap-2">
+              <Dumbbell className="h-8 w-8 text-primary" />
+              Fit
+            </h1>
+            <p className="text-muted-foreground">
+              {goalLabels[profile?.goal] || "Seu módulo de saúde e fitness"}
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate("/fit/onboarding")}>
+            Editar perfil
+          </Button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="pt-4 text-center">
+              <Scale className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+              <p className="text-2xl font-bold">{profile?.weight || "—"}<span className="text-sm text-muted-foreground">kg</span></p>
+              <p className="text-xs text-muted-foreground">Peso atual</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 text-center">
+              <Target className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+              <p className="text-2xl font-bold">{bmi}</p>
+              <p className="text-xs text-muted-foreground">IMC</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 text-center">
+              <Calendar className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+              <p className="text-2xl font-bold">{thisWeekLogs}<span className="text-sm text-muted-foreground">/{weeklyTarget}</span></p>
+              <p className="text-xs text-muted-foreground">Treinos esta semana</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-4 text-center">
+              <TrendingUp className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+              <p className="text-2xl font-bold">{workoutLogs.length}</p>
+              <p className="text-xs text-muted-foreground">Treinos registrados</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Weekly Progress */}
+        {weeklyTarget > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Progresso semanal</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Progress value={(thisWeekLogs / weeklyTarget) * 100} className="h-3" />
+              <p className="text-xs text-muted-foreground mt-2">
+                {thisWeekLogs} de {weeklyTarget} treinos realizados
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Link to="/fit/treino">
+            <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+              <CardContent className="flex items-center gap-4 py-5">
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <Dumbbell className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">Plano de Treino</p>
+                  <p className="text-sm text-muted-foreground">Ver plano, registrar treino</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/fit/alimentacao">
+            <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+              <CardContent className="flex items-center gap-4 py-5">
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <Utensils className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">Plano Alimentar</p>
+                  <p className="text-sm text-muted-foreground">Refeições, lista de compras</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/fit/progresso">
+            <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+              <CardContent className="flex items-center gap-4 py-5">
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <TrendingUp className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">Evolução</p>
+                  <p className="text-sm text-muted-foreground">Gráficos e medidas</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/fit/chat">
+            <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+              <CardContent className="flex items-center gap-4 py-5">
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <MessageCircle className="h-6 w-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">Nutricionista IA</p>
+                  <p className="text-sm text-muted-foreground">Chat especializado</p>
+                </div>
+                <ChevronRight className="h-5 w-5 text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+
+        {/* Recent workouts */}
+        {workoutLogs.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Últimos treinos</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {workoutLogs.slice(0, 5).map(log => (
+                <div key={log.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <div>
+                    <p className="font-medium text-sm">{log.workout_name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(log.workout_date).toLocaleDateString("pt-BR")}
+                      {log.duration_minutes && ` · ${log.duration_minutes}min`}
+                    </p>
+                  </div>
+                  {log.mood && (
+                    <Badge variant="outline" className="text-xs">
+                      {log.mood === "otimo" ? "😁" : log.mood === "bom" ? "🙂" : log.mood === "normal" ? "😐" : "😓"} {log.mood}
+                    </Badge>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </AppLayout>
+  );
+}
