@@ -655,7 +655,7 @@ export default function Landing() {
           </div>
           <p className="landing-cta-sub">Junte-se a quem já controla finanças, estudos e saúde num só lugar. Comece agora e sinta a diferença em 3 dias.</p>
           <div className="landing-cta-btns">
-            <button className="landing-btn-primary" onClick={() => navigate("/auth")}>Começar Agora — 7 dias grátis</button>
+            <button className="landing-btn-primary" onClick={() => navigate("/auth")}>Começar Agora — 3 dias grátis</button>
             <button className="landing-btn-secondary">Ver todos os planos ↗</button>
           </div>
           <div className="landing-cta-guarantee">🔒 Sem cartão de crédito necessário · Cancele quando quiser</div>
