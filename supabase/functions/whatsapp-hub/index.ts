@@ -687,8 +687,26 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           );
         }
 
-        // If no goal found and user didn't specify, list options
+        // If no goal found and user didn't specify, list options and store pending action
         if (!targetGoal) {
+          // Store pending action for follow-up
+          await supabase.from("whatsapp_pending_actions").insert({
+            user_id: userId,
+            action_type: "select_cofrinho_goal",
+            action_data: {
+              amount,
+              wallet_id: cofWalletId,
+              wallet_name: cofWalletName,
+              goals: goals.map((g: any) => ({
+                id: g.id,
+                name: g.name,
+                target_amount: g.target_amount,
+                current_amount: g.current_amount,
+              })),
+            },
+            expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          });
+
           let msg = `🐷 Em qual meta deseja guardar ${fmtBRL(amount)}?\n\n`;
           goals.forEach((g: any, i: number) => {
             const current = Number(g.current_amount);
