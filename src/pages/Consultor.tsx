@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Send, User } from "lucide-react";
 import { OrbeIcon } from "@/components/OrbeIcon";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { sanitizeLatex } from "@/lib/sanitizeLatex";
 import { toast } from "sonner";
 import { useIncomes, useExpenses, useWallets, useSavingsGoals } from "@/hooks/useFinance";
 
