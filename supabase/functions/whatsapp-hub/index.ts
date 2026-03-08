@@ -491,15 +491,38 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       }
 
       case "add_income": {
-        const { error } = await supabase.from("incomes").insert({
+        // Look up wallet by name if provided
+        let incWalletId: string | null = null;
+        if (params.wallet_name) {
+          const { data: wallets } = await supabase.from("wallets")
+            .select("id, name").eq("user_id", userId)
+            .ilike("name", `%${params.wallet_name}%`).limit(1);
+          if (wallets?.length) {
+            incWalletId = wallets[0].id;
+          }
+        }
+        const { data: incomeData, error } = await supabase.from("incomes").insert({
           user_id: userId,
           description: params.name || params.description || "Renda WhatsApp",
           amount: params.amount || 0,
           month: currentMonth,
           year: currentYear,
           recurring: false,
-        });
+          wallet_id: incWalletId,
+        }).select("id").single();
         if (error) throw error;
+        // If wallet specified, create credit transaction
+        if (incWalletId && incomeData) {
+          await supabase.from("wallet_transactions").insert({
+            wallet_id: incWalletId,
+            user_id: userId,
+            amount: params.amount || 0,
+            type: "credit",
+            description: `Renda: ${params.name || params.description || "Renda WhatsApp"}`,
+            reference_type: "income",
+            reference_id: incomeData.id,
+          });
+        }
         return reply_text;
       }
 
