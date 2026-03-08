@@ -226,6 +226,45 @@ REGRAS:
   };
 }
 
+function parseFallbackIntent(text: string) {
+  const t = text.trim().toLowerCase();
+
+  if (t.startsWith("tarefa:") || t.startsWith("tarefa ") || t.includes("adicionar tarefa")) {
+    const title = text.replace(/^tarefa\s*:\s*/i, "").replace(/^adicionar tarefa\s*/i, "").trim() || "Tarefa WhatsApp";
+    return {
+      module: "tarefas",
+      action: "add_task",
+      params: { task_title: title, category: "geral", priority: "media" },
+      reply_text: `✅ Tarefa criada: *${title}*`,
+    };
+  }
+
+  if (t.includes("minhas tarefas") || t.includes("tarefas pendentes")) {
+    return {
+      module: "tarefas",
+      action: "list_tasks",
+      params: {},
+      reply_text: "📋 Aqui estão suas tarefas pendentes:",
+    };
+  }
+
+  if (t.includes("resumo financeiro") || t.includes("como está minha grana")) {
+    return {
+      module: "financeiro",
+      action: "monthly_summary",
+      params: {},
+      reply_text: "📊 Aqui vai seu resumo financeiro:",
+    };
+  }
+
+  return {
+    module: "geral",
+    action: "chat",
+    params: {},
+    reply_text: "Recebi sua mensagem 👍. Tente 'tarefa: ...', 'minhas tarefas' ou 'resumo financeiro'.",
+  };
+}
+
 // ========== ACTION EXECUTORS ==========
 
 async function executeAction(supabase: any, userId: string, intent: any): Promise<string> {
