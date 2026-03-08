@@ -12,8 +12,8 @@ import Planilha from "./pages/Planilha";
 import Cofrinho from "./pages/Cofrinho";
 import Consultor from "./pages/Consultor";
 import Disciplinas from "./pages/Disciplinas";
+import SubjectDetail from "./pages/SubjectDetail";
 import Agenda from "./pages/Agenda";
-import SubjectChat from "./pages/SubjectChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
