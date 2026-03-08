@@ -6,7 +6,7 @@ import {
   LayoutDashboard,
   Receipt,
   Bot,
-  Lock,
+  
   LogOut,
   PiggyBank,
   BookOpen,
