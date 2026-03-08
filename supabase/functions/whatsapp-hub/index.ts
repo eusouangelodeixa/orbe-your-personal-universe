@@ -318,7 +318,7 @@ const INTENT_TOOLS = [
             type: "object",
             description: "Parameters for the action",
             properties: {
-              name: { type: "string", description: "Name/description of the expense or income. E.g. 'Supermercado', 'Uber', 'Aluguel'. ALWAYS fill this for add_expense and add_income." },
+              name: { type: "string", description: "Name/title. For expenses/incomes: 'Supermercado', 'Uber'. For academic events (add_event): the full event title e.g. 'Trabalho de Matemática Discreta', 'Prova de Cálculo'. ALWAYS fill this." },
               amount: { type: "number" },
               category: { type: "string" },
               due_date: { type: "string", description: "ISO date string" },
