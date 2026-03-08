@@ -64,6 +64,7 @@ export default function Planilha() {
   const [txForm, setTxForm] = useState({ valor: "", descricao: "" });
   // For marking expense as paid with wallet
   const [payWalletId, setPayWalletId] = useState("");
+  const [cofrinhoForm, setCofrinhoForm] = useState({ goalId: "", valor: "" });
 
   const totalRenda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
