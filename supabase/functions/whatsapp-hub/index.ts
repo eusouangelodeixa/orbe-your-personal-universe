@@ -25,12 +25,41 @@ function stripCountryCodeBR(value: string) {
   return digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
 }
 
+function uint8ToBase64(bytes: Uint8Array) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${label}_timeout`)), ms);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 async function sendWhatsApp(url: string, token: string, phone: string, text: string) {
-  await fetch(`${url}/send/text`, {
+  const response = await fetch(`${url}/send/text`, {
     method: "POST",
     headers: { "Content-Type": "application/json", token },
     body: JSON.stringify({ number: phone, text: `*ORBE*\n\n${text}` }),
   });
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw new Error(`UAZAPI send error [${response.status}]: ${responseText.slice(0, 400)}`);
+  }
+
+  return responseText;
 }
 
 // ========== AI FUNCTIONS ==========
