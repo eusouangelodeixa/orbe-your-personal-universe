@@ -33,18 +33,13 @@ export default function FitDashboard() {
   const [progressRecords, setProgressRecords] = useState<any[]>([]);
   const [reminders, setReminders] = useState<any[]>([]);
 
-  // Reminder form
-  const [reminderOpen, setReminderOpen] = useState(false);
-  const [reminderForm, setReminderForm] = useState({ title: "", type: "treino", time: "07:00", days: [] as string[] });
-
   useEffect(() => { if (user) loadData(); }, [user]);
 
   const loadData = async () => {
-    const [profileRes, logsRes, progressRes, remindersRes] = await Promise.all([
+    const [profileRes, logsRes, progressRes] = await Promise.all([
       supabase.from("fit_profiles" as any).select("*").eq("user_id", user!.id).maybeSingle(),
       supabase.from("fit_workout_logs" as any).select("*").eq("user_id", user!.id).order("workout_date", { ascending: false }).limit(7),
       supabase.from("fit_progress" as any).select("*").eq("user_id", user!.id).order("record_date", { ascending: false }).limit(10),
-      supabase.from("fit_reminders" as any).select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
     ]);
 
     if (!profileRes.data || !(profileRes.data as any).onboarding_completed) {
@@ -55,35 +50,7 @@ export default function FitDashboard() {
     setProfile(profileRes.data);
     setWorkoutLogs((logsRes.data as any) || []);
     setProgressRecords((progressRes.data as any) || []);
-    setReminders((remindersRes.data as any) || []);
     setLoading(false);
-  };
-
-  const saveReminder = async () => {
-    if (!reminderForm.title || !reminderForm.time) { toast.error("Preencha título e horário"); return; }
-    const { error } = await supabase.from("fit_reminders" as any).insert({
-      user_id: user!.id,
-      title: reminderForm.title,
-      type: reminderForm.type,
-      time: reminderForm.time,
-      days: reminderForm.days,
-    } as any);
-    if (error) { toast.error("Erro ao salvar"); return; }
-    toast.success("Lembrete criado! ⏰");
-    setReminderOpen(false);
-    setReminderForm({ title: "", type: "treino", time: "07:00", days: [] });
-    loadData();
-  };
-
-  const toggleReminder = async (id: string, enabled: boolean) => {
-    await supabase.from("fit_reminders" as any).update({ enabled } as any).eq("id", id);
-    setReminders(prev => prev.map(r => r.id === id ? { ...r, enabled } : r));
-  };
-
-  const deleteReminder = async (id: string) => {
-    await supabase.from("fit_reminders" as any).delete().eq("id", id);
-    setReminders(prev => prev.filter(r => r.id !== id));
-    toast.success("Lembrete removido");
   };
 
   if (loading) {
