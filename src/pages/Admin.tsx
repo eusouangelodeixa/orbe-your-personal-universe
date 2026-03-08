@@ -167,7 +167,6 @@ export default function Admin() {
   const chartData = financial?.monthlyHistory.map(h => ({
     name: `${MONTH_NAMES[h.month - 1]}/${String(h.year).slice(2)}`,
     Receita: h.revenue,
-    Despesas: h.expenses,
   })) || [];
 
   return (
