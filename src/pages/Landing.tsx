@@ -1,626 +1,697 @@
-import { useState } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { OrbeIcon } from "@/components/OrbeIcon";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ArrowRight,
-  Wallet,
-  GraduationCap,
-  Dumbbell,
-  CheckSquare,
-  MessageSquare,
-  Camera,
-  BarChart3,
-  Bell,
-  Target,
-  CreditCard,
-  TrendingUp,
-  Shield,
-  ChevronDown,
-  Clock,
-  Zap,
-  Smartphone,
-  Star,
-  Check,
-  Lock,
-  Bot,
-  Utensils,
-  Brain,
-} from "lucide-react";
 
-/* ─── Fade-in animation wrapper ─── */
-const FadeIn = ({
-  children,
-  delay = 0,
-  className = "",
-  direction = "up",
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-  direction?: "up" | "down" | "left" | "right";
-}) => {
-  const dirs = { up: [30, 0], down: [-30, 0], left: [0, 30], right: [0, -30] };
-  const [y, x] = dirs[direction] || [30, 0];
+/* ═══════════════════════════════════════════════
+   ORBE Landing Page — Faithful reproduction of orbe.html
+   ═══════════════════════════════════════════════ */
+
+/* ── Scroll fade-up observer hook ── */
+function useFadeUp() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    const els = ref.current.querySelectorAll(".fade-up");
+    const obs = new IntersectionObserver(
+      (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible"); }),
+      { threshold: 0.1 }
+    );
+    els.forEach((el) => obs.observe(el));
+    return () => obs.disconnect();
+  }, []);
+  return ref;
+}
+
+/* ── Custom cursor ── */
+function CustomCursor() {
+  const cursorRef = useRef<HTMLDivElement>(null);
+  const trailRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let mx = 0, my = 0, tx = 0, ty = 0;
+    const onMove = (e: MouseEvent) => {
+      mx = e.clientX; my = e.clientY;
+      if (cursorRef.current) {
+        cursorRef.current.style.left = mx - 6 + "px";
+        cursorRef.current.style.top = my - 6 + "px";
+      }
+    };
+    const onDown = () => { if (cursorRef.current) cursorRef.current.style.transform = "scale(2)"; };
+    const onUp = () => { if (cursorRef.current) cursorRef.current.style.transform = "scale(1)"; };
+
+    let raf: number;
+    const animTrail = () => {
+      tx += (mx - tx) * 0.15;
+      ty += (my - ty) * 0.15;
+      if (trailRef.current) {
+        trailRef.current.style.left = tx - 18 + "px";
+        trailRef.current.style.top = ty - 18 + "px";
+      }
+      raf = requestAnimationFrame(animTrail);
+    };
+
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("mouseup", onUp);
+    animTrail();
+
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("mouseup", onUp);
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: direction === "up" || direction === "down" ? y : 0, x: direction === "left" || direction === "right" ? x : 0 }}
-      whileInView={{ opacity: 1, y: 0, x: 0 }}
-      viewport={{ once: true, margin: "-60px" }}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
-      className={className}
-    >
-      {children}
-    </motion.div>
+    <>
+      <div ref={cursorRef} className="landing-cursor" />
+      <div ref={trailRef} className="landing-cursor-trail" />
+    </>
   );
-};
+}
 
-/* ─── Marquee features ─── */
-const marqueeItems = [
-  { icon: MessageSquare, label: "WhatsApp Nativo" },
-  { icon: Camera, label: "Leitura de Recibos" },
-  { icon: BarChart3, label: "Gráficos Detalhados" },
-  { icon: Bell, label: "Alertas Inteligentes" },
-  { icon: Target, label: "Metas de Poupança" },
-  { icon: CreditCard, label: "Carteiras Múltiplas" },
-  { icon: TrendingUp, label: "Análise de Gastos" },
-  { icon: Shield, label: "Dados Seguros" },
-  { icon: GraduationCap, label: "Gestão Acadêmica" },
-  { icon: Dumbbell, label: "Treino com IA" },
-  { icon: Utensils, label: "Plano Alimentar" },
-  { icon: Brain, label: "Consultor IA 24h" },
-];
+/* ── FAQ toggle ── */
+function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean; onToggle: () => void }) {
+  return (
+    <div className={`landing-faq-item ${open ? "open" : ""}`}>
+      <button className="landing-faq-q" onClick={onToggle}>
+        <span className="landing-faq-q-text">{q}</span>
+        <span className="landing-faq-icon">+</span>
+      </button>
+      <div className="landing-faq-a">
+        <p>{a}</p>
+      </div>
+    </div>
+  );
+}
 
-/* ─── Features data ─── */
-const features = [
-  {
-    icon: MessageSquare,
-    title: "WHATSAPP NATIVO",
-    desc: "Envie texto, áudio ou foto. ORBE extrai os dados automaticamente. Sem apps extras.",
-  },
-  {
-    icon: CheckSquare,
-    title: "TAREFAS INTELIGENTES",
-    desc: "Crie tarefas por texto ou voz. Receba lembretes automáticos. Nunca mais esqueça nada!",
-  },
-  {
-    icon: Camera,
-    title: "LEITURA DE RECIBOS",
-    desc: "Tire foto do recibo. A IA extrai valor, data, categoria e estabelecimento em segundos.",
-  },
-  {
-    icon: Bell,
-    title: "ALERTAS INTELIGENTES",
-    desc: "Defina limites diários ou por categoria. ORBE te avisa antes de estourar o orçamento.",
-  },
-  {
-    icon: Target,
-    title: "METAS DE POUPANÇA",
-    desc: "Crie metas pelo WhatsApp. Acompanhe o progresso. Receba motivação automática.",
-  },
-  {
-    icon: BarChart3,
-    title: "ANÁLISE COMPLETA",
-    desc: "Dashboard com gráficos claros. Veja gastos por categoria, evolução e padrões.",
-  },
-  {
-    icon: Bot,
-    title: "CONSULTOR IA 24H",
-    desc: "Pergunte qualquer coisa sobre finanças, estudos ou saúde. ORBE responde com base nos seus dados.",
-  },
-  {
-    icon: GraduationCap,
-    title: "GESTÃO ACADÊMICA",
-    desc: "Agenda de provas, chatbot por disciplina, pomodoro e lembretes acadêmicos integrados.",
-  },
-];
-
-/* ─── Testimonials ─── */
-const testimonials = [
-  {
-    initials: "MS",
-    name: "Maria Santos",
-    role: "Empreendedora • Maputo",
-    quote: "Antes perdia horas a organizar recibos. Com ORBE, tiro foto e está feito. Já poupei 5.000 MT em 2 meses!",
-    stat: "5.000 MT POUPADOS",
-  },
-  {
-    initials: "JM",
-    name: "João Machava",
-    role: "Engenheiro • Matola",
-    quote: "O WhatsApp integrado mudou tudo. Registro gastos na hora, sem esquecer nada. Minha organização financeira está 100%.",
-    stat: "45 DIAS DE SEQUÊNCIA",
-  },
-  {
-    initials: "AT",
-    name: "Ana Tembe",
-    role: "Professora • Beira",
-    quote: "Os alertas de limite são fantásticos! Agora sei exactamente quando parar de gastar. Atingi minha meta de poupança em 60 dias.",
-    stat: "META ATINGIDA",
-  },
-  {
-    initials: "CM",
-    name: "Carlos Mondlane",
-    role: "Freelancer • Nampula",
-    quote: "Como freelancer, precisava controlar rendimentos variáveis. ORBE me mostra padrões que eu não via. Recomendo a todos!",
-    stat: "+40% ECONOMIA",
-  },
-];
-
-/* ─── FAQ ─── */
-const faqs = [
-  {
-    q: "O que é o ORBE?",
-    a: "ORBE é um super-assistente pessoal que centraliza finanças, estudos, fitness e tarefas. Funciona via WhatsApp e dashboard web, usando IA para automatizar sua organização.",
-  },
-  {
-    q: "Como funciona a leitura de recibos?",
-    a: "Basta tirar uma foto do recibo e enviar pelo WhatsApp. A IA extrai automaticamente valor, data, categoria e estabelecimento em segundos.",
-  },
-  {
-    q: "É diferente de apps como Excel ou Notion?",
-    a: "Sim! ORBE é conversacional — você fala com ele pelo WhatsApp como se fosse um assistente pessoal. Não precisa abrir planilhas nem configurar nada.",
-  },
-  {
-    q: "Posso cancelar quando quiser?",
-    a: "Sim, sem burocracia. Cancele a qualquer momento direto pelo painel. Garantia de 7 dias com reembolso total.",
-  },
-  {
-    q: "Meus dados estão seguros?",
-    a: "Absolutamente. Usamos criptografia de ponta e infraestrutura segura. Seus dados são privados e nunca compartilhados.",
-  },
-];
-
-/* ─── Chat mockup messages ─── */
-const chatMessages = [
-  { type: "user", text: "Gastei 450mt eMola supermercado", time: "09:30" },
-  {
-    type: "bot",
-    text: "✅ Registado!\n🛒 Compras: 450 MT\n📅 Hoje\n\n💡 Já gastaste 1.200 MT hoje. Estás perto do limite diário de 1.500 MT!",
-    time: "09:30",
-  },
-  { type: "user", text: "Quanto gastei este mês?", time: "14:20" },
-  {
-    type: "bot",
-    text: "📊 Resumo de Janeiro:\n\n💸 Total: 15.400 MT\n🍽️ Alimentação: 6.200 MT\n🚗 Transporte: 3.800 MT\n🛒 Compras: 5.400 MT\n\n📈 Estás 12% abaixo do mês passado. Bom trabalho! 💪",
-    time: "14:20",
-  },
-];
-
-/* ─── Pricing plans ─── */
-const pricingPlans = [
-  { id: "monthly", label: "Mensal", price: "29,90", period: "/mês", billing: "Cobrado mensalmente", badge: null },
-  { id: "quarterly", label: "Trimestral", price: "24,90", period: "/mês", billing: "Cobrado R$ 74,70 a cada 3 meses", badge: "17% OFF" },
-  { id: "annual", label: "Anual", price: "19,90", period: "/mês", billing: "Cobrado R$ 238,80 por ano", badge: "33% OFF" },
-];
-
-const planFeatures = [
-  "Transações ilimitadas via WhatsApp",
-  "Tarefas e lembretes inteligentes",
-  "Leitura IA de recibos",
-  "Alertas de limite em tempo real",
-  "Dashboard com gráficos completos",
-  "Metas de poupança ilimitadas",
-  "Gestão acadêmica completa",
-  "Treino e alimentação com IA",
-  "Suporte prioritário",
-];
-
-/* ─── Main component ─── */
+/* ══════════════════════════════════════════
+   MAIN LANDING COMPONENT
+   ══════════════════════════════════════════ */
 export default function Landing() {
   const navigate = useNavigate();
-  const [selectedPlan, setSelectedPlan] = useState("annual");
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const containerRef = useFadeUp();
+  const [pricePeriod, setPricePeriod] = useState<"mensal" | "trimestral" | "anual">("mensal");
+  const [openFaq, setOpenFaq] = useState(0);
 
-  const currentPlan = pricingPlans.find((p) => p.id === selectedPlan)!;
+  const toggleFaq = useCallback((i: number) => {
+    setOpenFaq((prev) => (prev === i ? -1 : i));
+  }, []);
+
+  const prices: Record<string, { basic: number; student: number; full: number; fit: number }> = {
+    mensal: { basic: 19, student: 29, full: 44, fit: 24 },
+    trimestral: { basic: 16, student: 24, full: 37, fit: 20 },
+    anual: { basic: 13, student: 19, full: 29, fit: 16 },
+  };
+
+  const currentPrices = prices[pricePeriod];
 
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      {/* ─── NAVBAR ─── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-border/50">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <OrbeIcon size={32} />
-            <span className="text-xl font-bold font-display tracking-tight">ORBE</span>
-          </div>
-          <div className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">Funcionalidades</a>
-            <a href="#pricing" className="hover:text-foreground transition-colors">Preços</a>
-            <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/auth")}>
-              Login
-            </Button>
-            <Button size="sm" onClick={() => navigate("/auth")} className="gap-1.5">
-              Começar Agora <ArrowRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
+    <div ref={containerRef} className="landing-root">
+      <CustomCursor />
+
+      {/* ══ NAVBAR ══ */}
+      <nav className="landing-nav">
+        <div className="landing-nav-logo">ORBE<span>.</span></div>
+        <ul className="landing-nav-links">
+          <li><a href="#modules">Módulos</a></li>
+          <li><a href="#estudos">Estudos</a></li>
+          <li><a href="#fit">Fit</a></li>
+          <li><a href="#pricing">Preços</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+        <div className="landing-nav-cta">
+          <button className="landing-btn-nav-ghost" onClick={() => navigate("/auth")}>Entrar</button>
+          <button className="landing-btn-nav" onClick={() => navigate("/auth")}>Começar Agora</button>
         </div>
       </nav>
 
-      {/* ─── HERO ─── */}
-      <section className="relative pt-32 pb-20 px-6">
-        {/* Background effects */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-primary/5 blur-[150px]" />
-          <div className="absolute top-40 left-1/4 w-[400px] h-[400px] rounded-full bg-accent/5 blur-[120px]" />
+      {/* ══ HERO ══ */}
+      <section id="hero" className="landing-hero">
+        <div className="landing-hero-bg" />
+        <div className="landing-hero-left">
+          <div className="landing-hero-badge">
+            <div className="landing-hero-badge-dot" />
+            <span>Seu universo pessoal, organizado</span>
+          </div>
+          <h1 className="landing-hero-title">
+            <span className="line1">SEU <span className="accent">ORBE</span></span>
+            <span className="line2">FINANCEIRO</span>
+            <span className="line2">ACADÊMICO</span>
+            <span className="line1">& FIT</span>
+          </h1>
+          <p className="landing-hero-sub">
+            Um super-assistente que organiza finanças domésticas, estudos e saúde numa única plataforma. Via WhatsApp e Web. Com IA especializada em cada área.
+          </p>
+          <div className="landing-hero-actions">
+            <button className="landing-btn-primary" onClick={() => navigate("/auth")}>
+              Começar Agora — Grátis 7 dias
+            </button>
+            <button className="landing-btn-secondary">
+              <span>Ver Demo</span>
+              <span>↗</span>
+            </button>
+          </div>
+          <div className="landing-hero-stats">
+            <div className="landing-stat">
+              <div className="landing-stat-num">4</div>
+              <div className="landing-stat-label">Módulos Integrados</div>
+            </div>
+            <div className="landing-stat">
+              <div className="landing-stat-num">100%</div>
+              <div className="landing-stat-label">Via WhatsApp</div>
+            </div>
+            <div className="landing-stat">
+              <div className="landing-stat-num">24h</div>
+              <div className="landing-stat-label">IA Disponível</div>
+            </div>
+          </div>
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto">
-          <div className="text-center max-w-4xl mx-auto">
-            <FadeIn>
-              <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-full px-4 py-1.5 mb-8">
-                <span className="text-xs font-medium text-primary uppercase tracking-wider">
-                  Super-Assistente Pessoal com IA
-                </span>
+        <div className="landing-hero-right">
+          {/* WhatsApp Card */}
+          <div className="landing-float-card landing-card-whatsapp">
+            <div className="landing-card-header">
+              <div className="landing-card-avatar">O</div>
+              <div>
+                <div className="landing-card-name">ORBE Assistant</div>
               </div>
-            </FadeIn>
-
-            <FadeIn delay={0.1}>
-              <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold font-display tracking-tight leading-[0.95] mb-6">
-                SEU UNIVERSO,
-                <br />
-                <span className="bg-gradient-primary bg-clip-text text-transparent">
-                  ORGANIZADO.
-                </span>
-              </h1>
-            </FadeIn>
-
-            <FadeIn delay={0.2}>
-              <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
-                ORBE é seu assistente via WhatsApp: regista gastos, organiza tarefas,
-                gerencia estudos, acompanha treinos e te ajuda a evoluir sem esforço.
-              </p>
-            </FadeIn>
-
-            <FadeIn delay={0.3}>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
-                <Button
-                  size="lg"
-                  onClick={() => navigate("/auth")}
-                  className="gap-2 text-base px-8 h-14 rounded-2xl shadow-glow-md"
-                >
-                  COMEÇAR AGORA <ArrowRight className="h-5 w-5" />
-                </Button>
-              </div>
-              <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-                <span className="flex items-center gap-1.5"><Clock className="h-4 w-4 text-primary" /> Setup 2 min</span>
-                <span className="flex items-center gap-1.5"><Zap className="h-4 w-4 text-primary" /> Acesso imediato</span>
-                <span className="flex items-center gap-1.5"><Smartphone className="h-4 w-4 text-primary" /> 100% WhatsApp</span>
-              </div>
-            </FadeIn>
+              <div className="landing-online-dot" />
+            </div>
+            <div className="landing-msg-bubble">
+              Gastei R$450 no supermercado 🛒
+              <div className="landing-msg-time">09:30</div>
+            </div>
+            <div className="landing-msg-bubble reply">
+              ✅ Registado! Alimentação: R$450<br />
+              ⚠️ Restam R$320 no orçamento de compras.
+              <div className="landing-msg-time">09:30</div>
+            </div>
+            <div className="landing-msg-bubble">
+              Prova de Cálculo na sexta!
+              <div className="landing-msg-time">14:00</div>
+            </div>
+            <div className="landing-msg-bubble reply">
+              📚 Adicionado! Lembrete em 3 dias e 1 dia antes. Quer que eu crie um plano de revisão?
+              <div className="landing-msg-time">14:00</div>
+            </div>
           </div>
 
-          {/* Chat mockup */}
-          <FadeIn delay={0.4} className="mt-16 max-w-md mx-auto">
-            <div className="rounded-3xl border border-border bg-card shadow-2xl overflow-hidden">
-              {/* Phone header */}
-              <div className="bg-primary px-5 py-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary-foreground/20 flex items-center justify-center">
-                  <OrbeIcon size={24} />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-primary-foreground">ORBE</p>
-                  <p className="text-xs text-primary-foreground/70">online</p>
-                </div>
-              </div>
-              {/* Messages */}
-              <div className="p-4 space-y-3 max-h-[420px] overflow-y-auto bg-background/50">
-                {chatMessages.map((msg, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ opacity: 0, y: 10 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.5 + i * 0.15 }}
-                    className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    <div
-                      className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
-                        msg.type === "user"
-                          ? "bg-primary text-primary-foreground rounded-br-md"
-                          : "bg-card border border-border rounded-bl-md"
-                      }`}
-                    >
-                      <p className="whitespace-pre-line">{msg.text}</p>
-                      <p className={`text-[10px] mt-1 ${msg.type === "user" ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
-                        {msg.time}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
+          {/* Finance Card */}
+          <div className="landing-float-card landing-card-finance" style={{ animationDelay: "-2s" }}>
+            <div className="landing-finance-label">Saldo do Mês</div>
+            <div className="landing-finance-value">R$1.840</div>
+            <div className="landing-finance-bar">
+              <div className="landing-finance-fill" />
             </div>
-          </FadeIn>
+            <div className="landing-finance-sub">62% do salário comprometido</div>
+          </div>
+
+          {/* Study Card */}
+          <div className="landing-float-card landing-card-study" style={{ animationDelay: "-4s" }}>
+            <div style={{ fontFamily: "'Syne',sans-serif", fontSize: "9px", fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase" as const, color: "var(--amber)", marginBottom: "12px" }}>Agenda de Hoje</div>
+            <div className="landing-study-row">
+              <div className="landing-study-dot" style={{ background: "#60a5fa" }} />
+              <div className="landing-study-info">
+                <div className="landing-study-subject">Cálculo II</div>
+                <div className="landing-study-time">08:00 — 10:00</div>
+              </div>
+              <div className="landing-study-badge">AULA</div>
+            </div>
+            <div className="landing-study-row">
+              <div className="landing-study-dot" style={{ background: "#f87171" }} />
+              <div className="landing-study-info">
+                <div className="landing-study-subject">Anatomia</div>
+                <div className="landing-study-time">Prova em 3 dias</div>
+              </div>
+              <div className="landing-study-badge" style={{ background: "rgba(248,113,113,0.15)", color: "#f87171", borderColor: "rgba(248,113,113,0.2)" }}>PROVA</div>
+            </div>
+            <div className="landing-study-row">
+              <div className="landing-study-dot" style={{ background: "#4ade80" }} />
+              <div className="landing-study-info">
+                <div className="landing-study-subject">Treino — PUSH</div>
+                <div className="landing-study-time">19:00 — 20:30</div>
+              </div>
+              <div className="landing-study-badge" style={{ background: "rgba(74,222,128,0.1)", color: "#4ade80", borderColor: "rgba(74,222,128,0.2)" }}>FIT</div>
+            </div>
+          </div>
+
+          {/* Fit Card */}
+          <div className="landing-float-card landing-card-fit" style={{ animationDelay: "-1s" }}>
+            <div className="landing-fit-ring">
+              <div className="landing-fit-ring-fill" />
+              <div className="landing-fit-pct">78%</div>
+            </div>
+            <div className="landing-fit-label">Meta Semanal</div>
+            <div className="landing-fit-sub">5/7 treinos realizados</div>
+          </div>
         </div>
       </section>
 
-      {/* ─── MARQUEE ─── */}
-      <section className="py-8 border-y border-border/50 overflow-hidden">
-        <div className="flex animate-marquee whitespace-nowrap">
-          {[...marqueeItems, ...marqueeItems, ...marqueeItems].map((item, i) => (
-            <div key={i} className="inline-flex items-center gap-2 mx-6 text-muted-foreground">
-              <item.icon className="h-4 w-4 text-primary" />
-              <span className="text-sm font-medium">{item.label}</span>
+      {/* ══ MARQUEE ══ */}
+      <div className="landing-marquee-section">
+        <div className="landing-marquee-track">
+          {[...Array(2)].map((_, rep) => (
+            <span key={rep} style={{ display: "contents" }}>
+              {["Finanças Domésticas", "Planilha Inteligente", "IA Especialista por Matéria", "Plano Alimentar Personalizado", "Lembretes de Provas", "Nutricionista IA", "100% WhatsApp", "Alertas de Orçamento", "Metas de Poupança", "Treinos Personalizados", "Controle de IMC", "Agenda Acadêmica"].map((item) => (
+                <span key={`${rep}-${item}`} className="landing-marquee-item">
+                  <span className="dot" />
+                  {item}
+                </span>
+              ))}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* ══ MODULES ══ */}
+      <section id="modules" className="landing-section landing-modules">
+        <div className="landing-modules-header fade-up">
+          <div>
+            <div className="landing-section-label">Arsenal Completo</div>
+            <div className="landing-section-title">QUATRO<br />MÓDULOS</div>
+          </div>
+          <div>
+            <p className="landing-section-sub">ORBE integra finanças domésticas, organização acadêmica, saúde física e tarefas gerais num único ecossistema inteligente. Tudo conectado. Tudo via WhatsApp.</p>
+          </div>
+        </div>
+
+        <div className="landing-modules-grid">
+          {[
+            { num: "01", emoji: "💰", name: "Financeiro", desc: "Planilha doméstica inteligente que desconta gastos do salário em tempo real. Registro via WhatsApp, leitura de recibos por IA, alertas de limite e metas de poupança.", features: ["Planilha doméstica com saldo em tempo real", "Registro por texto, áudio ou foto", "Alertas de vencimento e limite", "Dashboard com gráficos e histórico", "Consultor financeiro IA 24h"] },
+            { num: "02", emoji: "📚", name: "Estudos", desc: "Agenda acadêmica completa com lembretes de provas, trabalhos e aulas. Cada disciplina tem seu próprio chatbot IA especialista na área.", features: ["Calendário por disciplina e horários", "Lembretes de provas, trabalhos e atividades", "IA especialista por matéria", "Simulados e correção automática", "Upload de materiais para a IA analisar"] },
+            { num: "03", emoji: "💪", name: "Fit", desc: "Plano de treino e alimentação 100% personalizado combinando seu objetivo, IMC, orçamento e estilo alimentar. Nutricionista IA disponível 24h.", features: ["Plano alimentar por orçamento e objetivo", "Suporte a veganos, vegetarianos e mais", "Lembretes de treino e refeições", "Acompanhamento de IMC e evolução", "Nutricionista pessoal IA"] },
+            { num: "04", emoji: "✅", name: "Tarefas", desc: "Criação de tarefas por texto ou voz via WhatsApp. Lembretes automáticos. Integrado com agenda de estudos, finanças e treinos.", features: ["Criação por voz, texto ou foto", "Lembretes automáticos configuráveis", "Integração com todos os módulos", "Prioridade e categorização automática"] },
+          ].map((m, i) => (
+            <div key={m.num} className={`landing-module-card fade-up ${i > 0 ? `fade-up-delay-${i}` : ""}`}>
+              <div className="landing-module-num">{m.num}</div>
+              <div className="landing-module-icon">{m.emoji}</div>
+              <div className="landing-module-name">{m.name}</div>
+              <p className="landing-module-desc">{m.desc}</p>
+              <div className="landing-module-features">
+                {m.features.map((f) => (
+                  <div key={f} className="landing-module-feature">{f}</div>
+                ))}
+              </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ─── MODULES ─── */}
-      <section className="py-24 px-6">
-        <div className="max-w-7xl mx-auto">
-          <FadeIn className="text-center mb-16">
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-3 block">Arsenal Completo</span>
-            <h2 className="text-4xl md:text-5xl font-bold font-display tracking-tight mb-4">
-              FINANÇAS + ESTUDOS + FIT + TAREFAS
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              ORBE organiza todas as áreas da sua vida. Você controla tudo num só lugar.
-            </p>
-          </FadeIn>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[
-              { icon: Wallet, title: "Financeiro", desc: "Controle gastos, planilha doméstica e consultor financeiro com IA.", color: "text-emerald-500" },
-              { icon: GraduationCap, title: "Estudos", desc: "Agenda acadêmica, chatbots por disciplina e lembretes inteligentes.", color: "text-blue-500" },
-              { icon: Dumbbell, title: "Fit", desc: "Plano de treino e alimentação personalizado com IA nutricionista.", color: "text-orange-500" },
-              { icon: CheckSquare, title: "Tarefas", desc: "Gestão de tarefas integrada a todos os módulos do ORBE.", color: "text-purple-500" },
-            ].map((mod, i) => (
-              <FadeIn key={mod.title} delay={i * 0.1}>
-                <div className="group relative rounded-2xl border border-border bg-card p-6 hover:border-primary/30 transition-all duration-300 hover:shadow-glow-sm h-full">
-                  <mod.icon className={`h-10 w-10 ${mod.color} mb-4`} />
-                  <h3 className="font-display font-semibold text-lg mb-2">{mod.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{mod.desc}</p>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── FEATURES GRID ─── */}
-      <section id="features" className="py-24 px-6 bg-muted/30">
-        <div className="max-w-7xl mx-auto">
-          <FadeIn className="text-center mb-16">
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-3 block">Funcionalidades</span>
-            <h2 className="text-4xl md:text-5xl font-bold font-display tracking-tight mb-4">
-              TUDO QUE VOCÊ PRECISA
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Cada recurso foi pensado para simplificar sua vida.
-            </p>
-          </FadeIn>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {features.map((f, i) => (
-              <FadeIn key={f.title} delay={i * 0.05}>
-                <div className="group rounded-2xl border border-border bg-card p-6 hover:border-primary/30 transition-all duration-300 hover:shadow-glow-sm h-full flex flex-col">
-                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-                    <f.icon className="h-6 w-6 text-primary" />
-                  </div>
-                  <h3 className="font-display font-semibold text-sm mb-2 tracking-wide">{f.title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed flex-1">{f.desc}</p>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── TESTIMONIALS ─── */}
-      <section className="py-24 px-6">
-        <div className="max-w-7xl mx-auto">
-          <FadeIn className="text-center mb-16">
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-3 block">Utilizadores</span>
-            <h2 className="text-4xl md:text-5xl font-bold font-display tracking-tight mb-4">
-              QUEM USA ORBE,
-              <br />
-              <span className="bg-gradient-primary bg-clip-text text-transparent">DOMINA A VIDA.</span>
-            </h2>
-            <p className="text-lg text-muted-foreground">Resultados reais. Pessoas reais. Controle real.</p>
-          </FadeIn>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {testimonials.map((t, i) => (
-              <FadeIn key={t.name} delay={i * 0.1}>
-                <div className="rounded-2xl border border-border bg-card p-6 hover:border-primary/20 transition-all duration-300">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center text-sm font-bold text-white">
-                      {t.initials}
-                    </div>
-                    <div>
-                      <p className="font-display font-semibold">{t.name}</p>
-                      <p className="text-sm text-muted-foreground">{t.role}</p>
-                    </div>
-                  </div>
-                  <p className="text-muted-foreground leading-relaxed mb-4 italic">"{t.quote}"</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex gap-0.5">
-                      {[...Array(5)].map((_, j) => (
-                        <Star key={j} className="h-4 w-4 fill-primary text-primary" />
-                      ))}
-                    </div>
-                    <span className="text-xs font-semibold text-primary ml-auto bg-primary/10 px-3 py-1 rounded-full">
-                      {t.stat}
-                    </span>
+      {/* ══ PLANILHA DEMO ══ */}
+      <section id="planilha" className="landing-section landing-planilha">
+        <div className="landing-planilha-wrapper">
+          <div className="landing-planilha-preview fade-up">
+            <div className="landing-planilha-topbar">
+              <div className="landing-planilha-title">Planilha Doméstica</div>
+              <div className="landing-planilha-month">Janeiro 2026</div>
+            </div>
+            <div className="landing-planilha-salary">
+              <div><div className="landing-salary-label">Salário Recebido</div></div>
+              <div className="landing-salary-value">R$ 4.800</div>
+            </div>
+            <div className="landing-planilha-table">
+              <div className="landing-pt-head">
+                <span>Gasto</span>
+                <span>Categoria</span>
+                <span style={{ textAlign: "right" }}>Valor</span>
+                <span style={{ textAlign: "right" }}>Status</span>
+              </div>
+              {[
+                { name: "Aluguel", cat: "Moradia", val: "-R$1.200", status: "pago" },
+                { name: "Conta de Luz", cat: "Utilities", val: "-R$180", status: "pago" },
+                { name: "Alimentação", cat: "Comida", val: "-R$850", status: "pago" },
+                { name: "Internet", cat: "Utilities", val: "-R$120", status: "pend", statusText: "⏳ Vence dia 15" },
+                { name: "Academia", cat: "Saúde", val: "-R$80", status: "pend", statusText: "⏳ Pendente" },
+                { name: "Transporte", cat: "Mobilidade", val: "-R$370", status: "pago" },
+              ].map((row) => (
+                <div key={row.name} className="landing-pt-row">
+                  <div className="landing-pt-name">{row.name}</div>
+                  <div className="landing-pt-cat">{row.cat}</div>
+                  <div className="landing-pt-val">{row.val}</div>
+                  <div className={`landing-pt-status ${row.status === "pago" ? "status-pago" : "status-pend"}`}>
+                    {row.status === "pago" ? "✓ Pago" : row.statusText}
                   </div>
                 </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── PRICING ─── */}
-      <section id="pricing" className="py-24 px-6 bg-muted/30">
-        <div className="max-w-3xl mx-auto">
-          <FadeIn className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold font-display tracking-tight mb-4">
-              ESCOLHA SEU PLANO.
-              <br />
-              <span className="bg-gradient-primary bg-clip-text text-transparent">COMECE A EVOLUIR.</span>
-            </h2>
-            <p className="text-lg text-muted-foreground">Quanto mais tempo, maior o desconto. Cancele quando quiser.</p>
-          </FadeIn>
-
-          {/* Plan toggle */}
-          <FadeIn delay={0.1} className="flex justify-center mb-10">
-            <div className="inline-flex bg-card border border-border rounded-2xl p-1.5 gap-1">
-              {pricingPlans.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setSelectedPlan(p.id)}
-                  className={`relative px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
-                    selectedPlan === p.id
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {p.label}
-                  {p.badge && (
-                    <span className="absolute -top-2 -right-2 bg-accent text-accent-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                      {p.badge}
-                    </span>
-                  )}
-                </button>
               ))}
             </div>
-          </FadeIn>
-
-          {/* Price card */}
-          <FadeIn delay={0.2}>
-            <div className="rounded-3xl border-2 border-primary/30 bg-card p-8 md:p-10 text-center shadow-glow-sm">
-              {currentPlan.id !== "monthly" && (
-                <p className="text-sm text-muted-foreground line-through mb-1">De R$ 29,90/mês</p>
-              )}
-              <div className="flex items-baseline justify-center gap-1 mb-2">
-                <span className="text-5xl md:text-6xl font-bold font-display">R${currentPlan.price}</span>
-                <span className="text-lg text-muted-foreground">{currentPlan.period}</span>
+            <div className="landing-planilha-saldo">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontFamily: "'Syne',sans-serif", fontSize: "10px", fontWeight: 700, letterSpacing: "2px", textTransform: "uppercase" as const, color: "var(--grey)" }}>Saldo Restante</div>
+                <div className="landing-saldo-restante">R$ 2.000</div>
               </div>
-              <p className="text-sm text-muted-foreground mb-8">{currentPlan.billing}</p>
-
-              {currentPlan.id === "annual" && (
-                <p className="text-sm text-primary font-medium mb-6">
-                  💰 R$ 0,66/dia = Menos que um café!
-                </p>
-              )}
-
-              <Button
-                size="lg"
-                onClick={() => navigate("/auth")}
-                className="w-full max-w-sm mx-auto gap-2 text-base h-14 rounded-2xl shadow-glow-md mb-8"
-              >
-                COMEÇAR AGORA <ArrowRight className="h-5 w-5" />
-              </Button>
-
-              <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground mb-8">
-                <span className="flex items-center gap-1"><Lock className="h-3.5 w-3.5" /> Compra Segura</span>
-                <span className="flex items-center gap-1"><Zap className="h-3.5 w-3.5" /> Acesso Imediato</span>
+              <div className="landing-saldo-bar-bg"><div className="landing-saldo-bar-fill" /></div>
+              <div className="landing-saldo-info">
+                <span>Comprometido: R$2.800 (58%)</span>
+                <span>Projeção final: R$1.800</span>
               </div>
+            </div>
+          </div>
+          <div className="fade-up fade-up-delay-1">
+            <div className="landing-section-label">Módulo Financeiro</div>
+            <div className="landing-section-title">PLANILHA<br /><span style={{ color: "var(--amber)" }}>DOMES-<br />TICA</span></div>
+            <p className="landing-section-sub">Cadastre seu salário e seus gastos fixos e variáveis. O ORBE desconta automaticamente cada despesa e mostra quanto você ainda tem disponível — com alertas antes do dinheiro acabar.</p>
+            <div className="landing-planilha-features" style={{ marginTop: "32px" }}>
+              {["Desconto automático do salário", "Alertas de vencimento em tempo real", "Categorias e status de pagamento", "Projeção de saldo no fim do mês"].map((f) => (
+                <div key={f} className="landing-module-feature">{f}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
-              <div className="border-t border-border pt-6">
-                <p className="font-display font-semibold text-sm mb-4">Acesso Completo</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left max-w-lg mx-auto">
-                  {planFeatures.map((f) => (
-                    <div key={f} className="flex items-start gap-2 text-sm">
-                      <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                      <span className="text-muted-foreground">{f}</span>
+      {/* ══ ESTUDOS ══ */}
+      <section id="estudos" className="landing-section landing-estudos">
+        <div className="landing-estudos-wrapper">
+          <div className="landing-estudos-content fade-up">
+            <div className="landing-section-label">Módulo de Estudos</div>
+            <div className="landing-section-title">AGENDA<br /><span style={{ color: "var(--amber)" }}>ACADÊ-<br />MICA</span></div>
+            <p className="landing-section-sub" style={{ marginBottom: "40px" }}>Cada disciplina tem sua IA especialista. Agenda de provas, trabalhos e aulas com lembretes automáticos. Crie simulados, tire dúvidas e receba correções — 24h por dia.</p>
+            <div className="landing-agenda-preview">
+              {[
+                { day: "15", month: "Jan", subject: "Cálculo II — P2", detail: "Integrais Duplas • Sala 405", type: "Prova", typeClass: "type-prova" },
+                { day: "17", month: "Jan", subject: "Entrega TCC — Capítulo 2", detail: "Metodologia • Via Plataforma até 23:59", type: "Trabalho", typeClass: "type-trabalho" },
+                { day: "20", month: "Jan", subject: "Revisão — Cálculo II", detail: "Integrais • Agendado pelo ORBE", type: "Revisão", typeClass: "type-revisao" },
+                { day: "22", month: "Jan", subject: "Direito Constitucional", detail: "Aula 08:00 • Direitos Fundamentais", type: "Aula", typeClass: "type-aula" },
+              ].map((item) => (
+                <div key={item.subject} className="landing-agenda-item">
+                  <div className="landing-agenda-date">
+                    <div className="landing-agenda-day">{item.day}</div>
+                    <div className="landing-agenda-month">{item.month}</div>
+                  </div>
+                  <div className="landing-agenda-info">
+                    <div className="landing-agenda-subject">{item.subject}</div>
+                    <div className="landing-agenda-detail">{item.detail}</div>
+                  </div>
+                  <div className={`landing-agenda-type ${item.typeClass}`}>{item.type}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="landing-chat-preview fade-up fade-up-delay-1">
+            <div className="landing-chat-topbar">
+              <div className="landing-chat-subject-icon">∫</div>
+              <div>
+                <div className="landing-chat-subject-name">Cálculo II</div>
+                <div className="landing-chat-role">Professor Especialista em Matemática</div>
+              </div>
+              <div className="landing-online-dot" />
+            </div>
+            <div className="landing-chat-messages">
+              <div className="landing-chat-msg user">
+                <div className="sender">Você</div>
+                Não entendo como resolver integrais por partes. Pode me explicar com um exemplo?
+              </div>
+              <div className="landing-chat-msg ai">
+                <div className="sender">IA — Prof. Cálculo</div>
+                Claro! Integração por partes usa a fórmula ∫u dv = uv − ∫v du. Vamos resolver ∫x·eˣ dx juntos: escolhemos u=x (simples de derivar) e dv=eˣ dx (simples de integrar)...
+              </div>
+              <div className="landing-chat-msg user">
+                <div className="sender">Você</div>
+                Pode criar 5 questões para eu treinar?
+              </div>
+              <div className="landing-chat-msg ai">
+                <div className="sender">IA — Prof. Cálculo</div>
+                Com certeza! Questão 1: Calcule ∫x·cos(x)dx. Questão 2: ∫ln(x)dx. Questão 3: ∫x²·eˣ dx...
+              </div>
+            </div>
+            <div className="landing-chat-input-area">
+              <div className="landing-chat-input-fake">Pergunte qualquer coisa sobre Cálculo II...</div>
+              <div className="landing-chat-send">→</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══ FIT ══ */}
+      <section id="fit" className="landing-section landing-fit">
+        <div className="landing-fit-wrapper">
+          <div className="landing-fit-content fade-up">
+            <div className="landing-section-label">Módulo Fit</div>
+            <div className="landing-section-title">CORPO<br /><span style={{ color: "var(--amber)" }}>TREINO</span><br />& DIETA</div>
+            <p className="landing-section-sub" style={{ marginBottom: "40px" }}>IA que cria seu plano alimentar e de treino combinando objetivo, IMC, orçamento e estilo de vida. Suporte completo para veganos, vegetarianos, pescetarianos e mais.</p>
+            <div className="landing-fit-features">
+              {[
+                { title: "🎯 Objetivo Personalizado", desc: "Perda de gordura, hipertrofia, ganho de massa ou condicionamento" },
+                { title: "🥗 Plano Alimentar IA", desc: "Gerado com base no seu orçamento, restrições e estilo alimentar" },
+                { title: "🏋️ Treino Adaptado", desc: "Academia, casa ou ar livre. Com o que você tem disponível" },
+                { title: "🧬 Restrições Alimentares", desc: "Alergias, intolerâncias, grupos nutricionais e condições médicas" },
+                { title: "👩‍⚕️ Nutricionista IA 24h", desc: "Reporte avanços, peça ajustes, tire dúvidas a qualquer momento" },
+                { title: "🔔 Lembretes de Treino", desc: "Notificações de treino, refeições e hidratação via WhatsApp" },
+              ].map((f) => (
+                <div key={f.title} className="landing-fit-feat">
+                  <div className="landing-fit-feat-title">{f.title}</div>
+                  <div className="landing-fit-feat-desc">{f.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="landing-fit-preview-section fade-up fade-up-delay-1">
+            <div className="landing-fit-card-main">
+              <div className="landing-fit-header">
+                <div>
+                  <div className="landing-fit-header-title">João Silva — Hipertrofia</div>
+                  <div className="landing-fit-header-sub">78kg · 1,78m · IMC 24.6</div>
+                </div>
+                <div className="landing-imc-badge">IMC Normal</div>
+              </div>
+              <div className="landing-fit-rings">
+                {[
+                  { val: "72%", color: "var(--amber)", pct: 72 },
+                  { val: "58%", color: "#60a5fa", pct: 58 },
+                  { val: "85%", color: "#4ade80", pct: 85 },
+                ].map((ring, idx) => (
+                  <div key={idx} className="landing-fit-ring-item">
+                    <div className="landing-ring-outer">
+                      <div className="landing-ring-bg" />
+                      <div className="landing-ring-prog" style={{ background: `conic-gradient(${ring.color} 0% ${ring.pct}%, transparent ${ring.pct}%)` }} />
+                      <div className="landing-ring-val" style={{ color: ring.color }}>{ring.val}</div>
+                    </div>
+                    <div className="landing-ring-name">{["Meta", "Treinos", "Dieta"][idx]}</div>
+                    <div className="landing-ring-goal">{["Hipertrofia", "Esta semana", "Aderência"][idx]}</div>
+                  </div>
+                ))}
+              </div>
+              <div className="landing-fit-macros">
+                <div className="landing-macro-item">
+                  <div className="landing-macro-val macro-p">156g</div>
+                  <div className="landing-macro-label">Proteína</div>
+                </div>
+                <div className="landing-macro-item">
+                  <div className="landing-macro-val macro-c">240g</div>
+                  <div className="landing-macro-label">Carboidrato</div>
+                </div>
+                <div className="landing-macro-item">
+                  <div className="landing-macro-val macro-g">65g</div>
+                  <div className="landing-macro-label">Gordura</div>
+                </div>
+              </div>
+              <div className="landing-fit-treino">
+                <div className="landing-treino-title">Divisão Semanal</div>
+                <div className="landing-treino-days">
+                  {[
+                    { day: "SEG", split: "PUSH", cls: "active" },
+                    { day: "TER", split: "PULL", cls: "active" },
+                    { day: "QUA", split: "LEGS", cls: "active" },
+                    { day: "QUI", split: "PUSH", cls: "today" },
+                    { day: "SEX", split: "PULL", cls: "" },
+                    { day: "SAB", split: "LEGS", cls: "" },
+                    { day: "DOM", split: "REST", cls: "" },
+                  ].map((d) => (
+                    <div key={d.day} className={`landing-treino-day ${d.cls}`}>
+                      {d.day}<br /><small>{d.split}</small>
                     </div>
                   ))}
                 </div>
               </div>
-
-              <p className="mt-8 text-xs text-muted-foreground">
-                🔒 Garantia de 7 dias. Se não gostar, devolvemos 100% do seu dinheiro.
-              </p>
             </div>
-          </FadeIn>
+          </div>
         </div>
       </section>
 
-      {/* ─── FAQ ─── */}
-      <section id="faq" className="py-24 px-6">
-        <div className="max-w-3xl mx-auto">
-          <FadeIn className="text-center mb-12">
-            <span className="text-xs font-semibold uppercase tracking-widest text-primary mb-3 block">Dúvidas Frequentes</span>
-            <h2 className="text-4xl font-bold font-display tracking-tight">Perguntas Frequentes</h2>
-          </FadeIn>
+      {/* ══ FEATURES ══ */}
+      <section id="features" className="landing-section landing-features">
+        <div className="fade-up">
+          <div className="landing-section-label">Funcionalidades</div>
+          <div className="landing-section-title">ARSENAL<br />COMPLETO</div>
+        </div>
+        <div className="landing-features-grid">
+          {[
+            { emoji: "📱", name: "WhatsApp Nativo", desc: "Texto, áudio ou foto. O ORBE extrai os dados automaticamente. Sem apps extras para baixar." },
+            { emoji: "📸", name: "Leitura de Recibos", desc: "Tire foto do recibo. A IA extrai valor, data, categoria e estabelecimento em segundos." },
+            { emoji: "🔔", name: "Alertas Inteligentes", desc: "Limites financeiros, vencimentos, provas, treinos e refeições. Tudo com antecedência configurável." },
+            { emoji: "🧠", name: "IA Especialista", desc: "Cada módulo tem sua IA especializada: financeiro, professor, nutricionista e personal trainer." },
+            { emoji: "📊", name: "Gráficos Completos", desc: "Dashboard com evolução financeira, progresso físico e desempenho acadêmico em um só lugar." },
+            { emoji: "🎯", name: "Metas & Progresso", desc: "Defina metas financeiras, físicas e acadêmicas. O ORBE acompanha e te motiva automaticamente." },
+            { emoji: "🌿", name: "Dietas Especiais", desc: "Vegetariano, vegano, pescetariano, flexitariano. Plano alimentar adaptado ao seu estilo de vida." },
+            { emoji: "🔒", name: "Dados Seguros", desc: "Encriptação de ponta a ponta. Seus dados financeiros, acadêmicos e de saúde protegidos." },
+          ].map((f, i) => (
+            <div key={f.name} className={`landing-feat-card fade-up ${i > 0 ? `fade-up-delay-${(i % 4)}` : ""}`}>
+              <div className="landing-feat-num">{String(i + 1).padStart(2, "0")}</div>
+              <span className="landing-feat-icon">{f.emoji}</span>
+              <div className="landing-feat-name">{f.name}</div>
+              <p className="landing-feat-desc">{f.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-          <div className="space-y-3">
-            {faqs.map((faq, i) => (
-              <FadeIn key={i} delay={i * 0.05}>
-                <div className="rounded-2xl border border-border bg-card overflow-hidden">
-                  <button
-                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                    className="w-full flex items-center justify-between p-5 text-left font-display font-medium hover:bg-muted/50 transition-colors"
-                  >
-                    {faq.q}
-                    <ChevronDown
-                      className={`h-5 w-5 text-muted-foreground shrink-0 transition-transform duration-200 ${
-                        openFaq === i ? "rotate-180" : ""
-                      }`}
-                    />
-                  </button>
-                  <motion.div
-                    initial={false}
-                    animate={{ height: openFaq === i ? "auto" : 0, opacity: openFaq === i ? 1 : 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <p className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">{faq.a}</p>
-                  </motion.div>
+      {/* ══ TESTIMONIALS ══ */}
+      <section id="testimonials" className="landing-section landing-testimonials">
+        <div className="landing-test-header fade-up">
+          <div className="landing-section-label" style={{ justifyContent: "center" }}>Usuários</div>
+          <div className="landing-section-title" style={{ textAlign: "center" }}>
+            QUEM USA ORBE<br /><span style={{ color: "var(--amber)" }}>DOMINA A VIDA</span>
+          </div>
+        </div>
+        <div className="landing-test-grid">
+          {[
+            { initials: "MS", name: "Maria Santos", role: "Empreendedora · São Paulo", text: "A planilha doméstica mudou tudo. Agora sei exatamente quanto tenho, quanto gastei e quanto vai sobrar. Paguei todas as contas em dia pelo primeiro mês.", stat: "R$620", statLabel: "ECONOMIZADOS EM 30 DIAS" },
+            { initials: "JM", name: "João Machava", role: "Estudante de Medicina · BH", text: "O chatbot de Anatomia é incrível. É como ter um professor disponível 24h. Passei na prova que achei que ia reprovar com a ajuda do ORBE.", stat: "9.2", statLabel: "NOTA NA PROVA DE ANATOMIA" },
+            { initials: "AT", name: "Ana Tembe", role: "Professora · Belo Horizonte", text: "Sou vegana e sempre tive dificuldade de montar dietas com orçamento limitado. O ORBE criou um plano perfeito respeitando tudo. Perdi 6kg em 2 meses.", stat: "-6kg", statLabel: "EM 60 DIAS COM PLANO VEGANO" },
+            { initials: "CM", name: "Carlos Mondlane", role: "Freelancer · Rio de Janeiro", text: "Como freelancer com renda variável, o módulo financeiro me ajudou a criar uma reserva pelo primeiro mês da minha vida. O consultor IA é sensacional.", stat: "+40%", statLabel: "DE ECONOMIA VERSUS ANO PASSADO" },
+          ].map((t, i) => (
+            <div key={t.name} className={`landing-test-card fade-up ${i > 0 ? `fade-up-delay-${i}` : ""}`}>
+              <div className="landing-test-quote">"</div>
+              <p className="landing-test-text">{t.text}</p>
+              <div className="landing-test-stat">{t.stat}</div>
+              <div className="landing-test-stat-label">{t.statLabel}</div>
+              <div className="landing-test-author">
+                <div className="landing-test-avatar">{t.initials}</div>
+                <div>
+                  <div className="landing-test-name">{t.name}</div>
+                  <div className="landing-test-role">{t.role}</div>
                 </div>
-              </FadeIn>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ══ PRICING ══ */}
+      <section id="pricing" className="landing-section landing-pricing">
+        <div className="landing-pricing-header fade-up">
+          <div className="landing-section-label" style={{ justifyContent: "center" }}>Planos</div>
+          <div className="landing-section-title" style={{ textAlign: "center" }}>
+            ESCOLHA<br />SEU <span style={{ color: "var(--amber)" }}>ORBE</span>
+          </div>
+          <p className="landing-section-sub" style={{ margin: "0 auto", textAlign: "center" }}>Quanto mais tempo, maior o desconto. Acesso imediato. Cancele quando quiser.</p>
+        </div>
+
+        <div className="landing-pricing-toggle fade-up">
+          <button className={`landing-toggle-btn ${pricePeriod === "mensal" ? "active" : ""}`} onClick={() => setPricePeriod("mensal")}>Mensal</button>
+          <button className={`landing-toggle-btn ${pricePeriod === "trimestral" ? "active" : ""}`} onClick={() => setPricePeriod("trimestral")}>Trimestral <span className="landing-toggle-badge">-17%</span></button>
+          <button className={`landing-toggle-btn ${pricePeriod === "anual" ? "active" : ""}`} onClick={() => setPricePeriod("anual")}>Anual <span className="landing-toggle-badge">-33%</span></button>
+        </div>
+
+        <div className="landing-pricing-grid fade-up">
+          {[
+            { plan: "Basic", price: currentPrices.basic, period: "Módulo Financeiro", features: ["Planilha doméstica inteligente", "Registro via WhatsApp", "Alertas de vencimento", "Dashboard financeiro"], disabled: ["Módulo de Estudos", "Módulo Fit"], featured: false },
+            { plan: "Student", price: currentPrices.student, period: "Financeiro + Estudos", features: ["Tudo do Basic", "Agenda acadêmica completa", "IA especialista por matéria", "Lembretes de provas e trabalhos", "Simulados com correção IA"], disabled: ["Módulo Fit"], featured: false },
+            { plan: "Full", price: currentPrices.full, period: "Todos os Módulos", features: ["Tudo do Student", "Plano alimentar IA personalizado", "Plano de treino adaptado", "Nutricionista IA 24h", "Lembretes de treino e dieta", "Suporte prioritário"], disabled: [], featured: true },
+            { plan: "Fit Only", price: currentPrices.fit, period: "Financeiro + Fit", features: ["Tudo do Basic", "Plano alimentar personalizado", "Divisão de treinos IA", "Nutricionista pessoal IA", "Acompanhamento de IMC"], disabled: ["Módulo de Estudos"], featured: false },
+          ].map((p) => (
+            <div key={p.plan} className={`landing-price-card ${p.featured ? "featured" : ""}`}>
+              {p.featured && <div className="landing-price-popular">Mais Popular</div>}
+              <div className="landing-price-plan">{p.plan}</div>
+              <div className="landing-price-val"><sup>R$</sup>{p.price}</div>
+              <div className="landing-price-period">/mês · {p.period}</div>
+              <div className="landing-price-divider" />
+              <div className="landing-price-features">
+                {p.features.map((f) => (
+                  <div key={f} className="landing-pf-item">{f}</div>
+                ))}
+                {p.disabled.map((f) => (
+                  <div key={f} className="landing-pf-item disabled">{f}</div>
+                ))}
+              </div>
+              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate("/auth")}>
+                {p.featured ? "Começar Agora" : "Começar"}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="landing-price-guarantee fade-up">
+          🔒 <span>Garantia de 7 dias.</span> Se não gostar, devolvemos 100% do seu dinheiro. Sem perguntas.
+        </div>
+      </section>
+
+      {/* ══ FAQ ══ */}
+      <section id="faq" className="landing-section landing-faq">
+        <div className="landing-faq-wrapper">
+          <div className="fade-up">
+            <div className="landing-section-label">Dúvidas</div>
+            <div className="landing-section-title">PER-<br />GUN-<br />TAS</div>
+          </div>
+          <div className="landing-faq-list fade-up fade-up-delay-1">
+            {[
+              { q: "O que é o ORBE?", a: "ORBE é um super-assistente pessoal que organiza finanças domésticas, estudos e saúde numa única plataforma. Opera 100% via WhatsApp e tem um dashboard web. Com IA especializada em cada módulo, você controla tudo sem precisar de múltiplos apps." },
+              { q: "Como funciona a planilha doméstica?", a: "Você cadastra seu salário e seus gastos fixos e variáveis. O ORBE desconta automaticamente cada despesa conforme são lançadas e mostra o saldo restante em tempo real. Você recebe alertas de vencimento e projeções do mês." },
+              { q: "O chatbot de estudos funciona para qualquer matéria?", a: "Sim! Você cadastra suas disciplinas e o ORBE cria um assistente especialista para cada uma. Medicina, Direito, Engenharia, Matemática, História — a IA se adapta ao conteúdo e age como especialista da área." },
+              { q: "O plano alimentar respeita restrições como veganismo?", a: "Completamente. O ORBE pergunta sobre seu grupo alimentar (vegano, vegetariano, pescetariano, flexitariano), alergias, intolerâncias e condições médicas. O plano gerado respeita todos esses critérios e ainda se adapta ao seu orçamento." },
+              { q: "Posso cancelar quando quiser?", a: "Sim, sem multas ou burocracia. E se não gostar nos primeiros 7 dias, devolvemos 100% do valor pago. Sem perguntas." },
+              { q: "Meus dados financeiros e de saúde estão seguros?", a: "Sim. O ORBE usa encriptação de ponta a ponta para todos os dados. Informações financeiras, acadêmicas e de saúde são tratadas com os mais altos padrões de segurança e privacidade." },
+            ].map((item, i) => (
+              <FaqItem key={i} q={item.q} a={item.a} open={openFaq === i} onToggle={() => toggleFaq(i)} />
             ))}
           </div>
         </div>
       </section>
 
-      {/* ─── FINAL CTA ─── */}
-      <section className="py-24 px-6 relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-[150px]" />
+      {/* ══ CTA FINAL ══ */}
+      <section className="landing-section landing-cta-final">
+        <div className="fade-up">
+          <div className="landing-section-label" style={{ justifyContent: "center" }}>
+            <span style={{ width: "30px", height: "1px", background: "var(--amber)", display: "block" }} />
+            Pronto para começar
+            <span style={{ width: "30px", height: "1px", background: "var(--amber)", display: "block" }} />
+          </div>
+          <div className="landing-cta-title">
+            <span className="outline">SEU UNIVERSO</span><br />
+            <span style={{ color: "var(--amber)" }}>ORGANIZADO.</span>
+          </div>
+          <p className="landing-cta-sub">Junte-se a quem já controla finanças, estudos e saúde num só lugar. Comece agora e sinta a diferença em 7 dias.</p>
+          <div className="landing-cta-btns">
+            <button className="landing-btn-primary" onClick={() => navigate("/auth")}>Começar Agora — 7 dias grátis</button>
+            <button className="landing-btn-secondary">Ver todos os planos ↗</button>
+          </div>
+          <div className="landing-cta-guarantee">🔒 Sem cartão de crédito necessário · Cancele quando quiser</div>
         </div>
-
-        <FadeIn className="relative z-10 text-center max-w-3xl mx-auto">
-          <h2 className="text-4xl md:text-5xl font-bold font-display tracking-tight mb-6">
-            PRONTO PARA ORGANIZAR
-            <br />
-            <span className="bg-gradient-primary bg-clip-text text-transparent">SUA VIDA INTEIRA?</span>
-          </h2>
-          <p className="text-lg text-muted-foreground mb-10 max-w-xl mx-auto">
-            Junte-se a quem já organiza finanças, estudos e saúde pelo WhatsApp.
-            <br />
-            Comece agora.
-          </p>
-          <Button
-            size="lg"
-            onClick={() => navigate("/auth")}
-            className="gap-2 text-base px-10 h-14 rounded-2xl shadow-glow-md"
-          >
-            COMEÇAR AGORA <ArrowRight className="h-5 w-5" />
-          </Button>
-        </FadeIn>
       </section>
 
-      {/* ─── FOOTER ─── */}
-      <footer className="border-t border-border px-6 py-8">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <OrbeIcon size={24} />
-            <span className="font-display font-semibold">ORBE</span>
+      {/* ══ FOOTER ══ */}
+      <footer className="landing-footer">
+        <div className="landing-footer-top">
+          <div className="landing-footer-brand">
+            <div className="landing-footer-logo">ORBE<span>.</span></div>
+            <p className="landing-footer-tagline">Seu universo pessoal — finanças, estudos e saúde — organizado num só lugar, via WhatsApp.</p>
+            <div className="landing-footer-social">
+              {["𝕏", "in", "ig", "yt"].map((s) => (
+                <div key={s} className="landing-social-btn">{s}</div>
+              ))}
+            </div>
           </div>
-          <div className="flex items-center gap-6 text-sm text-muted-foreground">
-            <a href="#features" className="hover:text-foreground transition-colors">Funcionalidades</a>
-            <a href="#pricing" className="hover:text-foreground transition-colors">Preços</a>
-            <a href="/auth" className="hover:text-foreground transition-colors">Entrar</a>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} ORBE • Seu universo organizado
-          </p>
+          {[
+            { title: "Produto", links: ["Funcionalidades", "Módulo Financeiro", "Módulo Estudos", "Módulo Fit", "Preços"] },
+            { title: "Empresa", links: ["Sobre nós", "Blog", "Carreiras", "Contato"] },
+            { title: "Legal", links: ["Termos de Uso", "Privacidade", "Cookies", "LGPD"] },
+          ].map((col) => (
+            <div key={col.title} className="landing-footer-col">
+              <h4>{col.title}</h4>
+              <ul className="landing-footer-links">
+                {col.links.map((link) => (
+                  <li key={link}><a href="#">{link}</a></li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="landing-footer-bottom">
+          <div className="landing-footer-copy">© 2026 <span>ORBE</span> — Todos os direitos reservados · Brasil</div>
+          <div className="landing-footer-copy">Feito com ♥ para quem domina a própria vida</div>
         </div>
       </footer>
     </div>
