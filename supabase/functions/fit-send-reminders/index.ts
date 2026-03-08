@@ -19,8 +19,11 @@ serve(async (req) => {
     if (!UAZAPI_URL || !UAZAPI_TOKEN) throw new Error("UAZAPI não configurada");
 
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentDay = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][now.getDay()];
+    // Use Brasilia time (UTC-3)
+    const brNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const currentHour = brNow.getHours();
+    const currentMinute = brNow.getMinutes();
+    const currentDay = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][brNow.getDay()];
 
     // Get all fit profiles with verified WhatsApp
     const { data: profiles } = await supabase
@@ -61,24 +64,59 @@ serve(async (req) => {
 
         // ===== SMART REMINDER LOGIC =====
 
-        // 1. TRAINING REMINDERS - based on weekly_availability
+        // 1. TRAINING REMINDERS - 1h before scheduled time with workout details
         const availability = fitProfile.weekly_availability || [];
-        const isTrainingDay = availability.includes(currentDay);
+        const todaySchedule = availability.find((a: any) => a.day === currentDay);
 
-        if (isTrainingDay) {
-          // Check if already trained today
-          const today = now.toISOString().split("T")[0];
-          const trainedToday = logsRes.data?.some((l: any) => l.workout_date === today);
+        if (todaySchedule) {
+          const trainingTime = todaySchedule.time || "18:00";
+          const [trainH, trainM] = trainingTime.split(":").map(Number);
+          // Calculate reminder time = 1h before training
+          const reminderH = trainH - 1 < 0 ? 23 : trainH - 1;
+          const reminderM = trainM;
 
-          if (!trainedToday) {
-            // Morning motivation (7-8h)
-            if (currentHour === 7) {
+          // Check if current time matches reminder time (within the hour window)
+          if (currentHour === reminderH && currentMinute < 30) {
+            const today = brNow.toISOString().split("T")[0];
+            const trainedToday = logsRes.data?.some((l: any) => l.workout_date === today);
+
+            if (!trainedToday) {
+              // Build workout details message
+              let workoutDetails = "";
+              if (workoutRes.data?.plan_data) {
+                const planData = workoutRes.data.plan_data as any;
+                const dayNames: Record<string, string[]> = {
+                  seg: ["segunda", "seg", "monday"],
+                  ter: ["terca", "terça", "ter", "tuesday"],
+                  qua: ["quarta", "qua", "wednesday"],
+                  qui: ["quinta", "qui", "thursday"],
+                  sex: ["sexta", "sex", "friday"],
+                  sab: ["sabado", "sábado", "sab", "saturday"],
+                  dom: ["domingo", "dom", "sunday"],
+                };
+                const aliases = dayNames[currentDay] || [currentDay];
+                
+                // Try to find today's workout in plan
+                const workouts = planData.workouts || planData.days || [];
+                const todayWorkout = workouts.find((w: any) => {
+                  const wDay = (w.day || w.name || "").toLowerCase();
+                  return aliases.some(a => wDay.includes(a));
+                });
+
+                if (todayWorkout) {
+                  const exercises = todayWorkout.exercises || [];
+                  workoutDetails = `\n\n📋 *${todayWorkout.name || todayWorkout.day || "Treino do dia"}*\n`;
+                  exercises.slice(0, 6).forEach((ex: any) => {
+                    workoutDetails += `• ${ex.name}${ex.sets ? ` - ${ex.sets}x${ex.reps || ""}` : ""}\n`;
+                  });
+                  if (exercises.length > 6) workoutDetails += `... e mais ${exercises.length - 6} exercícios`;
+                }
+              }
+
               const workoutName = workoutRes.data?.title || "treino";
-              messages.push(`🏋️ Bom dia, ${nome}! Hoje é dia de ${workoutName}. Bora! 💪`);
-            }
-            // Afternoon reminder if not trained yet (17-18h)
-            if (currentHour === 17) {
-              messages.push(`⏰ ${nome}, ainda dá tempo do treino hoje! Não deixa pra amanhã. 🔥`);
+              messages.push(
+                `🏋️ ${nome}, seu ${workoutName} começa em 1 hora (${trainingTime})! Prepara-se! 💪${workoutDetails}`
+              );
             }
           }
         }

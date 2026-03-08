@@ -67,6 +67,7 @@ interface FitFormData {
   goal: string;
   experience_level: string;
   weekly_days: string[];
+  weekly_times: Record<string, string>;
   training_location: string;
   available_equipment: string[];
   diet_type: string;
@@ -92,7 +93,7 @@ export default function FitOnboarding() {
   const [form, setForm] = useState<FitFormData>({
     age: "", sex: "", weight: "", height: "",
     goal: "", experience_level: "",
-    weekly_days: [], training_location: "", available_equipment: [],
+    weekly_days: [], weekly_times: {}, training_location: "", available_equipment: [],
     diet_type: "", nutritional_program: "",
     food_allergies: [], food_intolerances: [],
     medical_conditions: [], supplements: [],
@@ -118,6 +119,9 @@ export default function FitOnboarding() {
     if (data) {
       // Pre-fill form with existing data
       const d = data as any;
+      const availability = d.weekly_availability || [];
+      const times: Record<string, string> = {};
+      availability.forEach((a: any) => { if (a.time) times[a.day] = a.time; });
       setForm(f => ({
         ...f,
         age: d.age?.toString() || "",
@@ -126,7 +130,8 @@ export default function FitOnboarding() {
         height: d.height?.toString() || "",
         goal: d.goal || "",
         experience_level: d.experience_level || "",
-        weekly_days: (d.weekly_availability || []).map((a: any) => a.day),
+        weekly_days: availability.map((a: any) => a.day),
+        weekly_times: times,
         training_location: d.training_location || "",
         available_equipment: d.available_equipment || [],
         diet_type: d.diet_type || "",
@@ -189,7 +194,7 @@ export default function FitOnboarding() {
       height: form.height ? parseFloat(form.height) : null,
       goal: form.goal || null,
       experience_level: form.experience_level || null,
-      weekly_availability: form.weekly_days.map(day => ({ day })),
+      weekly_availability: form.weekly_days.map(day => ({ day, time: form.weekly_times[day] || "18:00" })),
       training_location: form.training_location || null,
       available_equipment: form.available_equipment,
       diet_type: form.diet_type || null,
@@ -387,6 +392,39 @@ export default function FitOnboarding() {
                     {form.weekly_days.length} dia(s) selecionado(s)
                   </p>
                 </div>
+
+                {form.weekly_days.length > 0 && (
+                  <div className="space-y-3">
+                    <Label>Horário do treino por dia</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Você receberá uma mensagem no WhatsApp 1h antes do treino com os detalhes do dia
+                    </p>
+                    <div className="grid gap-2">
+                      {DAYS.filter(d => form.weekly_days.includes(d)).map(day => (
+                        <div key={day} className="flex items-center gap-3 rounded-lg border p-3">
+                          <span className="font-medium text-sm w-12">{DAY_LABELS[day]}</span>
+                          <Input
+                            type="time"
+                            value={form.weekly_times[day] || "18:00"}
+                            onChange={e => setForm(f => ({
+                              ...f,
+                              weekly_times: { ...f.weekly_times, [day]: e.target.value }
+                            }))}
+                            className="w-32"
+                          />
+                          <span className="text-xs text-muted-foreground">
+                            Lembrete às {(() => {
+                              const t = form.weekly_times[day] || "18:00";
+                              const [h, m] = t.split(":").map(Number);
+                              const reminderH = h - 1 < 0 ? 23 : h - 1;
+                              return `${String(reminderH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+                            })()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <Separator />
 
