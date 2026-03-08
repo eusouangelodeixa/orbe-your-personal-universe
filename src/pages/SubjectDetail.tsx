@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Loader2, FileText, ClipboardList, BookOpen, RotateCw,
-  Send, ArrowLeft, CalendarPlus, Upload, Pencil, User, GraduationCap, Clock, MessageSquare, FileUp,
+  Send, ArrowLeft, CalendarPlus, Upload, Pencil, User, GraduationCap, Clock, MessageSquare, FileUp, Timer,
 } from "lucide-react";
+import { PomodoroTimer } from "@/components/PomodoroTimer";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ReactMarkdown from "react-markdown";
@@ -296,6 +297,7 @@ export default function SubjectDetail() {
         <Tabs defaultValue="agenda" className="space-y-4">
           <TabsList>
             <TabsTrigger value="agenda">📅 Agenda</TabsTrigger>
+            <TabsTrigger value="pomodoro">⏱️ Pomodoro</TabsTrigger>
             <TabsTrigger value="chatbot">🤖 Chatbot</TabsTrigger>
             <TabsTrigger value="ementa">📄 Ementa</TabsTrigger>
           </TabsList>
@@ -405,6 +407,11 @@ export default function SubjectDetail() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+          </TabsContent>
+
+          {/* ─── POMODORO TAB ─── */}
+          <TabsContent value="pomodoro">
+            <PomodoroTimer subjectName={subject.name} />
           </TabsContent>
 
           {/* ─── CHATBOT TAB ─── */}
