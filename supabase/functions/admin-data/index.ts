@@ -196,6 +196,84 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Settings management
+    if (action === "settings") {
+      const { data: settings } = await adminClient
+        .from("admin_settings")
+        .select("*")
+        .order("key");
+      return new Response(JSON.stringify({ settings }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "update-setting") {
+      const body = await req.json();
+      const { key, value } = body;
+      const { error } = await adminClient
+        .from("admin_settings")
+        .update({ value, updated_at: new Date().toISOString() })
+        .eq("key", key);
+      if (error) throw error;
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Financial metrics
+    if (action === "financial") {
+      const { data: allUsers } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const totalUsers = allUsers?.users?.length || 0;
+
+      // Get all incomes and expenses for MRR-like calculations
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      const [
+        { data: monthlyExpenses },
+        { data: monthlyIncomes },
+        { data: allExpenses },
+        { data: allIncomes },
+        { data: wallets },
+      ] = await Promise.all([
+        adminClient.from("expenses").select("amount, paid, type").eq("month", currentMonth).eq("year", currentYear),
+        adminClient.from("incomes").select("amount, recurring").eq("month", currentMonth).eq("year", currentYear),
+        adminClient.from("expenses").select("amount, paid, month, year, type").order("year", { ascending: false }).order("month", { ascending: false }).limit(1000),
+        adminClient.from("incomes").select("amount, month, year, recurring").order("year", { ascending: false }).order("month", { ascending: false }).limit(1000),
+        adminClient.from("wallets").select("balance, name"),
+      ]);
+
+      const totalMonthlyRevenue = (monthlyIncomes || []).reduce((s, i) => s + Number(i.amount), 0);
+      const totalMonthlyExpense = (monthlyExpenses || []).reduce((s, e) => s + Number(e.amount), 0);
+      const paidExpenses = (monthlyExpenses || []).filter(e => e.paid).reduce((s, e) => s + Number(e.amount), 0);
+      const pendingExpenses = totalMonthlyExpense - paidExpenses;
+      const recurringRevenue = (monthlyIncomes || []).filter(i => i.recurring).reduce((s, i) => s + Number(i.amount), 0);
+      const totalWalletBalance = (wallets || []).reduce((s, w) => s + Number(w.balance), 0);
+
+      // Last 6 months revenue/expenses
+      const monthlyHistory: Array<{month: number, year: number, revenue: number, expenses: number}> = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(currentYear, currentMonth - 1 - i, 1);
+        const m = d.getMonth() + 1;
+        const y = d.getFullYear();
+        const rev = (allIncomes || []).filter(inc => inc.month === m && inc.year === y).reduce((s, inc) => s + Number(inc.amount), 0);
+        const exp = (allExpenses || []).filter(ex => ex.month === m && ex.year === y).reduce((s, ex) => s + Number(ex.amount), 0);
+        monthlyHistory.push({ month: m, year: y, revenue: rev, expenses: exp });
+      }
+
+      return new Response(JSON.stringify({
+        totalUsers,
+        currentMonth: { revenue: totalMonthlyRevenue, expenses: totalMonthlyExpense, paid: paidExpenses, pending: pendingExpenses },
+        mrr: recurringRevenue,
+        totalWalletBalance,
+        wallets: wallets || [],
+        monthlyHistory,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
