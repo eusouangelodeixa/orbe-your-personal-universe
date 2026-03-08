@@ -11,6 +11,7 @@ import {
   PiggyBank,
   BookOpen,
   Calendar,
+  UserCircle,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -144,6 +145,21 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <NavLink
+                to="/perfil"
+                end
+                className="hover:bg-sidebar-accent/50"
+                activeClassName="bg-sidebar-accent text-primary font-medium"
+              >
+                <UserCircle className="mr-2 h-4 w-4" />
+                {!collapsed && <span>Perfil</span>}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
         <Button
           variant="ghost"
           size={collapsed ? "icon" : "default"}

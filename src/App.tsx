@@ -15,6 +15,7 @@ import Disciplinas from "./pages/Disciplinas";
 import StudiesDashboard from "./pages/StudiesDashboard";
 import SubjectDetail from "./pages/SubjectDetail";
 import Agenda from "./pages/Agenda";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/disciplinas" element={<ProtectedRoute><Disciplinas /></ProtectedRoute>} />
             <Route path="/disciplina/:subjectId" element={<ProtectedRoute><SubjectDetail /></ProtectedRoute>} />
             <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+            <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
