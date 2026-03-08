@@ -23,6 +23,7 @@ import FitMeals from "./pages/FitMeals";
 import FitProgress from "./pages/FitProgress";
 import FitChat from "./pages/FitChat";
 import Tarefas from "./pages/Tarefas";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/fit/progresso" element={<ProtectedRoute><FitProgress /></ProtectedRoute>} />
             <Route path="/fit/chat" element={<ProtectedRoute><FitChat /></ProtectedRoute>} />
             <Route path="/tarefas" element={<ProtectedRoute><Tarefas /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
