@@ -9,45 +9,62 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Clock, BookOpen, User, GraduationCap, Loader2, MessageSquare, Calendar } from "lucide-react";
-import { useSubjects, useAddSubject, useDeleteSubject, Subject } from "@/hooks/useStudies";
+import { Plus, Trash2, Clock, BookOpen, User, GraduationCap, Loader2, MessageSquare, Calendar, Pencil } from "lucide-react";
+import { useSubjects, useAddSubject, useUpdateSubject, useDeleteSubject, Subject } from "@/hooks/useStudies";
 import { useNavigate } from "react-router-dom";
 
 const DAYS = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
 const TYPES: Record<string, string> = { teorica: "Teórica", pratica: "Prática", laboratorio: "Laboratório" };
 const COLORS = ["#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#ec4899", "#06b6d4", "#f97316"];
 
+const emptyForm = () => ({
+  name: "", teacher: "", course: "", semester: "", type: "teorica",
+  weekly_hours: 0, color: COLORS[0],
+  schedule: [] as { day: string; start: string; end: string }[],
+});
+
 export default function Disciplinas() {
   const { data: subjects = [], isLoading } = useSubjects();
   const addSubject = useAddSubject();
+  const updateSubject = useUpdateSubject();
   const deleteSubject = useDeleteSubject();
   const navigate = useNavigate();
 
-  const [form, setForm] = useState({
-    name: "", teacher: "", course: "", semester: "", type: "teorica",
-    weekly_hours: 0, color: COLORS[0],
-    schedule: [] as { day: string; start: string; end: string }[],
-  });
+  const [form, setForm] = useState(emptyForm());
   const [scheduleEntry, setScheduleEntry] = useState({ day: "Segunda", start: "08:00", end: "10:00" });
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const handleAdd = () => {
+  const openCreate = () => { setEditingId(null); setForm(emptyForm()); setOpen(true); };
+  const openEdit = (sub: Subject) => {
+    setEditingId(sub.id);
+    setForm({
+      name: sub.name, teacher: sub.teacher || "", course: sub.course || "",
+      semester: sub.semester || "", type: sub.type, weekly_hours: sub.weekly_hours,
+      schedule: sub.schedule || [], color: sub.color,
+    });
+    setOpen(true);
+  };
+
+  const handleSave = () => {
     if (!form.name.trim()) return;
-    addSubject.mutate({
+    const payload = {
       name: form.name, teacher: form.teacher || null, course: form.course || null,
       semester: form.semester || null, type: form.type, weekly_hours: form.weekly_hours,
       schedule: form.schedule, color: form.color,
-    }, {
-      onSuccess: () => {
-        setForm({ name: "", teacher: "", course: "", semester: "", type: "teorica", weekly_hours: 0, color: COLORS[0], schedule: [] });
-        setOpen(false);
-      },
-    });
+    };
+    if (editingId) {
+      updateSubject.mutate({ id: editingId, ...payload }, { onSuccess: () => setOpen(false) });
+    } else {
+      addSubject.mutate(payload, { onSuccess: () => { setForm(emptyForm()); setOpen(false); } });
+    }
   };
 
   const addScheduleSlot = () => {
     setForm(f => ({ ...f, schedule: [...f.schedule, { ...scheduleEntry }] }));
   };
+
+  const isPending = editingId ? updateSubject.isPending : addSubject.isPending;
 
   return (
     <AppLayout>
@@ -63,10 +80,10 @@ export default function Disciplinas() {
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
               <DialogTrigger asChild>
-                <Button><Plus className="h-4 w-4 mr-2" /> Nova Disciplina</Button>
+                <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Nova Disciplina</Button>
               </DialogTrigger>
               <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>Nova Disciplina</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>{editingId ? "Editar Disciplina" : "Nova Disciplina"}</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <div><Label>Nome *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Cálculo I" /></div>
                   <div className="grid grid-cols-2 gap-3">
@@ -86,8 +103,6 @@ export default function Disciplinas() {
                     </div>
                     <div><Label>Carga (h/sem)</Label><Input type="number" value={form.weekly_hours} onChange={e => setForm(f => ({ ...f, weekly_hours: Number(e.target.value) }))} /></div>
                   </div>
-
-                  {/* Color */}
                   <div>
                     <Label>Cor</Label>
                     <div className="flex gap-2 mt-1">
@@ -96,8 +111,6 @@ export default function Disciplinas() {
                       ))}
                     </div>
                   </div>
-
-                  {/* Schedule */}
                   <div>
                     <Label>Horários</Label>
                     <div className="flex gap-2 mt-1">
@@ -120,8 +133,8 @@ export default function Disciplinas() {
                 </div>
                 <DialogFooter>
                   <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                  <Button onClick={handleAdd} disabled={addSubject.isPending}>
-                    {addSubject.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                  <Button onClick={handleSave} disabled={isPending}>
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -141,9 +154,14 @@ export default function Disciplinas() {
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
                     <CardTitle className="text-lg">{sub.name}</CardTitle>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-destructive" onClick={() => deleteSubject.mutate(sub.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(sub)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteSubject.mutate(sub.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                   <Badge variant="outline" className="w-fit text-xs">{TYPES[sub.type] || sub.type}</Badge>
                 </CardHeader>

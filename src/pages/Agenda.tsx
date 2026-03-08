@@ -7,16 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Loader2, FileText, ClipboardList, BookOpen, RotateCw, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Loader2, FileText, ClipboardList, BookOpen, RotateCw, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useSubjects, useAcademicEvents, useAddAcademicEvent, useUpdateAcademicEvent, useDeleteAcademicEvent, AcademicEvent } from "@/hooks/useStudies";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 const EVENT_TYPES: Record<string, { label: string; icon: typeof FileText; color: string }> = {
   prova: { label: "Prova", icon: FileText, color: "text-red-500" },
@@ -32,10 +31,14 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
   realizado: { label: "Realizado", variant: "secondary" },
 };
 
+const emptyForm = (subjectId = "") => ({
+  subject_id: subjectId, type: "prova", title: "", description: "",
+  event_date: "", content_topics: "", weight: "", is_group: false, status: "pendente",
+});
+
 export default function Agenda() {
   const [searchParams] = useSearchParams();
   const filterSubjectId = searchParams.get("disciplina") || "";
-  const navigate = useNavigate();
 
   const { data: subjects = [] } = useSubjects();
   const { data: allEvents = [], isLoading } = useAcademicEvents(filterSubjectId || undefined);
@@ -45,32 +48,41 @@ export default function Agenda() {
 
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedSubject, setSelectedSubject] = useState(filterSubjectId || "all");
-
-  const [form, setForm] = useState({
-    subject_id: filterSubjectId || "", type: "prova", title: "", description: "",
-    event_date: "", content_topics: "", weight: "", is_group: false, status: "pendente",
-  });
+  const [form, setForm] = useState(emptyForm(filterSubjectId));
 
   const filteredEvents = useMemo(() => {
     if (selectedSubject === "all") return allEvents;
     return allEvents.filter(e => e.subject_id === selectedSubject);
   }, [allEvents, selectedSubject]);
 
-  const handleAdd = () => {
+  const openCreate = () => { setEditingId(null); setForm(emptyForm(filterSubjectId)); setOpen(true); };
+  const openEdit = (ev: AcademicEvent) => {
+    setEditingId(ev.id);
+    setForm({
+      subject_id: ev.subject_id, type: ev.type, title: ev.title,
+      description: ev.description || "", event_date: ev.event_date.slice(0, 16),
+      content_topics: ev.content_topics || "", weight: ev.weight?.toString() || "",
+      is_group: ev.is_group, status: ev.status,
+    });
+    setOpen(true);
+  };
+
+  const handleSave = () => {
     if (!form.subject_id || !form.title || !form.event_date) return;
-    addEvent.mutate({
+    const payload = {
       subject_id: form.subject_id, type: form.type, title: form.title,
       description: form.description || null, event_date: form.event_date,
       due_date: form.event_date, content_topics: form.content_topics || null,
       weight: form.weight ? Number(form.weight) : null, is_group: form.is_group,
       status: form.status, reminder_config: [],
-    }, {
-      onSuccess: () => {
-        setForm({ subject_id: filterSubjectId || "", type: "prova", title: "", description: "", event_date: "", content_topics: "", weight: "", is_group: false, status: "pendente" });
-        setOpen(false);
-      },
-    });
+    };
+    if (editingId) {
+      updateEvent.mutate({ id: editingId, ...payload }, { onSuccess: () => setOpen(false) });
+    } else {
+      addEvent.mutate(payload, { onSuccess: () => { setForm(emptyForm(filterSubjectId)); setOpen(false); } });
+    }
   };
 
   const cycleStatus = (ev: AcademicEvent) => {
@@ -82,7 +94,6 @@ export default function Agenda() {
   const getSubjectName = (id: string) => subjects.find(s => s.id === id)?.name || "";
   const getSubjectColor = (id: string) => subjects.find(s => s.id === id)?.color || "#888";
 
-  // Calendar helpers
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
   const weekStart = startOfWeek(monthStart, { weekStartsOn: 1 });
@@ -92,9 +103,10 @@ export default function Agenda() {
   const eventsOnDay = (day: Date) =>
     filteredEvents.filter(e => isSameDay(parseISO(e.event_date), day));
 
-  // Week view
   const today = new Date();
   const weekDays = eachDayOfInterval({ start: startOfWeek(today, { weekStartsOn: 1 }), end: endOfWeek(today, { weekStartsOn: 1 }) });
+
+  const isPending = editingId ? updateEvent.isPending : addEvent.isPending;
 
   return (
     <AppLayout>
@@ -113,9 +125,9 @@ export default function Agenda() {
               </SelectContent>
             </Select>
             <Dialog open={open} onOpenChange={setOpen}>
-              <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" /> Novo Evento</Button></DialogTrigger>
+              <DialogTrigger asChild><Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Novo Evento</Button></DialogTrigger>
               <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>Novo Evento Acadêmico</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>{editingId ? "Editar Evento" : "Novo Evento Acadêmico"}</DialogTitle></DialogHeader>
                 <div className="space-y-4">
                   <div>
                     <Label>Disciplina *</Label>
@@ -160,8 +172,8 @@ export default function Agenda() {
                 </div>
                 <DialogFooter>
                   <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
-                  <Button onClick={handleAdd} disabled={addEvent.isPending}>
-                    {addEvent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
+                  <Button onClick={handleSave} disabled={isPending}>
+                    {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Salvar"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -188,7 +200,7 @@ export default function Agenda() {
                     {eventsOnDay(day).map(ev => {
                       const meta = EVENT_TYPES[ev.type];
                       return (
-                        <div key={ev.id} className="text-xs p-1.5 rounded border cursor-pointer hover:bg-muted/50" onClick={() => cycleStatus(ev)}>
+                        <div key={ev.id} className="text-xs p-1.5 rounded border cursor-pointer hover:bg-muted/50" onClick={() => openEdit(ev)}>
                           <div className="flex items-center gap-1">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: getSubjectColor(ev.subject_id) }} />
                             <span className="truncate font-medium">{ev.title}</span>
@@ -224,7 +236,7 @@ export default function Agenda() {
                   <div key={day.toISOString()} className={`min-h-[80px] p-1 rounded border text-xs ${!isCurrentMonth ? "opacity-30" : ""} ${isSameDay(day, today) ? "border-primary bg-primary/5" : "border-border/50"}`}>
                     <div className="font-medium text-right mb-0.5">{format(day, "d")}</div>
                     {dayEvents.slice(0, 3).map(ev => (
-                      <div key={ev.id} className="truncate text-[10px] px-1 rounded mb-0.5 cursor-pointer" style={{ backgroundColor: getSubjectColor(ev.subject_id) + "22", color: getSubjectColor(ev.subject_id) }} onClick={() => cycleStatus(ev)}>
+                      <div key={ev.id} className="truncate text-[10px] px-1 rounded mb-0.5 cursor-pointer" style={{ backgroundColor: getSubjectColor(ev.subject_id) + "22", color: getSubjectColor(ev.subject_id) }} onClick={() => openEdit(ev)}>
                         {ev.title}
                       </div>
                     ))}
@@ -266,6 +278,9 @@ export default function Agenda() {
                         <Badge variant={STATUS_MAP[ev.status]?.variant || "outline"} className="cursor-pointer shrink-0" onClick={() => cycleStatus(ev)}>
                           {STATUS_MAP[ev.status]?.label}
                         </Badge>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100" onClick={() => openEdit(ev)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 opacity-0 group-hover:opacity-100 text-destructive" onClick={() => deleteEvent.mutate(ev.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
