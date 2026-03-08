@@ -512,14 +512,27 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       }
 
       case "list_expenses": {
-        const { data } = await supabase.from("expenses")
-          .select("name, amount, paid, due_date")
+        let query = supabase.from("expenses")
+          .select("name, amount, paid, due_date, wallet_id, wallets(name)")
           .eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear)
           .order("due_date");
-        if (!data?.length) return "📊 Nenhum gasto registrado este mês.";
+        // Filter by wallet if specified
+        if (params.wallet_name) {
+          const { data: wallets } = await supabase.from("wallets")
+            .select("id, name").eq("user_id", userId)
+            .ilike("name", `%${params.wallet_name}%`).limit(1);
+          if (wallets?.length) {
+            query = query.eq("wallet_id", wallets[0].id);
+          }
+        }
+        const { data } = await query;
+        if (!data?.length) return params.wallet_name
+          ? `📊 Nenhum gasto encontrado na conta *${params.wallet_name}* este mês.`
+          : "📊 Nenhum gasto registrado este mês.";
         const total = data.reduce((s: number, e: any) => s + Number(e.amount), 0);
         const paid = data.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.amount), 0);
-        let msg = `📊 *Gastos ${currentMonth}/${currentYear}*\n\n`;
+        const walletLabel = params.wallet_name ? ` (${params.wallet_name})` : "";
+        let msg = `📊 *Gastos${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
         data.slice(0, 15).forEach((e: any) => {
           msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${fmtBRL(e.amount)}\n`;
         });
@@ -541,6 +554,15 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       }
 
       case "wallet_balance": {
+        // If a specific wallet is asked, return ONLY that wallet
+        if (params.wallet_name) {
+          const { data } = await supabase.from("wallets")
+            .select("name, balance").eq("user_id", userId)
+            .ilike("name", `%${params.wallet_name}%`).limit(1);
+          if (!data?.length) return `🏦 Carteira "${params.wallet_name}" não encontrada.`;
+          const w = data[0];
+          return `💳 *${w.name}*\nSaldo: ${fmtBRL(Number(w.balance))}`;
+        }
         const { data } = await supabase.from("wallets")
           .select("name, balance, is_default").eq("user_id", userId);
         if (!data?.length) return "🏦 Nenhuma carteira cadastrada.";
