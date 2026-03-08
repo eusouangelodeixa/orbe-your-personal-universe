@@ -145,7 +145,7 @@ export default function Landing() {
           </p>
           <div className="landing-hero-actions">
             <button className="landing-btn-primary" onClick={() => navigate("/auth")}>
-              Começar Agora — Grátis 7 dias
+              Começar Agora — Grátis 3 dias
             </button>
             <button className="landing-btn-secondary">
               <span>Ver Demo</span>
