@@ -128,7 +128,7 @@ async function callAI(apiKey: string, systemPrompt: string, userMessage: string,
 async function transcribeAudio(apiKey: string, audioInput: string, mimeType = "audio/ogg"): Promise<string> {
   let audioBase64 = audioInput;
 
-  // If UAZAPI provides an URL, download and encode as base64 first
+  // If UAZAPI provides a URL, download and encode as base64 first
   if (audioInput.startsWith("http://") || audioInput.startsWith("https://")) {
     const mediaRes = await fetch(audioInput);
     if (!mediaRes.ok) {
@@ -137,9 +137,15 @@ async function transcribeAudio(apiKey: string, audioInput: string, mimeType = "a
     }
     const buffer = new Uint8Array(await mediaRes.arrayBuffer());
     audioBase64 = uint8ToBase64(buffer);
+    // Detect mime from content-type header if available
+    const ct = mediaRes.headers.get("content-type");
+    if (ct) mimeType = ct.split(";")[0].trim();
   }
 
-  const format = mimeType.includes("mpeg") ? "mp3" : mimeType.includes("wav") ? "wav" : "ogg";
+  // Normalize mime type for Gemini (must be a clean audio/* type)
+  const cleanMime = mimeType.split(";")[0].trim() || "audio/ogg";
+
+  console.log(`Transcribing audio: mime=${cleanMime}, base64_length=${audioBase64.length}`);
 
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
@@ -151,7 +157,12 @@ async function transcribeAudio(apiKey: string, audioInput: string, mimeType = "a
         {
           role: "user",
           content: [
-            { type: "input_audio", input_audio: { data: audioBase64, format } },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${cleanMime};base64,${audioBase64}`,
+              },
+            },
           ],
         },
       ],
@@ -165,7 +176,9 @@ async function transcribeAudio(apiKey: string, audioInput: string, mimeType = "a
   }
 
   const data = await res.json();
-  return (data.choices?.[0]?.message?.content || "").trim();
+  const transcription = (data.choices?.[0]?.message?.content || "").trim();
+  console.log(`Transcription result: "${transcription.slice(0, 100)}"`);
+  return transcription;
 }
 
 // ========== INTENT PARSER ==========
