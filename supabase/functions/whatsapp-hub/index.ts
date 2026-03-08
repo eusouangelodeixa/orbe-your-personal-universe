@@ -765,6 +765,7 @@ serve(async (req) => {
       )) {
         isAudio = true;
         audioUrl = msg.content?.URL || msg.mediaUrl || msg.url || msg.audioUrl || body.mediaUrl || null;
+        audioMimeType = msg.content?.mimetype || msg.mimetype || "audio/ogg";
       }
       if (body.base64 && isAudio) audioUrl = body.base64;
       if (body.mediaUrl) audioUrl = body.mediaUrl;
