@@ -87,16 +87,28 @@ export default function Dashboard() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Restante</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Fluxo Mensal</CardTitle>
               <WalletIcon className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <p className={`text-2xl font-bold font-display ${saldo < 0 ? "text-destructive" : ""}`}>
-                R$ {saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              <p className={`text-2xl font-bold font-display ${fluxoMensal < 0 ? "text-destructive" : ""}`}>
+                R$ {fluxoMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </p>
+              <p className="text-xs text-muted-foreground mt-1">Renda − Gastos</p>
             </CardContent>
           </Card>
           <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Projeção Patrimonial</CardTitle>
+              <CreditCard className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <p className={`text-2xl font-bold font-display ${(totalCarteiras - gastosPendentes) < 0 ? "text-destructive" : "text-primary"}`}>
+                R$ {(totalCarteiras - gastosPendentes).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Carteiras − Pendentes</p>
+            </CardContent>
+          </Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Patrimônio</CardTitle>
               <CreditCard className="h-4 w-4 text-primary" />
