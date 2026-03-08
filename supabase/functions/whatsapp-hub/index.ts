@@ -1291,26 +1291,107 @@ serve(async (req) => {
       });
     }
 
-    // Build context for AI
-    const nome = profile.display_name?.split(" ")[0] || "Usuário";
-    const context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
+    // Check for pending actions (e.g. cofrinho goal selection)
+    let responseText = "";
+    let skipNormalFlow = false;
 
-    // Parse intent with timeout + deterministic fallback
-    let intent: any;
-    try {
-      intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context), 18000, "parse_intent");
-    } catch (intentError) {
-      console.error("Intent parsing failed, using fallback:", intentError);
-      intent = parseFallbackIntent(userText);
+    const { data: pendingActions } = await supabase.from("whatsapp_pending_actions")
+      .select("*")
+      .eq("user_id", userId)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (pendingActions?.length) {
+      const pending = pendingActions[0];
+      // Clean up this pending action
+      await supabase.from("whatsapp_pending_actions").delete().eq("id", pending.id);
+
+      if (pending.action_type === "select_cofrinho_goal") {
+        const data = pending.action_data as any;
+        const goals = data.goals || [];
+        const amount = data.amount || 0;
+        const walletId = data.wallet_id || null;
+        const walletName = data.wallet_name || "";
+        const input = userText.trim();
+
+        // Match by number or name
+        let selectedGoal: any = null;
+        const num = parseInt(input);
+        if (!isNaN(num) && num >= 1 && num <= goals.length) {
+          selectedGoal = goals[num - 1];
+        } else {
+          const normalized = input.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          selectedGoal = goals.find((g: any) =>
+            g.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalized)
+          );
+        }
+
+        if (selectedGoal) {
+          // Debit from wallet if specified
+          if (walletId) {
+            await supabase.from("wallet_transactions").insert({
+              wallet_id: walletId,
+              user_id: userId,
+              amount,
+              type: "debit",
+              description: `Cofrinho: ${selectedGoal.name}`,
+              reference_type: "savings",
+              reference_id: selectedGoal.id,
+            });
+          }
+
+          // Update savings goal
+          const newAmount = Number(selectedGoal.current_amount) + amount;
+          await supabase.from("savings_goals")
+            .update({ current_amount: newAmount })
+            .eq("id", selectedGoal.id);
+
+          const target = Number(selectedGoal.target_amount);
+          const remaining = Math.max(target - newAmount, 0);
+          const pct = target > 0 ? Math.round((newAmount / target) * 100) : 0;
+
+          responseText = `🐷 *${fmtBRL(amount)}* guardado em *${selectedGoal.name}*!`;
+          if (walletName) responseText += `\n💳 Debitado de: ${walletName}`;
+          responseText += `\n\n💰 Guardado: ${fmtBRL(newAmount)} (${pct}%)`;
+          responseText += `\n📌 Falta: ${fmtBRL(remaining)}`;
+          if (remaining === 0) responseText += `\n\n🎉 Parabéns! Meta alcançada!`;
+          skipNormalFlow = true;
+        } else {
+          responseText = "❌ Não entendi. Responda com o número da meta (ex: 1).";
+          // Re-store the pending action for another try
+          await supabase.from("whatsapp_pending_actions").insert({
+            user_id: userId,
+            action_type: "select_cofrinho_goal",
+            action_data: data,
+            expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          });
+          skipNormalFlow = true;
+        }
+      }
     }
 
-    // Execute action with timeout
-    let responseText = "";
-    try {
-      responseText = await withTimeout(executeAction(supabase, userId, intent, userText), 12000, "execute_action");
-    } catch (actionError) {
-      console.error("Action execution failed:", actionError);
-      responseText = "❌ Tive um erro ao executar sua solicitação. Tente novamente em instantes.";
+    if (!skipNormalFlow) {
+      // Build context for AI
+      const nome = profile.display_name?.split(" ")[0] || "Usuário";
+      const context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
+
+      // Parse intent with timeout + deterministic fallback
+      let intent: any;
+      try {
+        intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context), 18000, "parse_intent");
+      } catch (intentError) {
+        console.error("Intent parsing failed, using fallback:", intentError);
+        intent = parseFallbackIntent(userText);
+      }
+
+      // Execute action with timeout
+      try {
+        responseText = await withTimeout(executeAction(supabase, userId, intent, userText), 12000, "execute_action");
+      } catch (actionError) {
+        console.error("Action execution failed:", actionError);
+        responseText = "❌ Tive um erro ao executar sua solicitação. Tente novamente em instantes.";
+      }
     }
 
     // Send reply and expose send status
