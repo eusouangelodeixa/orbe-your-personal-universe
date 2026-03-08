@@ -898,7 +898,7 @@ serve(async (req) => {
         userText = await withTimeout(transcribeAudio(LOVABLE_API_KEY, audioUrl, audioMimeType), 20000, "audio_transcription");
         if (!userText?.trim()) {
           try {
-            await sendWhatsApp(UAZAPI_URL, outboundToken, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
+            await sendWhatsApp(UAZAPI_URL, outboundTokens, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
           } catch (sendErr) {
             console.error("Failed to send audio_fail message:", sendErr);
           }
@@ -909,7 +909,7 @@ serve(async (req) => {
       } catch (e) {
         console.error("Audio transcription failed:", e);
         try {
-          await sendWhatsApp(UAZAPI_URL, outboundToken, phone, "❌ Não consegui processar o áudio. Envie por texto, por favor.");
+          await sendWhatsApp(UAZAPI_URL, outboundTokens, phone, "❌ Não consegui processar o áudio. Envie por texto, por favor.");
         } catch (sendErr) {
           console.error("Failed to send audio error message:", sendErr);
         }
@@ -949,7 +949,7 @@ serve(async (req) => {
 
     // Send reply and expose send status
     try {
-      await withTimeout(sendWhatsApp(UAZAPI_URL, outboundToken, phone, responseText), 12000, "send_reply");
+      await withTimeout(sendWhatsApp(UAZAPI_URL, outboundTokens, phone, responseText), 12000, "send_reply");
     } catch (sendError) {
       console.error("Reply send failed:", sendError);
       return new Response(JSON.stringify({
