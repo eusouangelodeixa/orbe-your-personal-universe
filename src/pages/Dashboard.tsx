@@ -2,8 +2,9 @@ import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, TrendingDown, Wallet, AlertTriangle, Loader2 } from "lucide-react";
-import { useIncomes, useExpenses } from "@/hooks/useFinance";
+import { Badge } from "@/components/ui/badge";
+import { TrendingUp, TrendingDown, Wallet as WalletIcon, AlertTriangle, Loader2, CreditCard, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
+import { useIncomes, useExpenses, useWallets, useWalletTransactions } from "@/hooks/useFinance";
 import { MonthSelector } from "@/components/MonthSelector";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -16,12 +17,15 @@ export default function Dashboard() {
 
   const { data: incomes = [], isLoading: li } = useIncomes(month, year);
   const { data: expenses = [], isLoading: le } = useExpenses(month, year);
+  const { data: wallets = [], isLoading: lw } = useWallets();
+  const { data: transactions = [] } = useWalletTransactions();
 
   const renda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
   const saldo = renda - totalGastos;
   const percentual = renda > 0 ? Math.round((totalGastos / renda) * 100) : 0;
   const isCritical = percentual > 80;
+  const totalCarteiras = wallets.reduce((a, w) => a + Number(w.balance), 0);
 
   const byCat = expenses.reduce<Record<string, { name: string; value: number; color: string }>>((acc, e) => {
     const catName = (e as any).categories?.name || "Outros";
@@ -32,7 +36,10 @@ export default function Dashboard() {
   }, {});
   const pieData = Object.values(byCat);
 
-  if (li || le) {
+  // Recent transactions (last 10)
+  const recentTx = transactions.slice(0, 10);
+
+  if (li || le || lw) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center h-64">
@@ -53,7 +60,8 @@ export default function Dashboard() {
           <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Renda Mensal</CardTitle>
@@ -79,11 +87,22 @@ export default function Dashboard() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Restante</CardTitle>
-              <Wallet className="h-4 w-4 text-primary" />
+              <WalletIcon className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <p className={`text-2xl font-bold font-display ${saldo < 0 ? "text-destructive" : ""}`}>
                 R$ {saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Patrimônio</CardTitle>
+              <CreditCard className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <p className={`text-2xl font-bold font-display ${totalCarteiras < 0 ? "text-destructive" : "text-primary"}`}>
+                R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </p>
             </CardContent>
           </Card>
@@ -99,6 +118,35 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        {/* Wallets overview */}
+        {wallets.length > 0 && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-primary" />
+                <CardTitle className="font-display">Carteiras & Bancos</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {wallets.map((w) => (
+                  <div key={w.id} className="flex items-center justify-between p-4 rounded-lg border border-border bg-card">
+                    <div className="flex items-center gap-2">
+                      <WalletIcon className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-sm">{w.name}</span>
+                      {w.is_default && <Badge variant="outline" className="text-[10px]">Principal</Badge>}
+                    </div>
+                    <span className={`font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
+                      R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card>
             <CardHeader>
@@ -149,6 +197,42 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Recent Wallet Transactions */}
+        {recentTx.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-display">Últimas Movimentações</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {recentTx.map((tx: any) => (
+                <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
+                  <div className="flex items-center gap-3">
+                    {tx.type === "credit" ? (
+                      <ArrowUpCircle className="h-4 w-4 text-primary shrink-0" />
+                    ) : (
+                      <ArrowDownCircle className="h-4 w-4 text-destructive shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-medium text-sm">{tx.description || (tx.type === "credit" ? "Crédito" : "Débito")}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {tx.wallets?.name} • {new Date(tx.created_at).toLocaleDateString("pt-BR")}
+                        {tx.reference_type && (
+                          <Badge variant="outline" className="ml-1 text-[10px]">
+                            {tx.reference_type === "income" ? "Renda" : tx.reference_type === "expense" ? "Gasto" : "Manual"}
+                          </Badge>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
+                    {tx.type === "credit" ? "+" : "-"} R$ {Number(tx.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );
