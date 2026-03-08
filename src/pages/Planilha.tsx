@@ -133,6 +133,26 @@ export default function Planilha() {
     setPayWalletId("");
   };
 
+  const handleSaveToCofrinho = (walletId: string) => {
+    const amount = parseFloat(cofrinhoForm.valor);
+    if (!cofrinhoForm.goalId || isNaN(amount) || amount <= 0) return;
+    const goal = savingsGoals.find((g: any) => g.id === cofrinhoForm.goalId);
+    if (!goal) return;
+    addWalletTx.mutate({
+      wallet_id: walletId,
+      amount,
+      type: "debit",
+      description: `Cofrinho: ${goal.name}`,
+      reference_type: "savings",
+      reference_id: goal.id,
+    });
+    updateSavingsGoal.mutate({
+      id: goal.id,
+      current_amount: Number(goal.current_amount) + amount,
+    });
+    setCofrinhoForm({ goalId: "", valor: "" });
+  };
+
   const byCategory = expenses.reduce<Record<string, typeof expenses>>((acc, e) => {
     const catName = (e as any).categories?.name || "Sem categoria";
     (acc[catName] = acc[catName] || []).push(e);
