@@ -22,7 +22,8 @@ export default function Dashboard() {
 
   const renda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
-  const saldo = renda - totalGastos;
+  const gastosPendentes = expenses.filter(e => !e.paid).reduce((a, e) => a + Number(e.amount), 0);
+  const fluxoMensal = renda - totalGastos;
   const percentual = renda > 0 ? Math.round((totalGastos / renda) * 100) : 0;
   const isCritical = percentual > 80;
   const totalCarteiras = wallets.reduce((a, w) => a + Number(w.balance), 0);
