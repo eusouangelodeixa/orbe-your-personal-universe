@@ -817,7 +817,8 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       }
 
       case "check_class_schedule": {
-        const requestedDay = normalizeText(params.day || "") || getRequestedWeekdayFromText(originalText, now);
+        const requestedDay = getRequestedWeekdayFromText(params.day || "", now)
+          || getRequestedWeekdayFromText(originalText, now);
         if (!requestedDay) return "❌ Não entendi qual dia. Diga por exemplo: 'tenho aula na quarta?'";
 
         const dayLabel = WEEKDAY_LABELS[requestedDay] || requestedDay;
@@ -832,9 +833,9 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         for (const subj of subjects) {
           const schedule = (subj.schedule || []) as any[];
           for (const slot of schedule) {
-            const slotDay = normalizeText(slot.day || slot.dia || "");
-            const aliases = WEEKDAY_ALIASES[requestedDay] || [requestedDay];
-            if (aliases.some((a: string) => slotDay.includes(a))) {
+            const rawSlotDay = safeString(slot.day || slot.dia || slot.weekday || slot.diaSemana || slot.week_day);
+            const slotDayKey = getRequestedWeekdayFromText(rawSlotDay, now);
+            if (slotDayKey === requestedDay) {
               classesOnDay.push({
                 name: subj.name,
                 time: slot.time || slot.horario || slot.hora || "",
