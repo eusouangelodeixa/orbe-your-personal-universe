@@ -243,6 +243,36 @@ export type Database = {
         }
         Relationships: []
       }
+      phone_verifications: {
+        Row: {
+          code: string
+          created_at: string
+          expires_at: string
+          id: string
+          phone: string
+          user_id: string
+          verified: boolean
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          phone: string
+          user_id: string
+          verified?: boolean
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          phone?: string
+          user_id?: string
+          verified?: boolean
+        }
+        Relationships: []
+      }
       pomodoro_sessions: {
         Row: {
           completed_pomodoros: number
@@ -293,6 +323,7 @@ export type Database = {
           id: string
           notifications_enabled: boolean
           phone: string | null
+          phone_verified: boolean
           updated_at: string
           user_id: string
           whatsapp_notifications: boolean
@@ -305,6 +336,7 @@ export type Database = {
           id?: string
           notifications_enabled?: boolean
           phone?: string | null
+          phone_verified?: boolean
           updated_at?: string
           user_id: string
           whatsapp_notifications?: boolean
@@ -317,6 +349,7 @@ export type Database = {
           id?: string
           notifications_enabled?: boolean
           phone?: string | null
+          phone_verified?: boolean
           updated_at?: string
           user_id?: string
           whatsapp_notifications?: boolean
