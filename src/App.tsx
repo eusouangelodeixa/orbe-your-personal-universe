@@ -22,6 +22,7 @@ import FitWorkout from "./pages/FitWorkout";
 import FitMeals from "./pages/FitMeals";
 import FitProgress from "./pages/FitProgress";
 import FitChat from "./pages/FitChat";
+import Tarefas from "./pages/Tarefas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
