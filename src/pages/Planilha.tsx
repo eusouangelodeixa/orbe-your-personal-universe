@@ -369,8 +369,8 @@ export default function Planilha() {
                       {savingsGoals.length > 0 && (
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setCofrinhoForm({ goalId: "", valor: "" })}>
-                              <PiggyBank className="h-3.5 w-3.5 text-primary" /> Cofrinho
+                            <Button size="sm" variant="outline" className="gap-1 text-xs px-2.5 min-w-0" onClick={() => setCofrinhoForm({ goalId: "", valor: "" })}>
+                              <PiggyBank className="h-3.5 w-3.5 shrink-0 text-primary" /> Cofrinho
                             </Button>
                           </DialogTrigger>
                           <DialogContent>
