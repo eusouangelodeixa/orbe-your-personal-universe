@@ -524,7 +524,22 @@ export default function SubjectDetail() {
                       <CardContent className="p-3 text-sm">
                         {msg.role === "assistant" ? (
                           <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_table]:my-2 [&_table]:rounded-md [&_table]:overflow-hidden [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5 [&_pre]:bg-muted [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:text-xs [&_pre]:overflow-x-auto [&_code]:text-xs [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-3 [&_blockquote]:italic [&_hr]:border-border">
-                            <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{msg.content}</ReactMarkdown>
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm, remarkMath]}
+                              rehypePlugins={[rehypeKatex]}
+                              components={{
+                                code({ className, children, ...props }) {
+                                  const language = /language-(\w+)/.exec(className || "")?.[1];
+                                  const codeText = String(children).replace(/\n$/, "");
+                                  if (language === "mermaid") {
+                                    return <MermaidBlock chart={codeText} />;
+                                  }
+                                  return <code className={className} {...props}>{children}</code>;
+                                },
+                              }}
+                            >
+                              {msg.content}
+                            </ReactMarkdown>
                           </div>
                         ) : msg.content}
                         {msg.role === "assistant" && chatLoading && i === chatMessages.length - 1 && <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />}
