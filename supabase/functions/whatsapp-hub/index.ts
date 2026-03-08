@@ -366,6 +366,10 @@ REGRAS:
 - Se o usuário pedir resumo do dia, use "daily_summary"
 - Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente
 - IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".
+- IMPORTANTE: DIFERENCIE entre EVENTOS ACADÊMICOS e TAREFAS GENÉRICAS:
+  • Provas, trabalhos, seminários, apresentações, entregas de disciplina, atividades acadêmicas → use "add_event" (módulo estudos). Preencha params.subject_name com a disciplina, params.type com "prova", "trabalho" ou "seminario", e params.due_date com a data.
+  • Tarefas do dia-a-dia (comprar algo, ligar, pagar, resolver algo pessoal) → use "add_task" (módulo tarefas).
+  • Se mencionar disciplina, matéria, faculdade, professor, ou termos acadêmicos → SEMPRE é add_event, NUNCA add_task.
 - IMPORTANTE: Ao responder sobre treinos, dieta ou agenda, responda APENAS sobre o dia específico perguntado. NÃO liste a semana inteira. Se perguntaram "treino de segunda", mostre SÓ o de segunda. Se perguntaram "treino de hoje", mostre SÓ o de hoje.
 - IMPORTANTE: Quando o usuário perguntar sobre metas de economia, cofrinho, reserva de emergência, quanto falta para alcançar uma meta, use action "check_savings_goal" e preencha params.goal_name. NÃO use monthly_summary para perguntas sobre metas.
 - IMPORTANTE: Quando o usuário quiser GUARDAR/DEPOSITAR dinheiro no cofrinho (ex: "guardei 500 no cofrinho", "depositar 200 na reserva"), use action "save_to_cofrinho". Preencha params.amount, params.wallet_name (de onde sai o dinheiro) e params.goal_name (meta destino). Se o usuário NÃO mencionar o nome da meta, deixe goal_name vazio — o sistema vai listar as opções.
