@@ -112,10 +112,6 @@ export default function FitOnboarding() {
       .select("*")
       .eq("user_id", user!.id)
       .maybeSingle();
-    if (data && (data as any).onboarding_completed) {
-      navigate("/fit");
-      return;
-    }
     if (data) {
       // Pre-fill form with existing data
       const d = data as any;
