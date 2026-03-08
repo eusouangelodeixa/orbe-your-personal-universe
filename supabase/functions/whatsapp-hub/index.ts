@@ -303,7 +303,7 @@ const INTENT_TOOLS = [
             enum: [
               // Financeiro
               "add_expense", "add_income", "mark_paid", "list_expenses", "list_incomes",
-              "wallet_balance", "monthly_summary", "financial_projection", "check_savings_goal",
+              "wallet_balance", "monthly_summary", "financial_projection", "check_savings_goal", "save_to_cofrinho",
               // Estudos
               "list_events", "add_event", "list_subjects", "subject_question",
               // Fit
