@@ -110,8 +110,9 @@ export default function Planilha() {
   };
 
   const handleTogglePaid = (e: any) => {
-    if (!e.paid && wallets.length > 0) {
-      // Will use the dialog to select wallet
+    if (!e.paid && e.wallet_id) {
+      // Auto-debit from linked wallet
+      togglePaid.mutate({ id: e.id, paid: true, wallet_id: e.wallet_id, amount: Number(e.amount), name: e.name });
       return;
     }
     togglePaid.mutate({ id: e.id, paid: !e.paid, amount: Number(e.amount), name: e.name });
