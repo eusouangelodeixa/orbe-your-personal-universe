@@ -25,6 +25,7 @@ interface AdminData {
   users: Array<{
     id: string; email: string; display_name: string | null; phone: string | null;
     phone_verified: boolean; created_at: string; last_sign_in_at: string | null; email_confirmed_at: string | null;
+    subscription_status: string; plan_name: string | null; subscription_end: string | null; trial_ends_at: string | null;
   }>;
   metrics: { totalUsers: number; totalTasks: number; totalExpenses: number; totalSubjects: number; totalFitProfiles: number };
   recentActivity: {
