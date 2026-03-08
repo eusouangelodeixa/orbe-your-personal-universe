@@ -12,6 +12,7 @@ import Planilha from "./pages/Planilha";
 import Cofrinho from "./pages/Cofrinho";
 import Consultor from "./pages/Consultor";
 import Disciplinas from "./pages/Disciplinas";
+import StudiesDashboard from "./pages/StudiesDashboard";
 import SubjectDetail from "./pages/SubjectDetail";
 import Agenda from "./pages/Agenda";
 import NotFound from "./pages/NotFound";
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/planilha" element={<ProtectedRoute><Planilha /></ProtectedRoute>} />
             <Route path="/cofrinho" element={<ProtectedRoute><Cofrinho /></ProtectedRoute>} />
             <Route path="/consultor" element={<ProtectedRoute><Consultor /></ProtectedRoute>} />
+            <Route path="/estudos" element={<ProtectedRoute><StudiesDashboard /></ProtectedRoute>} />
             <Route path="/disciplinas" element={<ProtectedRoute><Disciplinas /></ProtectedRoute>} />
             <Route path="/disciplina/:subjectId" element={<ProtectedRoute><SubjectDetail /></ProtectedRoute>} />
             <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
