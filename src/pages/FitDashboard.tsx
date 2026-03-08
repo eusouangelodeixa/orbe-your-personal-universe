@@ -31,7 +31,7 @@ export default function FitDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [workoutLogs, setWorkoutLogs] = useState<any[]>([]);
   const [progressRecords, setProgressRecords] = useState<any[]>([]);
-  const [reminders, setReminders] = useState<any[]>([]);
+  
 
   useEffect(() => { if (user) loadData(); }, [user]);
 
