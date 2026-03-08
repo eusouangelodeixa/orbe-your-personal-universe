@@ -409,6 +409,11 @@ export default function SubjectDetail() {
             </Dialog>
           </TabsContent>
 
+          {/* ─── POMODORO TAB ─── */}
+          <TabsContent value="pomodoro">
+            <PomodoroTimer subjectName={subject.name} />
+          </TabsContent>
+
           {/* ─── CHATBOT TAB ─── */}
           <TabsContent value="chatbot" className="space-y-0">
             <div className="flex flex-col h-[calc(100vh-18rem)]">
