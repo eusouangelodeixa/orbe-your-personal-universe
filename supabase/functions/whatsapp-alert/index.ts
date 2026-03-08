@@ -24,11 +24,12 @@ serve(async (req) => {
       });
     }
 
-    // Send message via uazapi - endpoint /message/sendText with Instance Token
-    const response = await fetch(`${UAZAPI_URL}/message/sendText/${UAZAPI_TOKEN}`, {
+    // uazapi v2: header 'token' for instance authentication
+    const response = await fetch(`${UAZAPI_URL}/message/sendText`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "token": UAZAPI_TOKEN,
       },
       body: JSON.stringify({
         number: phone,
