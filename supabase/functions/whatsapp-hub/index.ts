@@ -126,14 +126,14 @@ async function callAI(apiKey: string, systemPrompt: string, userMessage: string,
 }
 
 async function downloadMediaFromUazapi(uazapiUrl: string, uazapiToken: string, messageId: string): Promise<{ base64: string; mimeType: string }> {
-  // Try UAZAPI media download endpoint (decrypts WA media)
-  const downloadUrl = `${uazapiUrl}/media/download`;
-  console.log(`Downloading media via UAZAPI: messageid=${messageId}`);
+  // Correct UAZAPI endpoint: POST /message/download with { id: messageId }
+  const downloadUrl = `${uazapiUrl}/message/download`;
+  console.log(`Downloading media via UAZAPI: id=${messageId}, url=${downloadUrl}`);
 
   const res = await fetch(downloadUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", token: uazapiToken },
-    body: JSON.stringify({ messageid: messageId }),
+    body: JSON.stringify({ id: messageId }),
   });
 
   if (!res.ok) {
@@ -143,15 +143,21 @@ async function downloadMediaFromUazapi(uazapiUrl: string, uazapiToken: string, m
   }
 
   const data = await res.json();
+  console.log(`UAZAPI media response keys: ${Object.keys(data).join(", ")}`);
 
   // UAZAPI returns { base64: "...", mimetype: "audio/ogg; codecs=opus" } or similar
   if (data.base64) {
     return { base64: data.base64, mimeType: data.mimetype || data.mimeType || "audio/ogg" };
   }
 
+  // Some UAZAPI versions return the data nested
+  if (data.data?.base64) {
+    return { base64: data.data.base64, mimeType: data.data.mimetype || data.data.mimeType || "audio/ogg" };
+  }
+
   // Some UAZAPI versions return a URL to the decrypted file
-  if (data.url || data.mediaUrl) {
-    const mediaUrl = data.url || data.mediaUrl;
+  if (data.url || data.mediaUrl || data.data?.url) {
+    const mediaUrl = data.url || data.mediaUrl || data.data?.url;
     const mediaRes = await fetch(mediaUrl);
     if (!mediaRes.ok) throw new Error(`Failed to fetch decrypted media [${mediaRes.status}]`);
     const buffer = new Uint8Array(await mediaRes.arrayBuffer());
@@ -159,7 +165,7 @@ async function downloadMediaFromUazapi(uazapiUrl: string, uazapiToken: string, m
     return { base64: uint8ToBase64(buffer), mimeType: ct.split(";")[0].trim() };
   }
 
-  throw new Error("UAZAPI media download returned no usable data");
+  throw new Error("UAZAPI media download returned no usable data: " + JSON.stringify(data).slice(0, 300));
 }
 
 async function downloadMediaDirect(url: string): Promise<{ base64: string; mimeType: string }> {
