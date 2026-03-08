@@ -463,7 +463,7 @@ export default function SubjectDetail() {
                     <Card className={`max-w-[85%] ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-card"}`}>
                       <CardContent className="p-3 text-sm">
                         {msg.role === "assistant" ? (
-                          <div className="prose prose-sm dark:prose-invert max-w-none"><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{msg.content}</ReactMarkdown></div>
+                          <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1"><ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>{msg.content}</ReactMarkdown></div>
                         ) : msg.content}
                         {msg.role === "assistant" && chatLoading && i === chatMessages.length - 1 && <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />}
                       </CardContent>
