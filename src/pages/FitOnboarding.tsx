@@ -93,7 +93,7 @@ export default function FitOnboarding() {
   const [form, setForm] = useState<FitFormData>({
     age: "", sex: "", weight: "", height: "",
     goal: "", experience_level: "",
-    weekly_days: [], training_location: "", available_equipment: [],
+    weekly_days: [], weekly_times: {}, training_location: "", available_equipment: [],
     diet_type: "", nutritional_program: "",
     food_allergies: [], food_intolerances: [],
     medical_conditions: [], supplements: [],
