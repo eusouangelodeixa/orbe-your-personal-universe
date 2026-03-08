@@ -6,7 +6,7 @@ import { Navigate } from "react-router-dom";
 import {
   Loader2, Users, BarChart3, FolderCog, Activity, Shield, Mail, Phone,
   Calendar, CheckCircle2, XCircle, Trash2, Plus, Pencil, Link2, DollarSign,
-  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown, Wallet
+  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
