@@ -114,7 +114,8 @@ REGRAS DE FORMATAÇÃO:
   | Coluna A | Coluna B |
   |----------|----------|
   | valor 1  | valor 2  |
-- Use blocos de código (\`\`\`) para diagramas ASCII, esquemas visuais e código.
+- NUNCA use diagramas ASCII com traços (──, ──▶, ◀──, ===, ----, ****). Eles ficam ilegíveis. Use tabelas ou listas.
+- Para fluxos, use: 1. Cliente → envia request  2. Servidor → processa  3. Banco → retorna dados
 - Se o aluno pedir exercícios, gere com gabarito e explicação detalhada de cada passo.
 - Para mapas mentais, use indentação e marcadores organizados.
 - Responda em português brasileiro.
