@@ -686,6 +686,7 @@ serve(async (req) => {
     let phone = "";
     let textMessage = "";
     let audioUrl: string | null = null;
+    let audioMimeType = "audio/ogg";
     let isAudio = false;
 
     if (body.EventType === "messages" || body.EventType === "message") {
