@@ -51,7 +51,7 @@ export default function Disciplinas() {
     const payload = {
       name: form.name, teacher: form.teacher || null, course: form.course || null,
       semester: form.semester || null, type: form.type, weekly_hours: form.weekly_hours,
-      schedule: form.schedule, color: form.color,
+      schedule: form.schedule, color: form.color, ementa_url: null, ementa_text: null,
     };
     if (editingId) {
       updateSubject.mutate({ id: editingId, ...payload }, { onSuccess: () => setOpen(false) });
