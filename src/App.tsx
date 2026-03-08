@@ -15,6 +15,7 @@ import Disciplinas from "./pages/Disciplinas";
 import StudiesDashboard from "./pages/StudiesDashboard";
 import SubjectDetail from "./pages/SubjectDetail";
 import Agenda from "./pages/Agenda";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
