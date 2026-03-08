@@ -1,9 +1,14 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Utensils, Loader2, Sparkles, ShoppingCart } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Utensils, Loader2, Sparkles, ShoppingCart, Upload, PenLine, Trash2, DollarSign, Download, Check } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -14,17 +19,28 @@ export default function FitMeals() {
   const [plans, setPlans] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    loadData();
-  }, [user]);
+  // Manual plan
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualText, setManualText] = useState("");
+
+  // Shopping list
+  const [shoppingOpen, setShoppingOpen] = useState(false);
+  const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
+
+  // Alternatives
+  const [altLoading, setAltLoading] = useState(false);
+  const [alternatives, setAlternatives] = useState<string>("");
+  const [altOpen, setAltOpen] = useState(false);
+
+  // PDF
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => { if (user) loadData(); }, [user]);
 
   const loadData = async () => {
-    const { data } = await supabase
-      .from("fit_meal_plans" as any)
-      .select("*")
-      .eq("user_id", user!.id)
-      .order("created_at", { ascending: false });
+    const { data } = await supabase.from("fit_meal_plans" as any).select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
     setPlans((data as any) || []);
     setLoading(false);
   };
@@ -32,9 +48,7 @@ export default function FitMeals() {
   const generatePlan = async () => {
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("fit-generate", {
-        body: { type: "meal" },
-      });
+      const { data, error } = await supabase.functions.invoke("fit-generate", { body: { type: "meal" } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Plano alimentar gerado! 🎉");
@@ -45,22 +59,133 @@ export default function FitMeals() {
     setGenerating(false);
   };
 
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const path = `${user!.id}/meal-${Date.now()}.pdf`;
+      const { error: upErr } = await supabase.storage.from("fit-photos").upload(path, file);
+      if (upErr) throw upErr;
+      const { data: urlData } = supabase.storage.from("fit-photos").getPublicUrl(path);
+
+      await supabase.from("fit_meal_plans" as any).update({ active: false } as any).eq("user_id", user!.id);
+      await supabase.from("fit_meal_plans" as any).insert({
+        user_id: user!.id,
+        title: file.name.replace(".pdf", ""),
+        source: "pdf",
+        plan_data: { raw_text: "Plano importado via PDF" },
+        pdf_url: urlData.publicUrl,
+        active: true,
+      } as any);
+
+      toast.success("Plano importado via PDF! 📄");
+      loadData();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao importar PDF");
+    }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const saveManualPlan = async () => {
+    if (!manualTitle.trim()) { toast.error("Informe o título"); return; }
+    await supabase.from("fit_meal_plans" as any).update({ active: false } as any).eq("user_id", user!.id);
+    await supabase.from("fit_meal_plans" as any).insert({
+      user_id: user!.id,
+      title: manualTitle,
+      source: "manual",
+      plan_data: { raw_text: manualText },
+      active: true,
+    } as any);
+    toast.success("Plano salvo! ✅");
+    setManualOpen(false);
+    setManualTitle("");
+    setManualText("");
+    loadData();
+  };
+
+  const deletePlan = async (id: string) => {
+    await supabase.from("fit_meal_plans" as any).delete().eq("id", id);
+    toast.success("Plano removido");
+    loadData();
+  };
+
+  const activatePlan = async (id: string) => {
+    await supabase.from("fit_meal_plans" as any).update({ active: false } as any).eq("user_id", user!.id);
+    await supabase.from("fit_meal_plans" as any).update({ active: true } as any).eq("id", id);
+    toast.success("Plano ativado");
+    loadData();
+  };
+
+  // Get economic alternatives via AI
+  const getAlternatives = async () => {
+    const activePlan = plans.find(p => p.active);
+    if (!activePlan?.shopping_list?.length) { toast.error("Sem lista de compras"); return; }
+    setAltLoading(true);
+    setAltOpen(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const token = session.data.session?.access_token;
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fit-chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          messages: [{
+            role: "user",
+            content: `Analise esta lista de compras e sugira alternativas mais baratas para cada item, mantendo o valor nutricional. Seja direto e objetivo.\n\nLista: ${activePlan.shopping_list.join(", ")}`,
+          }],
+        }),
+      });
+
+      if (!resp.ok || !resp.body) throw new Error("Erro");
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let textBuffer = "";
+      let content = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        textBuffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = textBuffer.indexOf("\n")) !== -1) {
+          let line = textBuffer.slice(0, idx);
+          textBuffer = textBuffer.slice(idx + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const json = line.slice(6).trim();
+          if (json === "[DONE]") break;
+          try {
+            const p = JSON.parse(json);
+            const c = p.choices?.[0]?.delta?.content;
+            if (c) { content += c; setAlternatives(content); }
+          } catch {}
+        }
+      }
+    } catch {
+      toast.error("Erro ao buscar alternativas");
+    }
+    setAltLoading(false);
+  };
+
+  const exportShoppingList = (items: string[]) => {
+    const text = items.map((item, i) => `${checkedItems.has(i) ? "✅" : "⬜"} ${item}`).join("\n");
+    navigator.clipboard.writeText(text);
+    toast.success("Lista copiada para a área de transferência! 📋");
+  };
+
   const activePlan = plans.find(p => p.active);
 
   if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </AppLayout>
-    );
+    return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
 
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h1 className="text-2xl font-bold font-display flex items-center gap-2">
               <Utensils className="h-6 w-6 text-primary" />
@@ -68,10 +193,19 @@ export default function FitMeals() {
             </h1>
             <p className="text-muted-foreground text-sm">Personalizado para seu objetivo e orçamento</p>
           </div>
-          <Button onClick={generatePlan} disabled={generating} size="sm" className="gap-1.5">
-            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            Gerar com IA
-          </Button>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setManualOpen(true)}>
+              <PenLine className="h-4 w-4" /> Manual
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5 relative" disabled={uploading} onClick={() => fileRef.current?.click()}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} PDF
+              <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} />
+            </Button>
+            <Button onClick={generatePlan} disabled={generating} size="sm" className="gap-1.5">
+              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Gerar IA
+            </Button>
+          </div>
         </div>
 
         {activePlan ? (
@@ -80,10 +214,18 @@ export default function FitMeals() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">{activePlan.title}</CardTitle>
-                  <Badge variant="default">Ativo</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="default">Ativo</Badge>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deletePlan(activePlan.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
                 <CardDescription>
-                  Gerado em {new Date(activePlan.created_at).toLocaleDateString("pt-BR")}
+                  {activePlan.source === "ai" ? "Gerado por IA" : activePlan.source === "pdf" ? "Importado de PDF" : "Criado manualmente"} em{" "}
+                  {new Date(activePlan.created_at).toLocaleDateString("pt-BR")}
+                  {activePlan.plan_data?.total_calories && ` · ~${activePlan.plan_data.total_calories} kcal/dia`}
+                  {activePlan.plan_data?.estimated_cost && ` · ~R$${activePlan.plan_data.estimated_cost}/mês`}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -91,20 +233,20 @@ export default function FitMeals() {
                   <div className="space-y-4">
                     {activePlan.plan_data.meals.map((meal: any, i: number) => (
                       <div key={i} className="rounded-lg border p-3 space-y-1">
-                        <p className="font-medium text-sm">{meal.name}</p>
-                        <p className="text-xs text-muted-foreground">{meal.time}</p>
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-sm">{meal.name}</p>
+                          <span className="text-xs text-muted-foreground">{meal.time}</span>
+                        </div>
                         {meal.items?.map((item: string, j: number) => (
-                          <p key={j} className="text-sm pl-3">• {item}</p>
+                          <p key={j} className="text-sm pl-3 text-muted-foreground">• {item}</p>
                         ))}
-                        {meal.calories && (
-                          <p className="text-xs text-muted-foreground pl-3">{meal.calories} kcal</p>
-                        )}
+                        {meal.calories && <p className="text-xs text-muted-foreground pl-3 font-medium">{meal.calories} kcal</p>}
                       </div>
                     ))}
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {typeof activePlan.plan_data === "string" ? activePlan.plan_data : JSON.stringify(activePlan.plan_data, null, 2)}
+                    {activePlan.plan_data?.raw_text || JSON.stringify(activePlan.plan_data, null, 2)}
                   </p>
                 )}
               </CardContent>
@@ -114,15 +256,34 @@ export default function FitMeals() {
             {activePlan.shopping_list?.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <ShoppingCart className="h-4 w-4" />
-                    Lista de Compras
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ShoppingCart className="h-4 w-4" /> Lista de Compras
+                    </CardTitle>
+                    <div className="flex gap-1">
+                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => exportShoppingList(activePlan.shopping_list)}>
+                        <Download className="h-3 w-3" /> Copiar
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={getAlternatives}>
+                        <DollarSign className="h-3 w-3" /> Alternativas
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {activePlan.shopping_list.map((item: string, i: number) => (
-                      <p key={i} className="text-sm">• {item}</p>
+                      <label key={i} className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={checkedItems.has(i)}
+                          onCheckedChange={(checked) => {
+                            const next = new Set(checkedItems);
+                            checked ? next.add(i) : next.delete(i);
+                            setCheckedItems(next);
+                          }}
+                        />
+                        <span className={checkedItems.has(i) ? "line-through text-muted-foreground" : ""}>{item}</span>
+                      </label>
                     ))}
                   </div>
                 </CardContent>
@@ -134,14 +295,84 @@ export default function FitMeals() {
             <CardContent className="py-12 text-center space-y-3">
               <Utensils className="h-12 w-12 mx-auto text-muted-foreground/30" />
               <p className="text-muted-foreground">Nenhum plano alimentar ativo</p>
-              <Button onClick={generatePlan} disabled={generating} className="gap-1.5">
-                {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Gerar plano com IA
-              </Button>
+              <div className="flex gap-2 justify-center">
+                <Button onClick={generatePlan} disabled={generating} className="gap-1.5">
+                  {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Gerar com IA
+                </Button>
+                <Button variant="outline" onClick={() => setManualOpen(true)} className="gap-1.5">
+                  <PenLine className="h-4 w-4" /> Criar manual
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Other plans */}
+        {plans.filter(p => !p.active).length > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">Planos anteriores</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {plans.filter(p => !p.active).map(p => (
+                <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <div>
+                    <p className="font-medium text-sm">{p.title}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString("pt-BR")}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => activatePlan(p.id)}>Ativar</Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deletePlan(p.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
         )}
       </div>
+
+      {/* Manual plan dialog */}
+      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Criar plano manualmente</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Título</Label>
+              <Input value={manualTitle} onChange={e => setManualTitle(e.target.value)} placeholder="Meu plano alimentar" />
+            </div>
+            <div className="space-y-2">
+              <Label>Plano</Label>
+              <Textarea
+                value={manualText}
+                onChange={e => setManualText(e.target.value)}
+                placeholder={"Café da manhã - 7h\n- 2 ovos mexidos\n- 1 fatia de pão integral\n\nAlmoço - 12h\n- 150g frango grelhado\n- Arroz e feijão"}
+                className="min-h-[200px]"
+              />
+            </div>
+            <Button onClick={saveManualPlan} className="w-full">Salvar plano</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Alternatives dialog */}
+      <Dialog open={altOpen} onOpenChange={setAltOpen}>
+        <DialogContent className="max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" /> Alternativas econômicas
+            </DialogTitle>
+          </DialogHeader>
+          {altLoading && !alternatives ? (
+            <div className="flex items-center gap-2 py-8 justify-center">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm text-muted-foreground">Buscando alternativas...</span>
+            </div>
+          ) : (
+            <div className="text-sm whitespace-pre-wrap">{alternatives}</div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }

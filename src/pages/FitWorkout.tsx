@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,10 +8,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Dumbbell, Plus, Loader2, Sparkles, CheckCircle2, Calendar } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dumbbell, Plus, Loader2, Sparkles, CheckCircle2, Calendar, Upload, PenLine, Trash2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+interface Exercise {
+  name: string;
+  sets: number;
+  reps: string;
+  rest?: string;
+  weight?: string;
+}
+
+interface WorkoutDay {
+  name: string;
+  exercises: Exercise[];
+}
 
 export default function FitWorkout() {
   const { user } = useAuth();
@@ -19,23 +34,28 @@ export default function FitWorkout() {
   const [plans, setPlans] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
-  const [logDialogOpen, setLogDialogOpen] = useState(false);
-  const [logForm, setLogForm] = useState({
-    workout_name: "",
-    duration_minutes: "",
-    mood: "bom",
-    notes: "",
-  });
 
-  useEffect(() => {
-    if (!user) return;
-    loadData();
-  }, [user]);
+  // Log dialog
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<WorkoutDay | null>(null);
+  const [exerciseLogs, setExerciseLogs] = useState<Record<string, { sets: { reps: string; weight: string }[] }>>({});
+  const [logForm, setLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "" });
+
+  // Manual plan dialog
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualTitle, setManualTitle] = useState("");
+  const [manualText, setManualText] = useState("");
+
+  // PDF upload
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => { if (user) loadData(); }, [user]);
 
   const loadData = async () => {
     const [plansRes, logsRes] = await Promise.all([
       supabase.from("fit_workout_plans" as any).select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
-      supabase.from("fit_workout_logs" as any).select("*").eq("user_id", user!.id).order("workout_date", { ascending: false }).limit(20),
+      supabase.from("fit_workout_logs" as any).select("*").eq("user_id", user!.id).order("workout_date", { ascending: false }).limit(30),
     ]);
     setPlans((plansRes.data as any) || []);
     setLogs((logsRes.data as any) || []);
@@ -45,9 +65,7 @@ export default function FitWorkout() {
   const generatePlan = async () => {
     setGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke("fit-generate", {
-        body: { type: "workout" },
-      });
+      const { data, error } = await supabase.functions.invoke("fit-generate", { body: { type: "workout" } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       toast.success("Plano de treino gerado! 🎉");
@@ -58,111 +76,174 @@ export default function FitWorkout() {
     setGenerating(false);
   };
 
+  // Open check-in for a specific workout day
+  const openCheckin = (day: WorkoutDay) => {
+    setSelectedDay(day);
+    setLogForm(f => ({ ...f, workout_name: day.name }));
+    const initial: Record<string, { sets: { reps: string; weight: string }[] }> = {};
+    day.exercises.forEach(ex => {
+      initial[ex.name] = {
+        sets: Array.from({ length: ex.sets }, () => ({ reps: String(ex.reps).replace(/[^0-9]/g, '') || "12", weight: ex.weight || "" }))
+      };
+    });
+    setExerciseLogs(initial);
+    setLogDialogOpen(true);
+  };
+
   const saveLog = async () => {
-    if (!logForm.workout_name) {
-      toast.error("Informe o nome do treino");
-      return;
-    }
+    if (!logForm.workout_name) { toast.error("Informe o nome do treino"); return; }
+    const exercises = selectedDay ? Object.entries(exerciseLogs).map(([name, data]) => ({
+      name, sets: data.sets,
+    })) : [];
+
     const { error } = await supabase.from("fit_workout_logs" as any).insert({
       user_id: user!.id,
       workout_name: logForm.workout_name,
       duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
       mood: logForm.mood,
       notes: logForm.notes || null,
+      exercises,
       plan_id: plans.find(p => p.active)?.id || null,
     } as any);
-    if (error) {
-      toast.error("Erro ao salvar treino");
-    } else {
-      toast.success("Treino registrado! 💪");
-      setLogDialogOpen(false);
-      setLogForm({ workout_name: "", duration_minutes: "", mood: "bom", notes: "" });
+    if (error) { toast.error("Erro ao salvar treino"); return; }
+    toast.success("Treino registrado! 💪");
+    setLogDialogOpen(false);
+    setSelectedDay(null);
+    setLogForm({ workout_name: "", duration_minutes: "", mood: "bom", notes: "" });
+    loadData();
+  };
+
+  // PDF upload
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const path = `${user!.id}/workout-${Date.now()}.pdf`;
+      const { error: upErr } = await supabase.storage.from("fit-photos").upload(path, file);
+      if (upErr) throw upErr;
+
+      const { data: urlData } = supabase.storage.from("fit-photos").getPublicUrl(path);
+
+      // Use AI to parse the PDF content
+      const { data, error } = await supabase.functions.invoke("fit-generate", {
+        body: { type: "workout", pdfUrl: urlData.publicUrl, action: "parse-pdf" },
+      });
+
+      if (error || data?.error) {
+        // Fallback: save as raw plan
+        await supabase.from("fit_workout_plans" as any).update({ active: false } as any).eq("user_id", user!.id);
+        await supabase.from("fit_workout_plans" as any).insert({
+          user_id: user!.id,
+          title: file.name.replace(".pdf", ""),
+          source: "pdf",
+          plan_data: { raw_text: "Plano importado via PDF" },
+          pdf_url: urlData.publicUrl,
+          active: true,
+        } as any);
+      }
+
+      toast.success("Plano importado via PDF! 📄");
       loadData();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao importar PDF");
     }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  // Manual plan save
+  const saveManualPlan = async () => {
+    if (!manualTitle.trim()) { toast.error("Informe o título"); return; }
+    try {
+      // Try to parse as structured (one day per line)
+      const lines = manualText.split("\n").filter(l => l.trim());
+      const days: WorkoutDay[] = [];
+      let currentDay: WorkoutDay | null = null;
+
+      lines.forEach(line => {
+        if (line.startsWith("#") || line.startsWith("Dia") || line.startsWith("Treino")) {
+          if (currentDay) days.push(currentDay);
+          currentDay = { name: line.replace(/^#+\s*/, "").trim(), exercises: [] };
+        } else if (currentDay && line.trim().startsWith("-")) {
+          currentDay.exercises.push({ name: line.replace(/^-\s*/, "").trim(), sets: 3, reps: "12" });
+        } else if (currentDay) {
+          currentDay.exercises.push({ name: line.trim(), sets: 3, reps: "12" });
+        }
+      });
+      if (currentDay) days.push(currentDay);
+
+      await supabase.from("fit_workout_plans" as any).update({ active: false } as any).eq("user_id", user!.id);
+      await supabase.from("fit_workout_plans" as any).insert({
+        user_id: user!.id,
+        title: manualTitle,
+        source: "manual",
+        plan_data: days.length > 0 ? { title: manualTitle, days } : { raw_text: manualText },
+        active: true,
+      } as any);
+
+      toast.success("Plano salvo! ✅");
+      setManualOpen(false);
+      setManualTitle("");
+      setManualText("");
+      loadData();
+    } catch (err: any) {
+      toast.error("Erro ao salvar plano");
+    }
+  };
+
+  const deletePlan = async (planId: string) => {
+    await supabase.from("fit_workout_plans" as any).delete().eq("id", planId);
+    toast.success("Plano removido");
+    loadData();
+  };
+
+  const activatePlan = async (planId: string) => {
+    await supabase.from("fit_workout_plans" as any).update({ active: false } as any).eq("user_id", user!.id);
+    await supabase.from("fit_workout_plans" as any).update({ active: true } as any).eq("id", planId);
+    toast.success("Plano ativado");
+    loadData();
   };
 
   const activePlan = plans.find(p => p.active);
 
   if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </AppLayout>
-    );
+    return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
 
   return (
     <AppLayout>
       <div className="max-w-3xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h1 className="text-2xl font-bold font-display flex items-center gap-2">
               <Dumbbell className="h-6 w-6 text-primary" />
               Plano de Treino
             </h1>
-            <p className="text-muted-foreground text-sm">Gerado por IA ou personalizado por você</p>
+            <p className="text-muted-foreground text-sm">Gerado por IA, importado ou manual</p>
           </div>
-          <div className="flex gap-2">
-            <Dialog open={logDialogOpen} onOpenChange={setLogDialogOpen}>
+          <div className="flex gap-2 flex-wrap">
+            {/* Quick log without plan */}
+            <Dialog open={logDialogOpen && !selectedDay} onOpenChange={(o) => { if (!o) { setLogDialogOpen(false); setSelectedDay(null); } }}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Registrar treino
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setSelectedDay(null); setLogDialogOpen(true); }}>
+                  <CheckCircle2 className="h-4 w-4" /> Check-in
                 </Button>
               </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Registrar treino</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Nome do treino</Label>
-                    <Input
-                      value={logForm.workout_name}
-                      onChange={e => setLogForm(f => ({ ...f, workout_name: e.target.value }))}
-                      placeholder="Ex: Treino A - Peito e Tríceps"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Duração (min)</Label>
-                      <Input
-                        type="number"
-                        value={logForm.duration_minutes}
-                        onChange={e => setLogForm(f => ({ ...f, duration_minutes: e.target.value }))}
-                        placeholder="60"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Como foi?</Label>
-                      <Select value={logForm.mood} onValueChange={v => setLogForm(f => ({ ...f, mood: v }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="otimo">😁 Ótimo</SelectItem>
-                          <SelectItem value="bom">🙂 Bom</SelectItem>
-                          <SelectItem value="normal">😐 Normal</SelectItem>
-                          <SelectItem value="ruim">😓 Ruim</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Observações</Label>
-                    <Textarea
-                      value={logForm.notes}
-                      onChange={e => setLogForm(f => ({ ...f, notes: e.target.value }))}
-                      placeholder="Notas sobre o treino..."
-                    />
-                  </div>
-                  <Button onClick={saveLog} className="w-full">Salvar</Button>
-                </div>
-              </DialogContent>
             </Dialog>
+
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setManualOpen(true)}>
+              <PenLine className="h-4 w-4" /> Manual
+            </Button>
+
+            <Button variant="outline" size="sm" className="gap-1.5 relative" disabled={uploading} onClick={() => fileRef.current?.click()}>
+              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} PDF
+              <input ref={fileRef} type="file" accept=".pdf" className="hidden" onChange={handlePdfUpload} />
+            </Button>
+
             <Button onClick={generatePlan} disabled={generating} size="sm" className="gap-1.5">
               {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              Gerar com IA
+              Gerar IA
             </Button>
           </div>
         </div>
@@ -173,23 +254,33 @@ export default function FitWorkout() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">{activePlan.title}</CardTitle>
-                <Badge variant="default">Ativo</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="default">Ativo</Badge>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deletePlan(activePlan.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
               </div>
               <CardDescription>
-                Gerado por {activePlan.source === "ai" ? "IA" : "você"} em{" "}
+                {activePlan.source === "ai" ? "Gerado por IA" : activePlan.source === "pdf" ? "Importado de PDF" : "Criado manualmente"} em{" "}
                 {new Date(activePlan.created_at).toLocaleDateString("pt-BR")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               {activePlan.plan_data?.days ? (
                 <div className="space-y-4">
-                  {activePlan.plan_data.days.map((day: any, i: number) => (
+                  {activePlan.plan_data.days.map((day: WorkoutDay, i: number) => (
                     <div key={i} className="rounded-lg border p-3 space-y-2">
-                      <p className="font-medium text-sm">{day.name}</p>
-                      {day.exercises?.map((ex: any, j: number) => (
+                      <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">{day.name}</p>
+                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => openCheckin(day)}>
+                          <CheckCircle2 className="h-3 w-3" /> Check-in
+                        </Button>
+                      </div>
+                      {day.exercises?.map((ex, j) => (
                         <div key={j} className="flex justify-between text-sm pl-3">
                           <span className="text-muted-foreground">{ex.name}</span>
-                          <span>{ex.sets}x{ex.reps} {ex.weight && `· ${ex.weight}kg`}</span>
+                          <span>{ex.sets}x{ex.reps} {ex.weight && `· ${ex.weight}`}</span>
                         </div>
                       ))}
                     </div>
@@ -197,7 +288,7 @@ export default function FitWorkout() {
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {typeof activePlan.plan_data === "string" ? activePlan.plan_data : JSON.stringify(activePlan.plan_data, null, 2)}
+                  {activePlan.plan_data?.raw_text || JSON.stringify(activePlan.plan_data, null, 2)}
                 </p>
               )}
             </CardContent>
@@ -207,42 +298,180 @@ export default function FitWorkout() {
             <CardContent className="py-12 text-center space-y-3">
               <Dumbbell className="h-12 w-12 mx-auto text-muted-foreground/30" />
               <p className="text-muted-foreground">Nenhum plano de treino ativo</p>
-              <Button onClick={generatePlan} disabled={generating} className="gap-1.5">
-                {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                Gerar plano com IA
-              </Button>
+              <div className="flex gap-2 justify-center">
+                <Button onClick={generatePlan} disabled={generating} className="gap-1.5">
+                  {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Gerar com IA
+                </Button>
+                <Button variant="outline" onClick={() => setManualOpen(true)} className="gap-1.5">
+                  <PenLine className="h-4 w-4" /> Criar manual
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Recent Logs */}
+        {/* Other plans */}
+        {plans.filter(p => !p.active).length > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="text-base">Planos anteriores</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {plans.filter(p => !p.active).map(p => (
+                <div key={p.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <div>
+                    <p className="font-medium text-sm">{p.title}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(p.created_at).toLocaleDateString("pt-BR")}</p>
+                  </div>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => activatePlan(p.id)}>Ativar</Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deletePlan(p.id)}>
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Workout Logs */}
         {logs.length > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Histórico de treinos
-              </CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle className="text-base flex items-center gap-2"><Calendar className="h-4 w-4" />Histórico de treinos</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               {logs.map(log => (
-                <div key={log.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                  <div>
-                    <p className="font-medium text-sm">{log.workout_name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(log.workout_date).toLocaleDateString("pt-BR")}
-                      {log.duration_minutes && ` · ${log.duration_minutes}min`}
-                    </p>
+                <div key={log.id} className="py-2 border-b last:border-0">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-sm">{log.workout_name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(log.workout_date).toLocaleDateString("pt-BR")}
+                        {log.duration_minutes && ` · ${log.duration_minutes}min`}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs">
+                      {log.mood === "otimo" ? "😁" : log.mood === "bom" ? "🙂" : log.mood === "normal" ? "😐" : "😓"}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="text-xs">
-                    {log.mood === "otimo" ? "😁" : log.mood === "bom" ? "🙂" : log.mood === "normal" ? "😐" : "😓"}
-                  </Badge>
+                  {/* Show exercise details if available */}
+                  {log.exercises?.length > 0 && (
+                    <div className="mt-2 pl-3 space-y-1">
+                      {log.exercises.map((ex: any, i: number) => (
+                        <div key={i} className="text-xs text-muted-foreground flex justify-between">
+                          <span>{ex.name}</span>
+                          <span>{ex.sets?.map((s: any, si: number) => `${s.weight || "—"}kg×${s.reps}`).join(" | ")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </CardContent>
           </Card>
         )}
       </div>
+
+      {/* Check-in dialog with exercise logging */}
+      <Dialog open={logDialogOpen} onOpenChange={(o) => { if (!o) { setLogDialogOpen(false); setSelectedDay(null); } }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Registrar treino{selectedDay ? ` — ${selectedDay.name}` : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {!selectedDay && (
+              <div className="space-y-2">
+                <Label>Nome do treino</Label>
+                <Input value={logForm.workout_name} onChange={e => setLogForm(f => ({ ...f, workout_name: e.target.value }))} placeholder="Ex: Treino A - Peito e Tríceps" />
+              </div>
+            )}
+
+            {/* Exercise-by-exercise logging */}
+            {selectedDay && selectedDay.exercises.map((ex, i) => (
+              <div key={i} className="rounded-lg border p-3 space-y-2">
+                <p className="font-medium text-sm">{ex.name}</p>
+                <div className="space-y-1">
+                  {exerciseLogs[ex.name]?.sets.map((s, si) => (
+                    <div key={si} className="flex gap-2 items-center">
+                      <span className="text-xs text-muted-foreground w-8">S{si + 1}</span>
+                      <Input
+                        type="number"
+                        placeholder="kg"
+                        className="h-8 text-xs w-20"
+                        value={s.weight}
+                        onChange={e => {
+                          const next = { ...exerciseLogs };
+                          next[ex.name].sets[si].weight = e.target.value;
+                          setExerciseLogs(next);
+                        }}
+                      />
+                      <span className="text-xs text-muted-foreground">×</span>
+                      <Input
+                        type="number"
+                        placeholder="reps"
+                        className="h-8 text-xs w-20"
+                        value={s.reps}
+                        onChange={e => {
+                          const next = { ...exerciseLogs };
+                          next[ex.name].sets[si].reps = e.target.value;
+                          setExerciseLogs(next);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Duração (min)</Label>
+                <Input type="number" value={logForm.duration_minutes} onChange={e => setLogForm(f => ({ ...f, duration_minutes: e.target.value }))} placeholder="60" />
+              </div>
+              <div className="space-y-2">
+                <Label>Como foi?</Label>
+                <Select value={logForm.mood} onValueChange={v => setLogForm(f => ({ ...f, mood: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="otimo">😁 Ótimo</SelectItem>
+                    <SelectItem value="bom">🙂 Bom</SelectItem>
+                    <SelectItem value="normal">😐 Normal</SelectItem>
+                    <SelectItem value="ruim">😓 Ruim</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea value={logForm.notes} onChange={e => setLogForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notas sobre o treino..." />
+            </div>
+            <Button onClick={saveLog} className="w-full">Salvar treino</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual plan dialog */}
+      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Criar plano manualmente</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Título</Label>
+              <Input value={manualTitle} onChange={e => setManualTitle(e.target.value)} placeholder="Meu plano de treino" />
+            </div>
+            <div className="space-y-2">
+              <Label>Plano</Label>
+              <Textarea
+                value={manualText}
+                onChange={e => setManualText(e.target.value)}
+                placeholder={"Treino A - Peito e Tríceps\n- Supino reto 4x12\n- Supino inclinado 3x12\n\nTreino B - Costas e Bíceps\n- Puxada frontal 4x12"}
+                className="min-h-[200px]"
+              />
+              <p className="text-xs text-muted-foreground">Use linhas começando com "Treino" para separar os dias e "-" para os exercícios</p>
+            </div>
+            <Button onClick={saveManualPlan} className="w-full">Salvar plano</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
