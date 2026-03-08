@@ -67,6 +67,7 @@ interface FitFormData {
   goal: string;
   experience_level: string;
   weekly_days: string[];
+  weekly_times: Record<string, string>;
   training_location: string;
   available_equipment: string[];
   diet_type: string;
