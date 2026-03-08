@@ -487,6 +487,10 @@ export default function FitWorkout() {
                 </div>
               </div>
             ))}
+            <div className="space-y-2">
+              <Label>Data do treino</Label>
+              <Input type="date" value={logForm.workout_date} onChange={e => setLogForm(f => ({ ...f, workout_date: e.target.value }))} />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Duração (min)</Label>
