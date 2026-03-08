@@ -88,6 +88,12 @@ MÉTODO DE ENSINO:
 
 FORMATAÇÃO:
 - Use LaTeX para fórmulas: $\\sum_{i=1}^{n}$, $\\int_a^b f(x)dx$.
+- REGRA CRÍTICA DE LATEX: NUNCA duplique uma expressão matemática. Escreva APENAS a versão LaTeX.
+  ERRADO: "$m=2$m=2" ou "$f(x) = 2x$f(x) = 2x" ou "no eixo $y$y"
+  CERTO: "$m = 2$" ou "$f(x) = 2x$" ou "no eixo $y$"
+  ERRADO: "Números Reais ($\\mathbb{R}$R)" ou "($\\mathbb{R}$$\\mathbb{R}$)"
+  CERTO: "Números Reais ($\\mathbb{R}$)"
+- Sempre coloque um ESPAÇO antes e depois de expressões LaTeX inline: "onde $m = 2$ é o coeficiente".
 - Use tabelas markdown para comparações:
   | A | B |
   |---|---|
