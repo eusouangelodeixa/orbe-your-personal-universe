@@ -286,7 +286,7 @@ export default function Profile() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="phone">Telefone (WhatsApp)</Label>
                 {phoneVerified && !isEditingPhone && (
-                  <Badge variant="default" className="gap-1 bg-emerald-600 hover:bg-emerald-700">
+                  <Badge variant="default" className="gap-1">
                     <ShieldCheck className="h-3 w-3" />
                     Verificado
                   </Badge>
