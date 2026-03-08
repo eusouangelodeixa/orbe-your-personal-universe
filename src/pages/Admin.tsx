@@ -101,6 +101,7 @@ export default function Admin() {
         result.settings.forEach((s: AdminSetting) => { edits[s.key] = { ...s.value }; });
         setSettingEdits(edits);
       }
+      if (result?.connections) setConnections(result.connections);
     } catch (err) { console.error(err); }
   };
 
