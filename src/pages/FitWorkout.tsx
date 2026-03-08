@@ -41,7 +41,7 @@ export default function FitWorkout() {
   const [logDialogOpen, setLogDialogOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<WorkoutDay | null>(null);
   const [exerciseLogs, setExerciseLogs] = useState<Record<string, { sets: { reps: string; weight: string }[] }>>({});
-  const [logForm, setLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "" });
+  const [logForm, setLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: new Date().toISOString().slice(0, 10) });
 
   // Manual plan dialog
   const [manualOpen, setManualOpen] = useState(false);
@@ -102,6 +102,7 @@ export default function FitWorkout() {
     })) : [];
     const { error } = await supabase.from("fit_workout_logs" as any).insert({
       user_id: user!.id, workout_name: logForm.workout_name,
+      workout_date: logForm.workout_date,
       duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
       mood: logForm.mood, notes: logForm.notes || null, exercises,
       plan_id: plans.find(p => p.active)?.id || null,
@@ -110,7 +111,7 @@ export default function FitWorkout() {
     toast.success("Treino registrado! 💪");
     setLogDialogOpen(false);
     setSelectedDay(null);
-    setLogForm({ workout_name: "", duration_minutes: "", mood: "bom", notes: "" });
+    setLogForm({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: new Date().toISOString().slice(0, 10) });
     loadData();
   };
 
@@ -486,6 +487,10 @@ export default function FitWorkout() {
                 </div>
               </div>
             ))}
+            <div className="space-y-2">
+              <Label>Data do treino</Label>
+              <Input type="date" value={logForm.workout_date} onChange={e => setLogForm(f => ({ ...f, workout_date: e.target.value }))} />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Duração (min)</Label>
