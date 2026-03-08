@@ -21,6 +21,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
+import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
