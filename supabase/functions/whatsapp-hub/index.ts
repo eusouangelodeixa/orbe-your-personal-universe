@@ -16,8 +16,22 @@ function brNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
 
+function safeString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.text === "string") return obj.text;
+    if (typeof obj.body === "string") return obj.body;
+    if (typeof obj.conversation === "string") return obj.conversation;
+  }
+
+  return "";
+}
+
 function normalizePhone(value: string | null | undefined) {
-  return (value || "").replace(/\D/g, "");
+  return safeString(value).replace(/\D/g, "");
 }
 
 function stripCountryCodeBR(value: string) {
@@ -47,19 +61,40 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   }
 }
 
-async function sendWhatsApp(url: string, token: string, phone: string, text: string) {
-  const response = await fetch(`${url}/send/text`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", token },
-    body: JSON.stringify({ number: phone, text: `*ORBE*\n\n${text}` }),
-  });
+async function sendWhatsApp(url: string, tokenCandidates: string[], phone: string, text: string) {
+  const tokens = [...new Set(tokenCandidates.map((t) => safeString(t).trim()).filter(Boolean))];
+  if (!tokens.length) throw new Error("No UAZAPI token available to send reply");
 
-  const responseText = await response.text();
-  if (!response.ok) {
-    throw new Error(`UAZAPI send error [${response.status}]: ${responseText.slice(0, 400)}`);
+  const number = safeString(phone).replace(/@.*$/, "");
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+
+    const response = await fetch(`${url}/send/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", token },
+      body: JSON.stringify({ number, text: `*ORBE*\n\n${text}` }),
+    });
+
+    const responseText = await response.text();
+    if (response.ok) {
+      if (i > 0) console.log(`Reply sent with fallback token #${i + 1}`);
+      return responseText;
+    }
+
+    const err = new Error(`UAZAPI send error [${response.status}]: ${responseText.slice(0, 400)}`);
+
+    if (response.status === 401 || response.status === 403) {
+      console.warn(`Token #${i + 1} rejected by UAZAPI (${response.status}), trying fallback if available`);
+      lastError = err;
+      continue;
+    }
+
+    throw err;
   }
 
-  return responseText;
+  throw lastError ?? new Error("Unable to send WhatsApp reply");
 }
 
 // ========== AI FUNCTIONS ==========
