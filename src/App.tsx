@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { PlanGate } from "@/components/PlanGate";
 import Landing from "./pages/Landing";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -39,21 +40,25 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/planilha" element={<ProtectedRoute><Planilha /></ProtectedRoute>} />
-            <Route path="/cofrinho" element={<ProtectedRoute><Cofrinho /></ProtectedRoute>} />
-            <Route path="/consultor" element={<ProtectedRoute><Consultor /></ProtectedRoute>} />
-            <Route path="/estudos" element={<ProtectedRoute><StudiesDashboard /></ProtectedRoute>} />
-            <Route path="/disciplinas" element={<ProtectedRoute><Disciplinas /></ProtectedRoute>} />
-            <Route path="/disciplina/:subjectId" element={<ProtectedRoute><SubjectDetail /></ProtectedRoute>} />
-            <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+            {/* Finance routes — all plans */}
+            <Route path="/planilha" element={<ProtectedRoute><PlanGate group="finance"><Planilha /></PlanGate></ProtectedRoute>} />
+            <Route path="/cofrinho" element={<ProtectedRoute><PlanGate group="finance"><Cofrinho /></PlanGate></ProtectedRoute>} />
+            <Route path="/consultor" element={<ProtectedRoute><PlanGate group="finance"><Consultor /></PlanGate></ProtectedRoute>} />
+            {/* Studies routes — student & full */}
+            <Route path="/estudos" element={<ProtectedRoute><PlanGate group="studies"><StudiesDashboard /></PlanGate></ProtectedRoute>} />
+            <Route path="/disciplinas" element={<ProtectedRoute><PlanGate group="studies"><Disciplinas /></PlanGate></ProtectedRoute>} />
+            <Route path="/disciplina/:subjectId" element={<ProtectedRoute><PlanGate group="studies"><SubjectDetail /></PlanGate></ProtectedRoute>} />
+            {/* Fit routes — fit & full */}
+            <Route path="/fit" element={<ProtectedRoute><PlanGate group="fit"><FitDashboard /></PlanGate></ProtectedRoute>} />
+            <Route path="/fit/onboarding" element={<ProtectedRoute><PlanGate group="fit"><FitOnboarding /></PlanGate></ProtectedRoute>} />
+            <Route path="/fit/treino" element={<ProtectedRoute><PlanGate group="fit"><FitWorkout /></PlanGate></ProtectedRoute>} />
+            <Route path="/fit/alimentacao" element={<ProtectedRoute><PlanGate group="fit"><FitMeals /></PlanGate></ProtectedRoute>} />
+            <Route path="/fit/progresso" element={<ProtectedRoute><PlanGate group="fit"><FitProgress /></PlanGate></ProtectedRoute>} />
+            <Route path="/fit/chat" element={<ProtectedRoute><PlanGate group="fit"><FitChat /></PlanGate></ProtectedRoute>} />
+            {/* Shared routes — all plans */}
+            <Route path="/agenda" element={<ProtectedRoute><PlanGate group="finance"><Agenda /></PlanGate></ProtectedRoute>} />
+            <Route path="/tarefas" element={<ProtectedRoute><PlanGate group="finance"><Tarefas /></PlanGate></ProtectedRoute>} />
             <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/fit" element={<ProtectedRoute><FitDashboard /></ProtectedRoute>} />
-            <Route path="/fit/onboarding" element={<ProtectedRoute><FitOnboarding /></ProtectedRoute>} />
-            <Route path="/fit/treino" element={<ProtectedRoute><FitWorkout /></ProtectedRoute>} />
-            <Route path="/fit/alimentacao" element={<ProtectedRoute><FitMeals /></ProtectedRoute>} />
-            <Route path="/fit/progresso" element={<ProtectedRoute><FitProgress /></ProtectedRoute>} />
-            <Route path="/fit/chat" element={<ProtectedRoute><FitChat /></ProtectedRoute>} />
-            <Route path="/tarefas" element={<ProtectedRoute><Tarefas /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>

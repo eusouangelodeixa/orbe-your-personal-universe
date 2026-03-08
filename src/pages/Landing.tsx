@@ -588,10 +588,10 @@ export default function Landing() {
 
         <div className="landing-pricing-grid fade-up">
           {[
-            { plan: "Basic", price: currentPrices.basic, period: "Módulo Financeiro", features: ["Planilha doméstica inteligente", "Registro via WhatsApp", "Alertas de vencimento", "Dashboard financeiro"], disabled: ["Módulo de Estudos", "Módulo Fit"], featured: false },
-            { plan: "Student", price: currentPrices.student, period: "Financeiro + Estudos", features: ["Tudo do Basic", "Agenda acadêmica completa", "IA especialista por matéria", "Lembretes de provas e trabalhos", "Simulados com correção IA"], disabled: ["Módulo Fit"], featured: false },
-            { plan: "Full", price: currentPrices.full, period: "Todos os Módulos", features: ["Tudo do Student", "Plano alimentar IA personalizado", "Plano de treino adaptado", "Nutricionista IA 24h", "Lembretes de treino e dieta", "Suporte prioritário"], disabled: [], featured: true },
-            { plan: "Fit Only", price: currentPrices.fit, period: "Financeiro + Fit", features: ["Tudo do Basic", "Plano alimentar personalizado", "Divisão de treinos IA", "Nutricionista pessoal IA", "Acompanhamento de IMC"], disabled: ["Módulo de Estudos"], featured: false },
+            { plan: "Basic", planKey: "basic", price: currentPrices.basic, period: "Módulo Financeiro", features: ["Planilha doméstica inteligente", "Registro via WhatsApp", "Alertas de vencimento", "Dashboard financeiro"], disabled: ["Módulo de Estudos", "Módulo Fit"], featured: false },
+            { plan: "Student", planKey: "student", price: currentPrices.student, period: "Financeiro + Estudos", features: ["Tudo do Basic", "Agenda acadêmica completa", "IA especialista por matéria", "Lembretes de provas e trabalhos", "Simulados com correção IA"], disabled: ["Módulo Fit"], featured: false },
+            { plan: "Full", planKey: "full", price: currentPrices.full, period: "Todos os Módulos", features: ["Tudo do Student", "Plano alimentar IA personalizado", "Plano de treino adaptado", "Nutricionista IA 24h", "Lembretes de treino e dieta", "Suporte prioritário"], disabled: [], featured: true },
+            { plan: "Fit Only", planKey: "fit", price: currentPrices.fit, period: "Financeiro + Fit", features: ["Tudo do Basic", "Plano alimentar personalizado", "Divisão de treinos IA", "Nutricionista pessoal IA", "Acompanhamento de IMC"], disabled: ["Módulo de Estudos"], featured: false },
           ].map((p) => (
             <div key={p.plan} className={`landing-price-card ${p.featured ? "featured" : ""}`}>
               {p.featured && <div className="landing-price-popular">Mais Popular</div>}
@@ -607,7 +607,7 @@ export default function Landing() {
                   <div key={f} className="landing-pf-item disabled">{f}</div>
                 ))}
               </div>
-              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate("/auth")}>
+              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate(`/auth?plan=${p.planKey}`)}>
                 {p.featured ? "Começar Agora" : "Começar"}
               </button>
             </div>
