@@ -1075,7 +1075,16 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
     }
   } catch (e) {
     console.error(`Action error [${action}]:`, e);
-    return reply_text || `❌ Erro ao executar: ${e instanceof Error ? e.message : "erro desconhecido"}`;
+    const rawMessage = e instanceof Error
+      ? e.message
+      : ((e as any)?.message || "erro desconhecido");
+    const normalizedError = normalizeText(rawMessage);
+
+    if (normalizedError.includes("saldo insuficiente")) {
+      return `❌ ${rawMessage}`;
+    }
+
+    return `❌ Não consegui concluir sua solicitação. ${rawMessage}`;
   }
 }
 
