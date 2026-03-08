@@ -857,22 +857,27 @@ serve(async (req) => {
     // Transcribe audio if needed
     if (isAudio && audioUrl) {
       try {
-        userText = await transcribeAudio(LOVABLE_API_KEY, audioUrl);
-        if (!userText) {
-          await sendWhatsApp(UAZAPI_URL, UAZAPI_TOKEN, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
+        userText = await withTimeout(transcribeAudio(LOVABLE_API_KEY, audioUrl, audioMimeType), 20000, "audio_transcription");
+        if (!userText?.trim()) {
+          try {
+            await sendWhatsApp(UAZAPI_URL, outboundToken, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
+          } catch (sendErr) {
+            console.error("Failed to send audio_fail message:", sendErr);
+          }
           return new Response(JSON.stringify({ handled: true, action: "audio_fail" }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
       } catch (e) {
         console.error("Audio transcription failed:", e);
-        // Fallback: try to use whatever text was sent
-        if (!userText) {
-          await sendWhatsApp(UAZAPI_URL, UAZAPI_TOKEN, phone, "❌ Não consegui processar o áudio. Envie por texto, por favor.");
-          return new Response(JSON.stringify({ handled: true, action: "audio_fail" }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        try {
+          await sendWhatsApp(UAZAPI_URL, outboundToken, phone, "❌ Não consegui processar o áudio. Envie por texto, por favor.");
+        } catch (sendErr) {
+          console.error("Failed to send audio error message:", sendErr);
         }
+        return new Response(JSON.stringify({ handled: true, action: "audio_fail" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
     }
 
@@ -886,20 +891,47 @@ serve(async (req) => {
     const nome = profile.display_name?.split(" ")[0] || "Usuário";
     const context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
 
-    // Parse intent
-    const intent = await parseIntent(LOVABLE_API_KEY, userText, context);
+    // Parse intent with timeout + deterministic fallback
+    let intent: any;
+    try {
+      intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context), 18000, "parse_intent");
+    } catch (intentError) {
+      console.error("Intent parsing failed, using fallback:", intentError);
+      intent = parseFallbackIntent(userText);
+    }
 
-    // Execute action
-    const response = await executeAction(supabase, userId, intent);
+    // Execute action with timeout
+    let responseText = "";
+    try {
+      responseText = await withTimeout(executeAction(supabase, userId, intent), 12000, "execute_action");
+    } catch (actionError) {
+      console.error("Action execution failed:", actionError);
+      responseText = "❌ Tive um erro ao executar sua solicitação. Tente novamente em instantes.";
+    }
 
-    // Send reply
-    await sendWhatsApp(UAZAPI_URL, UAZAPI_TOKEN, phone, response);
+    // Send reply and expose send status
+    try {
+      await withTimeout(sendWhatsApp(UAZAPI_URL, outboundToken, phone, responseText), 12000, "send_reply");
+    } catch (sendError) {
+      console.error("Reply send failed:", sendError);
+      return new Response(JSON.stringify({
+        handled: true,
+        module: intent.module,
+        action: intent.action,
+        transcribed: isAudio ? userText : undefined,
+        send_status: "failed",
+        send_error: sendError instanceof Error ? sendError.message : "unknown",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     return new Response(JSON.stringify({
       handled: true,
       module: intent.module,
       action: intent.action,
       transcribed: isAudio ? userText : undefined,
+      send_status: "sent",
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
