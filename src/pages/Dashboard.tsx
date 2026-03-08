@@ -22,7 +22,8 @@ export default function Dashboard() {
 
   const renda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
-  const saldo = renda - totalGastos;
+  const gastosPendentes = expenses.filter(e => !e.paid).reduce((a, e) => a + Number(e.amount), 0);
+  const fluxoMensal = renda - totalGastos;
   const percentual = renda > 0 ? Math.round((totalGastos / renda) * 100) : 0;
   const isCritical = percentual > 80;
   const totalCarteiras = wallets.reduce((a, w) => a + Number(w.balance), 0);
@@ -61,7 +62,7 @@ export default function Dashboard() {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Renda Mensal</CardTitle>
@@ -86,13 +87,26 @@ export default function Dashboard() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Saldo Restante</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Fluxo Mensal</CardTitle>
               <WalletIcon className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <p className={`text-2xl font-bold font-display ${saldo < 0 ? "text-destructive" : ""}`}>
-                R$ {saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              <p className={`text-2xl font-bold font-display ${fluxoMensal < 0 ? "text-destructive" : ""}`}>
+                R$ {fluxoMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </p>
+              <p className="text-xs text-muted-foreground mt-1">Renda − Gastos</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Projeção Patrimonial</CardTitle>
+              <CreditCard className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <p className={`text-2xl font-bold font-display ${(totalCarteiras - gastosPendentes) < 0 ? "text-destructive" : "text-primary"}`}>
+                R$ {(totalCarteiras - gastosPendentes).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Carteiras − Pendentes</p>
             </CardContent>
           </Card>
           <Card>
