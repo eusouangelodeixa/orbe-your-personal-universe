@@ -1457,7 +1457,7 @@ serve(async (req) => {
       const context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
 
       // Parse intent with timeout + deterministic fallback
-      let intent: any;
+      // intent already declared above
       try {
         intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context), 18000, "parse_intent");
       } catch (intentError) {
