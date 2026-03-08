@@ -778,6 +778,7 @@ serve(async (req) => {
     let audioUrl: string | null = null;
     let audioMimeType = "audio/ogg";
     let isAudio = false;
+    let messageId = "";
 
     if (body.EventType === "messages" || body.EventType === "message") {
       // UAZAPI proprietary format
