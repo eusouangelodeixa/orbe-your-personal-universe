@@ -145,7 +145,7 @@ export default function Landing() {
           </p>
           <div className="landing-hero-actions">
             <button className="landing-btn-primary" onClick={() => navigate("/auth")}>
-              Começar Agora — Grátis 7 dias
+              Começar Agora — Grátis 3 dias
             </button>
             <button className="landing-btn-secondary">
               <span>Ver Demo</span>
@@ -615,7 +615,7 @@ export default function Landing() {
         </div>
 
         <div className="landing-price-guarantee fade-up">
-          🔒 <span>Garantia de 7 dias.</span> Se não gostar, devolvemos 100% do seu dinheiro. Sem perguntas.
+          🔒 <span>Garantia de 3 dias.</span> Se não gostar, devolvemos 100% do seu dinheiro. Sem perguntas.
         </div>
       </section>
 
@@ -632,7 +632,7 @@ export default function Landing() {
               { q: "Como funciona a planilha doméstica?", a: "Você cadastra seu salário e seus gastos fixos e variáveis. O ORBE desconta automaticamente cada despesa conforme são lançadas e mostra o saldo restante em tempo real. Você recebe alertas de vencimento e projeções do mês." },
               { q: "O chatbot de estudos funciona para qualquer matéria?", a: "Sim! Você cadastra suas disciplinas e o ORBE cria um assistente especialista para cada uma. Medicina, Direito, Engenharia, Matemática, História — a IA se adapta ao conteúdo e age como especialista da área." },
               { q: "O plano alimentar respeita restrições como veganismo?", a: "Completamente. O ORBE pergunta sobre seu grupo alimentar (vegano, vegetariano, pescetariano, flexitariano), alergias, intolerâncias e condições médicas. O plano gerado respeita todos esses critérios e ainda se adapta ao seu orçamento." },
-              { q: "Posso cancelar quando quiser?", a: "Sim, sem multas ou burocracia. E se não gostar nos primeiros 7 dias, devolvemos 100% do valor pago. Sem perguntas." },
+              { q: "Posso cancelar quando quiser?", a: "Sim, sem multas ou burocracia. E se não gostar nos primeiros 3 dias, devolvemos 100% do valor pago. Sem perguntas." },
               { q: "Meus dados financeiros e de saúde estão seguros?", a: "Sim. O ORBE usa encriptação de ponta a ponta para todos os dados. Informações financeiras, acadêmicas e de saúde são tratadas com os mais altos padrões de segurança e privacidade." },
             ].map((item, i) => (
               <FaqItem key={i} q={item.q} a={item.a} open={openFaq === i} onToggle={() => toggleFaq(i)} />
@@ -653,9 +653,9 @@ export default function Landing() {
             <span className="outline">SEU UNIVERSO</span><br />
             <span style={{ color: "var(--amber)" }}>ORGANIZADO.</span>
           </div>
-          <p className="landing-cta-sub">Junte-se a quem já controla finanças, estudos e saúde num só lugar. Comece agora e sinta a diferença em 7 dias.</p>
+          <p className="landing-cta-sub">Junte-se a quem já controla finanças, estudos e saúde num só lugar. Comece agora e sinta a diferença em 3 dias.</p>
           <div className="landing-cta-btns">
-            <button className="landing-btn-primary" onClick={() => navigate("/auth")}>Começar Agora — 7 dias grátis</button>
+            <button className="landing-btn-primary" onClick={() => navigate("/auth")}>Começar Agora — 3 dias grátis</button>
             <button className="landing-btn-secondary">Ver todos os planos ↗</button>
           </div>
           <div className="landing-cta-guarantee">🔒 Sem cartão de crédito necessário · Cancele quando quiser</div>
