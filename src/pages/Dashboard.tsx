@@ -61,73 +61,90 @@ export default function Dashboard() {
           <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
         </div>
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Renda Mensal</CardTitle>
-              <TrendingUp className="h-4 w-4 text-primary" />
+        {/* Row 1: Entradas e Saídas */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card className="border-l-4 border-l-primary">
+            <CardHeader className="flex flex-row items-center justify-between pb-1">
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Renda Mensal</CardTitle>
+              <ArrowUpCircle className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display">
+              <p className="text-2xl font-bold font-display text-primary">
                 R$ {renda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </p>
+              <p className="text-xs text-muted-foreground mt-1">Total recebido no mês</p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Gastos</CardTitle>
-              <TrendingDown className="h-4 w-4 text-destructive" />
+          <Card className="border-l-4 border-l-destructive">
+            <CardHeader className="flex flex-row items-center justify-between pb-1">
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Total Gastos</CardTitle>
+              <ArrowDownCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display">
+              <p className="text-2xl font-bold font-display text-destructive">
                 R$ {totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {gastosPendentes > 0 && (
+                  <span className="text-warning font-medium">
+                    R$ {gastosPendentes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} pendentes
+                  </span>
+                )}
+                {gastosPendentes === 0 && "Tudo pago ✓"}
               </p>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Fluxo Mensal</CardTitle>
-              <WalletIcon className="h-4 w-4 text-primary" />
+          <Card className={`border-l-4 ${fluxoMensal >= 0 ? "border-l-primary" : "border-l-destructive"}`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-1">
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Fluxo do Mês</CardTitle>
+              {fluxoMensal >= 0 ? <TrendingUp className="h-4 w-4 text-primary" /> : <TrendingDown className="h-4 w-4 text-destructive" />}
             </CardHeader>
             <CardContent>
-              <p className={`text-2xl font-bold font-display ${fluxoMensal < 0 ? "text-destructive" : ""}`}>
-                R$ {fluxoMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              <p className={`text-2xl font-bold font-display ${fluxoMensal >= 0 ? "text-primary" : "text-destructive"}`}>
+                {fluxoMensal >= 0 ? "+" : ""}R$ {fluxoMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
               </p>
               <p className="text-xs text-muted-foreground mt-1">Renda − Gastos</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Projeção Patrimonial</CardTitle>
-              <CreditCard className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <p className={`text-2xl font-bold font-display ${(totalCarteiras - gastosPendentes) < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {(totalCarteiras - gastosPendentes).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">Carteiras − Pendentes</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Patrimônio</CardTitle>
-              <CreditCard className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <p className={`text-2xl font-bold font-display ${totalCarteiras < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Comprometimento</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-1">
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Comprometimento</CardTitle>
               {isCritical && <AlertTriangle className="h-4 w-4 text-warning" />}
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display mb-2">{percentual}%</p>
+              <p className={`text-2xl font-bold font-display mb-1 ${isCritical ? "text-warning" : ""}`}>{percentual}%</p>
               <Progress value={Math.min(percentual, 100)} className="h-2" />
+              <p className="text-xs text-muted-foreground mt-1">
+                {percentual > 100 ? "Gastos excedem a renda!" : percentual > 80 ? "Atenção: alto comprometimento" : "Dentro do orçamento"}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Row 2: Patrimônio & Projeção — destaque */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Card className="bg-primary/5 border-primary/20">
+            <CardHeader className="flex flex-row items-center justify-between pb-1">
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Patrimônio Atual</CardTitle>
+              <WalletIcon className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <p className={`text-3xl font-bold font-display ${totalCarteiras < 0 ? "text-destructive" : "text-primary"}`}>
+                R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Saldo total de todas as carteiras</p>
+            </CardContent>
+          </Card>
+          <Card className={`${(totalCarteiras - gastosPendentes) >= 0 ? "bg-primary/5 border-primary/20" : "bg-destructive/5 border-destructive/20"}`}>
+            <CardHeader className="flex flex-row items-center justify-between pb-1">
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Disponível Real</CardTitle>
+              <CreditCard className="h-5 w-5 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <p className={`text-3xl font-bold font-display ${(totalCarteiras - gastosPendentes) < 0 ? "text-destructive" : "text-primary"}`}>
+                R$ {(totalCarteiras - gastosPendentes).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">Patrimônio − Gastos pendentes</p>
             </CardContent>
           </Card>
         </div>
