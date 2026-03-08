@@ -297,6 +297,7 @@ export default function SubjectDetail() {
         <Tabs defaultValue="agenda" className="space-y-4">
           <TabsList>
             <TabsTrigger value="agenda">📅 Agenda</TabsTrigger>
+            <TabsTrigger value="pomodoro">⏱️ Pomodoro</TabsTrigger>
             <TabsTrigger value="chatbot">🤖 Chatbot</TabsTrigger>
             <TabsTrigger value="ementa">📄 Ementa</TabsTrigger>
           </TabsList>
