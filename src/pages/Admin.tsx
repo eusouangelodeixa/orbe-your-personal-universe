@@ -372,64 +372,44 @@ export default function Admin() {
 
           {/* CONNECTIONS */}
           <TabsContent value="connections" className="space-y-4">
+            <p className="text-xs text-muted-foreground">Status das integrações configuradas no backend. As conexões são detectadas automaticamente.</p>
             {settings.filter(s => s.category === "connections").map((setting) => {
               const Icon = settingIcons[setting.key] || Link2;
               const label = settingLabels[setting.key] || setting.key;
               const edit = settingEdits[setting.key] || {};
-              const isSecret = (field: string) => ["token", "api_key", "secret_key", "webhook_secret"].includes(field);
-              const visibleKey = `${setting.key}`;
+              const isConnected = !!edit.enabled;
 
               return (
                 <Card key={setting.key} className="bg-card border-border">
                   <CardHeader className="flex flex-row items-center justify-between pb-2">
                     <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Icon className="h-5 w-5 text-primary" />
+                      <div className={`h-9 w-9 rounded-lg flex items-center justify-center ${isConnected ? "bg-green-500/10" : "bg-muted"}`}>
+                        <Icon className={`h-5 w-5 ${isConnected ? "text-green-500" : "text-muted-foreground"}`} />
                       </div>
                       <div>
                         <CardTitle className="text-foreground font-display tracking-wider text-sm">{label}</CardTitle>
                         <CardDescription className="text-xs">{setting.description}</CardDescription>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">{edit.enabled ? "Ativo" : "Inativo"}</span>
-                      <Switch
-                        checked={!!edit.enabled}
-                        onCheckedChange={(v) => updateSettingField(setting.key, "enabled", v)}
-                      />
-                    </div>
+                    <Badge variant="outline" className={`text-[10px] ${isConnected ? "border-green-500/30 text-green-500" : "border-destructive/30 text-destructive"}`}>
+                      {isConnected ? "✓ Conectado" : "✗ Não configurado"}
+                    </Badge>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {Object.entries(edit).filter(([k]) => k !== "enabled").map(([field, value]) => (
-                      <div key={field}>
-                        <label className="text-xs text-muted-foreground mb-1 block capitalize">{field.replace(/_/g, " ")}</label>
-                        <div className="flex items-center gap-2">
-                          <Input
-                            type={isSecret(field) && !showSecrets[`${setting.key}-${field}`] ? "password" : "text"}
-                            value={String(value || "")}
-                            onChange={(e) => updateSettingField(setting.key, field, e.target.value)}
-                            placeholder={isSecret(field) ? "••••••••" : `Informe ${field}`}
-                            className="flex-1"
-                          />
-                          {isSecret(field) && (
-                            <Button
-                              variant="ghost" size="icon"
-                              onClick={() => setShowSecrets(p => ({ ...p, [`${setting.key}-${field}`]: !p[`${setting.key}-${field}`] }))}
-                            >
-                              {showSecrets[`${setting.key}-${field}`] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    <Button
-                      onClick={() => handleSaveSetting(setting.key)}
-                      disabled={savingSettings[setting.key]}
-                      size="sm" className="mt-2"
-                    >
-                      {savingSettings[setting.key] ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-                      Salvar Configuração
-                    </Button>
+                  <CardContent>
+                    <p className="text-xs text-muted-foreground">
+                      {setting.key === "stripe" && (isConnected
+                        ? "Stripe está ativo. A chave secreta está configurada nos secrets do backend."
+                        : "Configure a STRIPE_SECRET_KEY nos secrets do backend para ativar.")}
+                      {setting.key === "uazapi" && (isConnected
+                        ? "uazapi está ativo. URL e Token estão configurados nos secrets do backend."
+                        : "Configure UAZAPI_URL e UAZAPI_TOKEN nos secrets do backend para ativar.")}
+                      {setting.key === "ai_text" && (isConnected
+                        ? "Lovable AI está ativo para geração de texto."
+                        : "Configure a LOVABLE_API_KEY nos secrets do backend para ativar.")}
+                      {setting.key === "ai_transcription" && (isConnected
+                        ? "Lovable AI está ativo para transcrição."
+                        : "Configure a LOVABLE_API_KEY nos secrets do backend para ativar.")}
+                    </p>
                   </CardContent>
                 </Card>
               );
@@ -437,7 +417,7 @@ export default function Admin() {
             {settings.filter(s => s.category === "connections").length === 0 && (
               <Card className="bg-card border-border">
                 <CardContent className="py-12 text-center text-muted-foreground">
-                  <Link2 className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary" />
                   <p>Carregando conexões...</p>
                 </CardContent>
               </Card>
