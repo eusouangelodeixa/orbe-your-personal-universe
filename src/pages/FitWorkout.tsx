@@ -111,7 +111,7 @@ export default function FitWorkout() {
     toast.success("Treino registrado! 💪");
     setLogDialogOpen(false);
     setSelectedDay(null);
-    setLogForm({ workout_name: "", duration_minutes: "", mood: "bom", notes: "" });
+    setLogForm({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: new Date().toISOString().slice(0, 10) });
     loadData();
   };
 
