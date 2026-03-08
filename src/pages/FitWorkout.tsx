@@ -102,6 +102,7 @@ export default function FitWorkout() {
     })) : [];
     const { error } = await supabase.from("fit_workout_logs" as any).insert({
       user_id: user!.id, workout_name: logForm.workout_name,
+      workout_date: logForm.workout_date,
       duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
       mood: logForm.mood, notes: logForm.notes || null, exercises,
       plan_id: plans.find(p => p.active)?.id || null,
