@@ -424,7 +424,7 @@ function parseFallbackIntent(text: string) {
 
 // ========== ACTION EXECUTORS ==========
 
-async function executeAction(supabase: any, userId: string, intent: any): Promise<string> {
+async function executeAction(supabase: any, userId: string, intent: any, originalText = ""): Promise<string> {
   const { module, action, params = {}, reply_text } = intent;
   const now = brNow();
   const currentMonth = params.month || now.getMonth() + 1;
