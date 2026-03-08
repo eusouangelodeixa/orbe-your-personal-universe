@@ -19,8 +19,11 @@ serve(async (req) => {
     if (!UAZAPI_URL || !UAZAPI_TOKEN) throw new Error("UAZAPI não configurada");
 
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentDay = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][now.getDay()];
+    // Use Brasilia time (UTC-3)
+    const brNow = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+    const currentHour = brNow.getHours();
+    const currentMinute = brNow.getMinutes();
+    const currentDay = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"][brNow.getDay()];
 
     // Get all fit profiles with verified WhatsApp
     const { data: profiles } = await supabase
