@@ -24,8 +24,8 @@ serve(async (req) => {
       });
     }
 
-    // uazapi v2: header 'token' for instance authentication
-    const response = await fetch(`${UAZAPI_URL}/message/sendText`, {
+    // uazapi v1: /send/text with header 'token'
+    const response = await fetch(`${UAZAPI_URL}/send/text`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
