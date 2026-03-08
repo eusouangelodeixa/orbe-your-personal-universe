@@ -90,31 +90,47 @@ async function callAI(apiKey: string, systemPrompt: string, userMessage: string,
   return data;
 }
 
-async function transcribeAudio(apiKey: string, audioUrl: string): Promise<string> {
-  // Use Gemini multimodal to transcribe audio
+async function transcribeAudio(apiKey: string, audioInput: string, mimeType = "audio/ogg"): Promise<string> {
+  let audioBase64 = audioInput;
+
+  // If UAZAPI provides an URL, download and encode as base64 first
+  if (audioInput.startsWith("http://") || audioInput.startsWith("https://")) {
+    const mediaRes = await fetch(audioInput);
+    if (!mediaRes.ok) {
+      const mediaErr = await mediaRes.text();
+      throw new Error(`Falha ao baixar áudio [${mediaRes.status}]: ${mediaErr.slice(0, 200)}`);
+    }
+    const buffer = new Uint8Array(await mediaRes.arrayBuffer());
+    audioBase64 = uint8ToBase64(buffer);
+  }
+
+  const format = mimeType.includes("mpeg") ? "mp3" : mimeType.includes("wav") ? "wav" : "ogg";
+
   const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "google/gemini-2.5-flash",
       messages: [
-        { role: "system", content: "Transcreva o áudio a seguir em texto em português brasileiro. Retorne APENAS a transcrição, sem nenhum comentário adicional." },
-        { role: "user", content: [
-          { type: "input_audio", input_audio: { data: audioUrl, format: "mp3" } },
-        ]},
+        { role: "system", content: "Transcreva o áudio a seguir em texto em português brasileiro. Retorne APENAS a transcrição, sem comentários." },
+        {
+          role: "user",
+          content: [
+            { type: "input_audio", input_audio: { data: audioBase64, format } },
+          ],
+        },
       ],
     }),
   });
 
   if (!res.ok) {
-    // Fallback: try with URL as text
     const t = await res.text();
     console.error("Audio transcription error:", res.status, t);
-    throw new Error("Não consegui transcrever o áudio");
+    throw new Error(`Não consegui transcrever o áudio [${res.status}]`);
   }
 
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || "";
+  return (data.choices?.[0]?.message?.content || "").trim();
 }
 
 // ========== INTENT PARSER ==========
