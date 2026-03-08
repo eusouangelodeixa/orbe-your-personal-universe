@@ -233,7 +233,7 @@ export default function Admin() {
                       <TableHead className="text-muted-foreground">Plano</TableHead>
                       <TableHead className="text-muted-foreground">Cadastro</TableHead>
                       <TableHead className="text-muted-foreground">Último Acesso</TableHead>
-                      <TableHead className="text-muted-foreground">Email</TableHead>
+                      <TableHead className="text-muted-foreground">Verificação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
