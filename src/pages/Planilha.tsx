@@ -572,6 +572,10 @@ export default function Planilha() {
                       <button onClick={() => togglePaid.mutate({ id: e.id, paid: false, amount: Number(e.amount), name: e.name })} className="shrink-0">
                         <Check className="h-5 w-5 text-primary" />
                       </button>
+                    ) : e.wallet_id ? (
+                      <button onClick={() => handleTogglePaid(e)} className="shrink-0" title={`Debitar de ${wallets.find(w => w.id === e.wallet_id)?.name || 'carteira vinculada'}`}>
+                        <Clock className="h-5 w-5 text-muted-foreground hover:text-primary transition-colors" />
+                      </button>
                     ) : wallets.length > 0 ? (
                       <Dialog>
                         <DialogTrigger asChild>
