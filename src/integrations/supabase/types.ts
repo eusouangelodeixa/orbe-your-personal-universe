@@ -286,25 +286,40 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           display_name: string | null
+          email_notifications: boolean
           id: string
+          notifications_enabled: boolean
+          phone: string | null
           updated_at: string
           user_id: string
+          whatsapp_notifications: boolean
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          email_notifications?: boolean
           id?: string
+          notifications_enabled?: boolean
+          phone?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_notifications?: boolean
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
+          email_notifications?: boolean
           id?: string
+          notifications_enabled?: boolean
+          phone?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_notifications?: boolean
         }
         Relationships: []
       }
