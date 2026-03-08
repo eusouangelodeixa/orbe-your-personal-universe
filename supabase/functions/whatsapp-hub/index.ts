@@ -16,8 +16,22 @@ function brNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
 
+function safeString(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+
+  if (value && typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    if (typeof obj.text === "string") return obj.text;
+    if (typeof obj.body === "string") return obj.body;
+    if (typeof obj.conversation === "string") return obj.conversation;
+  }
+
+  return "";
+}
+
 function normalizePhone(value: string | null | undefined) {
-  return (value || "").replace(/\D/g, "");
+  return safeString(value).replace(/\D/g, "");
 }
 
 function stripCountryCodeBR(value: string) {
@@ -47,19 +61,40 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   }
 }
 
-async function sendWhatsApp(url: string, token: string, phone: string, text: string) {
-  const response = await fetch(`${url}/send/text`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", token },
-    body: JSON.stringify({ number: phone, text: `*ORBE*\n\n${text}` }),
-  });
+async function sendWhatsApp(url: string, tokenCandidates: string[], phone: string, text: string) {
+  const tokens = [...new Set(tokenCandidates.map((t) => safeString(t).trim()).filter(Boolean))];
+  if (!tokens.length) throw new Error("No UAZAPI token available to send reply");
 
-  const responseText = await response.text();
-  if (!response.ok) {
-    throw new Error(`UAZAPI send error [${response.status}]: ${responseText.slice(0, 400)}`);
+  const number = safeString(phone).replace(/@.*$/, "");
+  let lastError: Error | null = null;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+
+    const response = await fetch(`${url}/send/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", token },
+      body: JSON.stringify({ number, text: `*ORBE*\n\n${text}` }),
+    });
+
+    const responseText = await response.text();
+    if (response.ok) {
+      if (i > 0) console.log(`Reply sent with fallback token #${i + 1}`);
+      return responseText;
+    }
+
+    const err = new Error(`UAZAPI send error [${response.status}]: ${responseText.slice(0, 400)}`);
+
+    if (response.status === 401 || response.status === 403) {
+      console.warn(`Token #${i + 1} rejected by UAZAPI (${response.status}), trying fallback if available`);
+      lastError = err;
+      continue;
+    }
+
+    throw err;
   }
 
-  return responseText;
+  throw lastError ?? new Error("Unable to send WhatsApp reply");
 }
 
 // ========== AI FUNCTIONS ==========
@@ -679,9 +714,10 @@ serve(async (req) => {
       if (body[k] !== undefined) console.log(`body.${k}:`, JSON.stringify(body[k]).slice(0, 500));
     }
 
-    // Prefer configured token; fallback to webhook token only if needed
-    const outboundToken = UAZAPI_TOKEN || body.token;
-    if (!outboundToken) throw new Error("No UAZAPI token available to send reply");
+    const webhookToken = safeString(body.token).trim();
+    const configuredToken = safeString(UAZAPI_TOKEN).trim();
+    const outboundTokens = [webhookToken, configuredToken];
+    if (!outboundTokens.some(Boolean)) throw new Error("No UAZAPI token available to send reply");
 
     // ===== PARSE UAZAPI WEBHOOK FORMAT =====
     // UAZAPI v2 format: { BaseUrl, EventType: "messages", chat: {...}, message?: {...}, ... }
@@ -699,15 +735,17 @@ serve(async (req) => {
       const msg = body.message || body.msg || body.data || {};
 
       // Phone priority for UAZAPI payload
-      const chatId = chat.id || chat.jid || chat.remoteJid || chat.wa_chatid || "";
-      phone = chat.phone
-        || msg.sender_pn
+      const chatId = safeString(chat.id || chat.jid || chat.remoteJid || chat.wa_chatid || "");
+      phone = safeString(
+        msg.sender_pn
         || msg.chatid
-        || msg.owner
+        || chat.phone
         || chat.number
+        || msg.owner
         || body.phone
         || body.from
-        || chatId;
+        || chatId
+      );
 
       // sanitize jid-like phone formats
       phone = phone.replace(/@.*$/, "");
@@ -860,7 +898,7 @@ serve(async (req) => {
         userText = await withTimeout(transcribeAudio(LOVABLE_API_KEY, audioUrl, audioMimeType), 20000, "audio_transcription");
         if (!userText?.trim()) {
           try {
-            await sendWhatsApp(UAZAPI_URL, outboundToken, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
+            await sendWhatsApp(UAZAPI_URL, outboundTokens, phone, "❌ Não consegui entender o áudio. Tente novamente ou envie por texto.");
           } catch (sendErr) {
             console.error("Failed to send audio_fail message:", sendErr);
           }
@@ -871,7 +909,7 @@ serve(async (req) => {
       } catch (e) {
         console.error("Audio transcription failed:", e);
         try {
-          await sendWhatsApp(UAZAPI_URL, outboundToken, phone, "❌ Não consegui processar o áudio. Envie por texto, por favor.");
+          await sendWhatsApp(UAZAPI_URL, outboundTokens, phone, "❌ Não consegui processar o áudio. Envie por texto, por favor.");
         } catch (sendErr) {
           console.error("Failed to send audio error message:", sendErr);
         }
@@ -911,7 +949,7 @@ serve(async (req) => {
 
     // Send reply and expose send status
     try {
-      await withTimeout(sendWhatsApp(UAZAPI_URL, outboundToken, phone, responseText), 12000, "send_reply");
+      await withTimeout(sendWhatsApp(UAZAPI_URL, outboundTokens, phone, responseText), 12000, "send_reply");
     } catch (sendError) {
       console.error("Reply send failed:", sendError);
       return new Response(JSON.stringify({
