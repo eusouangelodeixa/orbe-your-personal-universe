@@ -27,8 +27,10 @@ import {
   useWallets, useAddWallet, useDeleteWallet, useAddWalletTransaction, useWalletTransactions,
   useSavingsGoals, useUpdateSavingsGoal,
 } from "@/hooks/useFinance";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import {
+  createOrbeDoc, finalizeDoc, drawHeader, drawSectionTitle,
+  drawStatCard, drawTable, drawProgressBar, PDF_COLORS,
+} from "@/lib/pdfTemplate";
 
 export default function Planilha() {
   const now = new Date();
