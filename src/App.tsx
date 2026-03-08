@@ -38,6 +38,7 @@ const App = () => (
             <Route path="/disciplinas" element={<ProtectedRoute><Disciplinas /></ProtectedRoute>} />
             <Route path="/disciplina/:subjectId" element={<ProtectedRoute><SubjectDetail /></ProtectedRoute>} />
             <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+            <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
