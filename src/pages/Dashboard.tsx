@@ -109,6 +109,7 @@ export default function Dashboard() {
               <p className="text-xs text-muted-foreground mt-1">Carteiras − Pendentes</p>
             </CardContent>
           </Card>
+          <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Patrimônio</CardTitle>
               <CreditCard className="h-4 w-4 text-primary" />
