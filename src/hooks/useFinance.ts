@@ -235,8 +235,22 @@ export function useAddExpense() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (expense: Omit<TablesInsert<"expenses">, "user_id">) => {
-      // If wallet is specified, auto-mark as paid
+      // If wallet is specified, check balance first
       const shouldAutoPay = !!expense.wallet_id;
+      if (shouldAutoPay && expense.wallet_id) {
+        const { data: wallet, error: wErr } = await supabase
+          .from("wallets")
+          .select("balance, name")
+          .eq("id", expense.wallet_id)
+          .single();
+        if (wErr) throw wErr;
+        if (Number(wallet.balance) < expense.amount) {
+          throw new Error(
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}, necessário: R$ ${expense.amount.toFixed(2)}. Adicione fundos antes de registrar este gasto.`
+          );
+        }
+      }
+
       const { data, error } = await supabase
         .from("expenses")
         .insert({ ...expense, paid: shouldAutoPay, user_id: user!.id })
