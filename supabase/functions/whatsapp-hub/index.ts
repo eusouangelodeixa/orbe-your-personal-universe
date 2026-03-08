@@ -1127,7 +1127,7 @@ serve(async (req) => {
     // Execute action with timeout
     let responseText = "";
     try {
-      responseText = await withTimeout(executeAction(supabase, userId, intent), 12000, "execute_action");
+      responseText = await withTimeout(executeAction(supabase, userId, intent, userText), 12000, "execute_action");
     } catch (actionError) {
       console.error("Action execution failed:", actionError);
       responseText = "❌ Tive um erro ao executar sua solicitação. Tente novamente em instantes.";
