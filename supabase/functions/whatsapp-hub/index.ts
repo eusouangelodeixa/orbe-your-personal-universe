@@ -631,17 +631,17 @@ serve(async (req) => {
       }
 
       // Extract text from message (UAZAPI)
+      // IMPORTANT: msg.content can be an object {text, contextInfo}, so only use .text from it
       textMessage = msg.text
-        || msg.content?.text
+        || (typeof msg.content === "string" ? msg.content : msg.content?.text)
         || msg.conversation
         || msg.body
-        || msg.content
         || msg.message?.conversation
         || msg.message?.extendedTextMessage?.text
         || msg.extendedTextMessage?.text
         || msg.caption
-        || body.text
-        || body.body
+        || (typeof body.text === "string" ? body.text : "")
+        || (typeof body.body === "string" ? body.body : "")
         || body.conversation
         || "";
 
@@ -727,7 +727,13 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Parsed: phone=${phone}, text=${textMessage?.slice(0, 100)}, isAudio=${isAudio}`);
+    // Ensure textMessage is always a string
+    if (typeof textMessage !== "string") {
+      textMessage = textMessage?.text || textMessage?.body || JSON.stringify(textMessage) || "";
+    }
+    textMessage = String(textMessage || "");
+
+    console.log(`Parsed: phone=${phone}, text=${textMessage.slice(0, 100)}, isAudio=${isAudio}`);
 
     // Find user by phone (normalized match)
     const incomingPhone = normalizePhone(phone);
