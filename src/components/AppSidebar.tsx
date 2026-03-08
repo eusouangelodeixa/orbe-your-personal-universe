@@ -6,10 +6,8 @@ import {
   LayoutDashboard,
   Receipt,
   Bot,
-  
   LogOut,
   PiggyBank,
-  BookOpen,
   Calendar,
   UserCircle,
   Utensils,
@@ -64,25 +62,23 @@ export function AppSidebar() {
   const location = useLocation();
   const { signOut } = useAuth();
 
-  const isActive = (path: string) => location.pathname === path;
-
   return (
     <Sidebar collapsible="icon">
       <SidebarContent>
         {/* Logo */}
-        <div className="flex items-center gap-3 px-4 py-5">
+        <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
           <OrbeIcon size={collapsed ? 28 : 36} />
           {!collapsed && (
-            <span className="text-xl font-bold font-display tracking-tight">
-              ORBE
+            <span className="text-2xl font-display tracking-[4px] text-foreground">
+              OR<span className="text-primary">BE</span>
             </span>
           )}
         </div>
 
         {/* Financeiro */}
         <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-2">
-            <Wallet className="h-4 w-4 text-primary" />
+          <SidebarGroupLabel className="flex items-center gap-2 font-syne text-[10px] font-semibold tracking-[2px] uppercase text-primary">
+            <Wallet className="h-4 w-4" />
             {!collapsed && <span>Financeiro</span>}
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -93,11 +89,11 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className="hover:bg-sidebar-accent/50"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && <span className="font-syne text-xs tracking-wide">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -108,8 +104,8 @@ export function AppSidebar() {
 
         {/* Estudos */}
         <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-2">
-            <GraduationCap className="h-4 w-4 text-primary" />
+          <SidebarGroupLabel className="flex items-center gap-2 font-syne text-[10px] font-semibold tracking-[2px] uppercase text-primary">
+            <GraduationCap className="h-4 w-4" />
             {!collapsed && <span>Estudos</span>}
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -120,11 +116,11 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className="hover:bg-sidebar-accent/50"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && <span className="font-syne text-xs tracking-wide">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -135,8 +131,8 @@ export function AppSidebar() {
 
         {/* Fit */}
         <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-2">
-            <Dumbbell className="h-4 w-4 text-primary" />
+          <SidebarGroupLabel className="flex items-center gap-2 font-syne text-[10px] font-semibold tracking-[2px] uppercase text-primary">
+            <Dumbbell className="h-4 w-4" />
             {!collapsed && <span>Fit</span>}
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -147,11 +143,11 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className="hover:bg-sidebar-accent/50"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && <span className="font-syne text-xs tracking-wide">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -162,8 +158,8 @@ export function AppSidebar() {
 
         {/* Tarefas */}
         <SidebarGroup>
-          <SidebarGroupLabel className="flex items-center gap-2">
-            <CheckSquare className="h-4 w-4 text-primary" />
+          <SidebarGroupLabel className="flex items-center gap-2 font-syne text-[10px] font-semibold tracking-[2px] uppercase text-primary">
+            <CheckSquare className="h-4 w-4" />
             {!collapsed && <span>Tarefas</span>}
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -174,11 +170,11 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end
-                      className="hover:bg-sidebar-accent/50"
-                      activeClassName="bg-sidebar-accent text-primary font-medium"
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
                     >
                       <item.icon className="mr-2 h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && <span className="font-syne text-xs tracking-wide">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -188,18 +184,18 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-3">
+      <SidebarFooter className="p-3 border-t border-border">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <NavLink
                 to="/perfil"
                 end
-                className="hover:bg-sidebar-accent/50"
-                activeClassName="bg-sidebar-accent text-primary font-medium"
+                className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
               >
                 <UserCircle className="mr-2 h-4 w-4" />
-                {!collapsed && <span>Perfil</span>}
+                {!collapsed && <span className="font-syne text-xs tracking-wide">Perfil</span>}
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>

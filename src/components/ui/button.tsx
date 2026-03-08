@@ -5,30 +5,30 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-medium font-display transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 active:scale-[0.98]",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap font-syne font-semibold text-xs uppercase tracking-widest transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 active:scale-[0.98]",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:shadow-glow-sm",
+          "bg-primary text-primary-foreground hover:brightness-110 [clip-path:polygon(8px_0%,100%_0%,calc(100%-8px)_100%,0%_100%)]",
         destructive:
-          "bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90",
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90 [clip-path:polygon(8px_0%,100%_0%,calc(100%-8px)_100%,0%_100%)]",
         outline:
-          "border-2 border-primary text-primary bg-transparent hover:bg-primary/10",
+          "border border-border text-foreground bg-transparent hover:border-primary hover:text-primary",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost:
-          "hover:bg-accent/10 hover:text-accent-foreground",
+          "hover:bg-muted hover:text-foreground",
         link:
           "text-primary underline-offset-4 hover:underline",
         gradient:
-          "bg-gradient-primary text-white shadow-md hover:shadow-glow-md hover:brightness-110",
+          "bg-primary text-primary-foreground hover:brightness-110 shadow-glow-amber [clip-path:polygon(10px_0%,100%_0%,calc(100%-10px)_100%,0%_100%)]",
       },
       size: {
-        default: "h-11 px-5 py-2.5 text-sm rounded-xl",
-        sm: "h-9 px-4 text-sm rounded-lg",
-        lg: "h-13 px-8 text-base rounded-xl",
-        icon: "h-10 w-10 rounded-xl",
+        default: "h-11 px-6 py-2.5 text-xs",
+        sm: "h-9 px-4 text-[10px]",
+        lg: "h-13 px-8 text-sm",
+        icon: "h-10 w-10",
       },
     },
     defaultVariants: {
