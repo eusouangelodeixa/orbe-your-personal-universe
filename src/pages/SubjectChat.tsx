@@ -4,10 +4,14 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Send, ArrowLeft, Trash2, Loader2 } from "lucide-react";
+import { Send, ArrowLeft, Trash2, Loader2, CalendarPlus } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import { toast } from "sonner";
-import { useSubjects, useSubjectChatMessages, useAddSubjectChatMessage, useClearSubjectChat } from "@/hooks/useStudies";
+import {
+  useSubjects, useSubjectChatMessages, useAddSubjectChatMessage,
+  useClearSubjectChat, useAddAcademicEvent,
+} from "@/hooks/useStudies";
+import { useAddNotification } from "@/hooks/useNotifications";
 
 interface Message {
   role: "user" | "assistant";
@@ -61,6 +65,8 @@ export default function SubjectChat() {
   const { data: history = [] } = useSubjectChatMessages(subjectId || "");
   const addMsg = useAddSubjectChatMessage();
   const clearChat = useClearSubjectChat();
+  const addEvent = useAddAcademicEvent();
+  const addNotification = useAddNotification();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -74,6 +80,39 @@ export default function SubjectChat() {
   }, [history]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+
+  const createRevisionFromSuggestion = () => {
+    if (!subject) return;
+    // Create a revision event for tomorrow at 14:00
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(14, 0, 0, 0);
+
+    addEvent.mutate({
+      subject_id: subject.id,
+      type: "revisao",
+      title: `Revisão - ${subject.name}`,
+      description: "Sessão de revisão sugerida pela IA",
+      event_date: tomorrow.toISOString(),
+      due_date: tomorrow.toISOString(),
+      content_topics: null,
+      weight: null,
+      is_group: false,
+      status: "pendente",
+      reminder_config: [],
+    }, {
+      onSuccess: () => {
+        addNotification.mutate({
+          title: "📚 Revisão agendada",
+          message: `Revisão de ${subject.name} agendada para amanhã às 14h`,
+          type: "revisao",
+          reference_type: "subject",
+          reference_id: subject.id,
+        });
+        toast.success("Sessão de revisão agendada para amanhã às 14h!");
+      },
+    });
+  };
 
   const send = async () => {
     if (!input.trim() || isLoading || !subject) return;
@@ -127,6 +166,9 @@ export default function SubjectChat() {
             <h1 className="text-lg font-bold">{subject.name}</h1>
             <p className="text-xs text-muted-foreground">Especialista IA • {subject.teacher || "Professor não informado"}</p>
           </div>
+          <Button variant="outline" size="sm" onClick={createRevisionFromSuggestion} title="Agendar revisão para amanhã">
+            <CalendarPlus className="h-4 w-4 mr-1" /> Revisar
+          </Button>
           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => { clearChat.mutate(subject.id); setMessages([]); }}>
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -135,9 +177,16 @@ export default function SubjectChat() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto space-y-4 pb-4">
           {messages.length === 0 && (
-            <div className="text-center text-muted-foreground py-12 space-y-2">
+            <div className="text-center text-muted-foreground py-12 space-y-3">
               <p className="text-lg">🎓 Especialista em {subject.name}</p>
               <p className="text-sm">Pergunte sobre conteúdo, peça exercícios, resumos ou simulados!</p>
+              <div className="flex flex-wrap justify-center gap-2 pt-2">
+                {["Resuma a matéria", "Gere exercícios", "Crie um simulado", "Mapa mental"].map(s => (
+                  <Button key={s} variant="outline" size="sm" className="text-xs" onClick={() => { setInput(s); }}>
+                    {s}
+                  </Button>
+                ))}
+              </div>
             </div>
           )}
           {messages.map((msg, i) => (
