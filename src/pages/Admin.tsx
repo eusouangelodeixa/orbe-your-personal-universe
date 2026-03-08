@@ -424,16 +424,16 @@ export default function Admin() {
             )}
           </TabsContent>
 
-          {/* FINANCIAL */}
+          {/* FINANCIAL - Assinaturas ORBE */}
           <TabsContent value="financial" className="space-y-4">
             {financial ? (
               <>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { label: "Receita Mensal", value: `R$ ${financial.currentMonth.revenue.toFixed(2)}`, icon: TrendingUp, color: "text-green-500" },
-                    { label: "Despesas Mensal", value: `R$ ${financial.currentMonth.expenses.toFixed(2)}`, icon: TrendingDown, color: "text-destructive" },
-                    { label: "MRR (Recorrente)", value: `R$ ${financial.mrr.toFixed(2)}`, icon: DollarSign, color: "text-primary" },
-                    { label: "Saldo Carteiras", value: `R$ ${financial.totalWalletBalance.toFixed(2)}`, icon: Wallet, color: "text-foreground" },
+                    { label: "Assinantes Ativos", value: String(financial.totalSubscribers), icon: Users, color: "text-green-500" },
+                    { label: "Em Trial", value: String(financial.trialingUsers), icon: Zap, color: "text-amber-500" },
+                    { label: "MRR", value: `R$ ${financial.mrr.toFixed(2)}`, icon: TrendingUp, color: "text-primary" },
+                    { label: "Receita do Mês", value: `R$ ${financial.monthlyRevenue.toFixed(2)}`, icon: DollarSign, color: "text-green-500" },
                   ].map((m) => (
                     <Card key={m.label} className="bg-card border-border">
                       <CardContent className="pt-6">
@@ -449,9 +449,38 @@ export default function Admin() {
                   ))}
                 </div>
 
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card className="bg-card border-border">
+                    <CardContent className="pt-6">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Usuários</p>
+                      <p className="text-xl font-display mt-1 text-foreground">{financial.totalUsers}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card border-border">
+                    <CardContent className="pt-6">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Taxa Conversão</p>
+                      <p className="text-xl font-display mt-1 text-primary">
+                        {financial.totalUsers > 0 ? ((financial.totalSubscribers / financial.totalUsers) * 100).toFixed(1) : 0}%
+                      </p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card border-border">
+                    <CardContent className="pt-6">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Cancelamentos</p>
+                      <p className="text-xl font-display mt-1 text-destructive">{financial.canceledSubscriptions}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card border-border">
+                    <CardContent className="pt-6">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Reembolsos</p>
+                      <p className="text-xl font-display mt-1 text-destructive">R$ {financial.refunds.toFixed(2)}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
                 <div className="grid md:grid-cols-2 gap-4">
                   <Card className="bg-card border-border">
-                    <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Receita vs Despesas (6 meses)</CardTitle></CardHeader>
+                    <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Receita Mensal (6 meses)</CardTitle></CardHeader>
                     <CardContent>
                       <ResponsiveContainer width="100%" height={250}>
                         <BarChart data={chartData}>
@@ -461,69 +490,69 @@ export default function Admin() {
                           <Tooltip
                             contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
                             labelStyle={{ color: "hsl(var(--foreground))" }}
+                            formatter={(value: number) => [`R$ ${value.toFixed(2)}`, "Receita"]}
                           />
                           <Bar dataKey="Receita" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="Despesas" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
                     </CardContent>
                   </Card>
 
                   <Card className="bg-card border-border">
-                    <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Mês Atual – Detalhes</CardTitle></CardHeader>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center border-b border-border pb-2">
-                          <span className="text-sm text-muted-foreground">Total Receitas</span>
-                          <span className="text-sm font-medium text-green-500">R$ {financial.currentMonth.revenue.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-border pb-2">
-                          <span className="text-sm text-muted-foreground">Total Despesas</span>
-                          <span className="text-sm font-medium text-destructive">R$ {financial.currentMonth.expenses.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-border pb-2">
-                          <span className="text-sm text-muted-foreground">Despesas Pagas</span>
-                          <span className="text-sm font-medium text-foreground">R$ {financial.currentMonth.paid.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center border-b border-border pb-2">
-                          <span className="text-sm text-muted-foreground">Despesas Pendentes</span>
-                          <span className="text-sm font-medium text-amber-500">R$ {financial.currentMonth.pending.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between items-center pt-1">
-                          <span className="text-sm font-medium text-foreground">Lucro Líquido</span>
-                          <span className={`text-lg font-display ${(financial.currentMonth.revenue - financial.currentMonth.expenses) >= 0 ? "text-green-500" : "text-destructive"}`}>
-                            R$ {(financial.currentMonth.revenue - financial.currentMonth.expenses).toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {financial.wallets.length > 0 && (
-                        <div className="pt-3 border-t border-border">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Carteiras</p>
-                          {financial.wallets.map((w, i) => (
-                            <div key={i} className="flex justify-between items-center py-1">
-                              <span className="text-sm text-foreground">{w.name}</span>
-                              <span className="text-sm font-medium text-foreground">R$ {Number(w.balance).toFixed(2)}</span>
+                    <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Planos Ativos</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                      {financial.planBreakdown.length > 0 ? (
+                        financial.planBreakdown.map((plan, i) => (
+                          <div key={i} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
+                            <div>
+                              <p className="text-sm text-foreground font-medium">{plan.name}</p>
+                              <p className="text-[10px] text-muted-foreground">{plan.count} assinante{plan.count !== 1 ? "s" : ""}</p>
                             </div>
-                          ))}
-                        </div>
+                            <span className="text-sm font-display text-green-500">R$ {plan.revenue.toFixed(2)}/mês</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground text-sm text-center py-4">Nenhum plano ativo</p>
                       )}
-
-                      <div className="pt-3 border-t border-border">
-                        <div className="flex justify-between items-center">
-                          <span className="text-xs text-muted-foreground">Total de Usuários</span>
-                          <Badge variant="outline" className="border-primary/30 text-primary">{financial.totalUsers}</Badge>
-                        </div>
-                      </div>
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Recent payments */}
+                <Card className="bg-card border-border">
+                  <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Últimos Pagamentos</CardTitle></CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border">
+                          <TableHead className="text-muted-foreground">Email</TableHead>
+                          <TableHead className="text-muted-foreground">Descrição</TableHead>
+                          <TableHead className="text-muted-foreground">Data</TableHead>
+                          <TableHead className="text-muted-foreground text-right">Valor</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {financial.recentPayments.map((p) => (
+                          <TableRow key={p.id} className="border-border">
+                            <TableCell className="text-foreground text-xs">{p.email}</TableCell>
+                            <TableCell className="text-foreground text-xs">{p.description}</TableCell>
+                            <TableCell className="text-foreground text-xs">{format(new Date(p.date), "dd/MM/yyyy HH:mm", { locale: ptBR })}</TableCell>
+                            <TableCell className="text-right text-sm font-medium text-green-500">R$ {p.amount.toFixed(2)}</TableCell>
+                          </TableRow>
+                        ))}
+                        {financial.recentPayments.length === 0 && (
+                          <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Nenhum pagamento recente</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
               </>
             ) : (
               <Card className="bg-card border-border">
                 <CardContent className="py-12 text-center text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary" />
-                  <p>Carregando dados financeiros...</p>
+                  <p>Carregando dados de assinaturas...</p>
                 </CardContent>
               </Card>
             )}
