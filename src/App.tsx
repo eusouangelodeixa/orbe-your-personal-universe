@@ -11,6 +11,9 @@ import Dashboard from "./pages/Dashboard";
 import Planilha from "./pages/Planilha";
 import Cofrinho from "./pages/Cofrinho";
 import Consultor from "./pages/Consultor";
+import Disciplinas from "./pages/Disciplinas";
+import Agenda from "./pages/Agenda";
+import SubjectChat from "./pages/SubjectChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +32,9 @@ const App = () => (
             <Route path="/planilha" element={<ProtectedRoute><Planilha /></ProtectedRoute>} />
             <Route path="/cofrinho" element={<ProtectedRoute><Cofrinho /></ProtectedRoute>} />
             <Route path="/consultor" element={<ProtectedRoute><Consultor /></ProtectedRoute>} />
+            <Route path="/disciplinas" element={<ProtectedRoute><Disciplinas /></ProtectedRoute>} />
+            <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+            <Route path="/chatbot/:subjectId" element={<ProtectedRoute><SubjectChat /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

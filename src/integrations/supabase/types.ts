@@ -14,6 +14,68 @@ export type Database = {
   }
   public: {
     Tables: {
+      academic_events: {
+        Row: {
+          content_topics: string | null
+          created_at: string
+          description: string | null
+          due_date: string | null
+          event_date: string
+          id: string
+          is_group: boolean | null
+          reminder_config: Json | null
+          status: string
+          subject_id: string
+          title: string
+          type: string
+          updated_at: string
+          user_id: string
+          weight: number | null
+        }
+        Insert: {
+          content_topics?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          event_date: string
+          id?: string
+          is_group?: boolean | null
+          reminder_config?: Json | null
+          status?: string
+          subject_id: string
+          title: string
+          type: string
+          updated_at?: string
+          user_id: string
+          weight?: number | null
+        }
+        Update: {
+          content_topics?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          event_date?: string
+          id?: string
+          is_group?: boolean | null
+          reminder_config?: Json | null
+          status?: string
+          subject_id?: string
+          title?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "academic_events_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           color: string | null
@@ -199,6 +261,86 @@ export type Database = {
           target_amount?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      subject_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          subject_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          subject_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          subject_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subject_chat_messages_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subjects: {
+        Row: {
+          color: string | null
+          course: string | null
+          created_at: string
+          id: string
+          name: string
+          schedule: Json | null
+          semester: string | null
+          teacher: string | null
+          type: string
+          updated_at: string
+          user_id: string
+          weekly_hours: number | null
+        }
+        Insert: {
+          color?: string | null
+          course?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          schedule?: Json | null
+          semester?: string | null
+          teacher?: string | null
+          type?: string
+          updated_at?: string
+          user_id: string
+          weekly_hours?: number | null
+        }
+        Update: {
+          color?: string | null
+          course?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          schedule?: Json | null
+          semester?: string | null
+          teacher?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
+          weekly_hours?: number | null
         }
         Relationships: []
       }
