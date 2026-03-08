@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@18.5.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -222,53 +223,103 @@ Deno.serve(async (req) => {
 
     // Financial metrics
     if (action === "financial") {
+      const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+      if (!stripeKey) {
+        return new Response(JSON.stringify({ error: "STRIPE_SECRET_KEY not configured" }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+
+      // Get all users count
       const { data: allUsers } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
       const totalUsers = allUsers?.users?.length || 0;
 
-      // Get all incomes and expenses for MRR-like calculations
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
+      // Get active subscriptions
+      const activeSubscriptions = await stripe.subscriptions.list({ status: "active", limit: 100 });
+      const trialingSubscriptions = await stripe.subscriptions.list({ status: "trialing", limit: 100 });
+      const canceledSubscriptions = await stripe.subscriptions.list({ status: "canceled", limit: 100 });
 
-      const [
-        { data: monthlyExpenses },
-        { data: monthlyIncomes },
-        { data: allExpenses },
-        { data: allIncomes },
-        { data: wallets },
-      ] = await Promise.all([
-        adminClient.from("expenses").select("amount, paid, type").eq("month", currentMonth).eq("year", currentYear),
-        adminClient.from("incomes").select("amount, recurring").eq("month", currentMonth).eq("year", currentYear),
-        adminClient.from("expenses").select("amount, paid, month, year, type").order("year", { ascending: false }).order("month", { ascending: false }).limit(1000),
-        adminClient.from("incomes").select("amount, month, year, recurring").order("year", { ascending: false }).order("month", { ascending: false }).limit(1000),
-        adminClient.from("wallets").select("balance, name"),
-      ]);
+      // Calculate MRR from active subscriptions
+      let mrr = 0;
+      const planBreakdown: Record<string, { count: number; revenue: number; name: string }> = {};
 
-      const totalMonthlyRevenue = (monthlyIncomes || []).reduce((s, i) => s + Number(i.amount), 0);
-      const totalMonthlyExpense = (monthlyExpenses || []).reduce((s, e) => s + Number(e.amount), 0);
-      const paidExpenses = (monthlyExpenses || []).filter(e => e.paid).reduce((s, e) => s + Number(e.amount), 0);
-      const pendingExpenses = totalMonthlyExpense - paidExpenses;
-      const recurringRevenue = (monthlyIncomes || []).filter(i => i.recurring).reduce((s, i) => s + Number(i.amount), 0);
-      const totalWalletBalance = (wallets || []).reduce((s, w) => s + Number(w.balance), 0);
+      for (const sub of activeSubscriptions.data) {
+        for (const item of sub.items.data) {
+          const amount = (item.price.unit_amount || 0) / 100;
+          const interval = item.price.recurring?.interval;
+          const monthlyAmount = interval === "year" ? amount / 12 : amount;
+          mrr += monthlyAmount;
 
-      // Last 6 months revenue/expenses
-      const monthlyHistory: Array<{month: number, year: number, revenue: number, expenses: number}> = [];
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(currentYear, currentMonth - 1 - i, 1);
-        const m = d.getMonth() + 1;
-        const y = d.getFullYear();
-        const rev = (allIncomes || []).filter(inc => inc.month === m && inc.year === y).reduce((s, inc) => s + Number(inc.amount), 0);
-        const exp = (allExpenses || []).filter(ex => ex.month === m && ex.year === y).reduce((s, ex) => s + Number(ex.amount), 0);
-        monthlyHistory.push({ month: m, year: y, revenue: rev, expenses: exp });
+          const prodId = String(item.price.product);
+          if (!planBreakdown[prodId]) {
+            // Try to get product name
+            let prodName = prodId;
+            try {
+              const product = await stripe.products.retrieve(prodId);
+              prodName = product.name;
+            } catch { /* ignore */ }
+            planBreakdown[prodId] = { count: 0, revenue: 0, name: prodName };
+          }
+          planBreakdown[prodId].count += 1;
+          planBreakdown[prodId].revenue += monthlyAmount;
+        }
       }
+
+      // Get recent charges for current month revenue
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const charges = await stripe.charges.list({
+        created: { gte: Math.floor(startOfMonth.getTime() / 1000) },
+        limit: 100,
+      });
+
+      const monthlyRevenue = charges.data
+        .filter(c => c.status === "succeeded" && !c.refunded)
+        .reduce((sum, c) => sum + (c.amount / 100), 0);
+
+      const refunds = charges.data
+        .filter(c => c.refunded || (c.amount_refunded && c.amount_refunded > 0))
+        .reduce((sum, c) => sum + ((c.amount_refunded || 0) / 100), 0);
+
+      // Get last 6 months revenue from charges
+      const monthlyHistory: Array<{ month: number; year: number; revenue: number }> = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const nextD = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        const mCharges = await stripe.charges.list({
+          created: { gte: Math.floor(d.getTime() / 1000), lt: Math.floor(nextD.getTime() / 1000) },
+          limit: 100,
+        });
+        const rev = mCharges.data
+          .filter(c => c.status === "succeeded" && !c.refunded)
+          .reduce((sum, c) => sum + (c.amount / 100), 0);
+        monthlyHistory.push({ month: d.getMonth() + 1, year: d.getFullYear(), revenue: rev });
+      }
+
+      // Recent subscription events
+      const recentInvoices = await stripe.invoices.list({ limit: 10, status: "paid" });
+      const recentPayments = recentInvoices.data.map(inv => ({
+        id: inv.id,
+        email: inv.customer_email || "—",
+        amount: (inv.amount_paid || 0) / 100,
+        date: new Date((inv.created || 0) * 1000).toISOString(),
+        description: inv.lines.data[0]?.description || "Assinatura ORBE",
+      }));
 
       return new Response(JSON.stringify({
         totalUsers,
-        currentMonth: { revenue: totalMonthlyRevenue, expenses: totalMonthlyExpense, paid: paidExpenses, pending: pendingExpenses },
-        mrr: recurringRevenue,
-        totalWalletBalance,
-        wallets: wallets || [],
+        totalSubscribers: activeSubscriptions.data.length,
+        trialingUsers: trialingSubscriptions.data.length,
+        canceledSubscriptions: canceledSubscriptions.data.length,
+        mrr,
+        monthlyRevenue,
+        refunds,
+        planBreakdown: Object.values(planBreakdown),
         monthlyHistory,
+        recentPayments,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
