@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,25 +12,19 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
-import { Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon, Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard } from "lucide-react";
+import {
+  Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon,
+  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { MonthSelector } from "@/components/MonthSelector";
 import { DueDateAlerts } from "@/components/DueDateAlerts";
 import {
-  useCategories,
-  useIncomes,
-  useExpenses,
-  useAddIncome,
-  useAddExpense,
-  useToggleExpensePaid,
-  useDeleteExpense,
-  useDeleteIncome,
-  useWallets,
-  useAddWallet,
-  useDeleteWallet,
-  useUpdateWalletBalance,
+  useCategories, useIncomes, useExpenses, useAddIncome, useAddExpense,
+  useToggleExpensePaid, useDeleteExpense, useDeleteIncome,
+  useWallets, useAddWallet, useDeleteWallet, useAddWalletTransaction, useWalletTransactions,
 } from "@/hooks/useFinance";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -44,6 +38,7 @@ export default function Planilha() {
   const { data: incomes = [], isLoading: loadingIncomes } = useIncomes(month, year);
   const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(month, year);
   const { data: wallets = [], isLoading: loadingWallets } = useWallets();
+  const { data: transactions = [] } = useWalletTransactions();
 
   const addIncome = useAddIncome();
   const addExpense = useAddExpense();
@@ -52,18 +47,20 @@ export default function Planilha() {
   const deleteIncome = useDeleteIncome();
   const addWallet = useAddWallet();
   const deleteWallet = useDeleteWallet();
-  const updateWalletBalance = useUpdateWalletBalance();
+  const addWalletTx = useAddWalletTransaction();
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
   const [dueDate, setDueDate] = useState<Date>();
 
   const [novoGasto, setNovoGasto] = useState({
-    nome: "", categoria: "", valor: "", tipo: "variavel" as "fixo" | "variavel",
+    nome: "", categoria: "", valor: "", tipo: "variavel" as "fixo" | "variavel", walletId: "",
   });
-  const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "" });
+  const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "", walletId: "" });
   const [novaCarteira, setNovaCarteira] = useState({ nome: "", saldoInicial: "" });
-  const [transacao, setTransacao] = useState({ walletId: "", valor: "", operation: "credit" as "credit" | "debit" });
+  const [txForm, setTxForm] = useState({ valor: "", descricao: "" });
+  // For marking expense as paid with wallet
+  const [payWalletId, setPayWalletId] = useState("");
 
   const totalRenda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
@@ -75,17 +72,17 @@ export default function Planilha() {
 
   const handleAddExpense = () => {
     if (!novoGasto.nome.trim() || !novoGasto.valor || !dueDate) return;
-    const dueDateStr = format(dueDate, "yyyy-MM-dd");
     addExpense.mutate({
       name: novoGasto.nome.trim(),
       category_id: novoGasto.categoria || null,
       amount: parseFloat(novoGasto.valor),
-      due_date: dueDateStr,
+      due_date: format(dueDate, "yyyy-MM-dd"),
       type: novoGasto.tipo,
+      wallet_id: novoGasto.walletId || null,
       month,
       year,
     });
-    setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel" });
+    setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel", walletId: "" });
     setDueDate(undefined);
     setShowExpenseForm(false);
   };
@@ -95,10 +92,11 @@ export default function Planilha() {
     addIncome.mutate({
       description: novaRenda.descricao.trim(),
       amount: parseFloat(novaRenda.valor),
+      wallet_id: novaRenda.walletId || null,
       month,
       year,
     });
-    setNovaRenda({ descricao: "", valor: "" });
+    setNovaRenda({ descricao: "", valor: "", walletId: "" });
     setShowIncomeForm(false);
   };
 
@@ -111,14 +109,23 @@ export default function Planilha() {
     setNovaCarteira({ nome: "", saldoInicial: "" });
   };
 
-  const handleTransaction = () => {
-    if (!transacao.walletId || !transacao.valor) return;
-    updateWalletBalance.mutate({
-      id: transacao.walletId,
-      amount: parseFloat(transacao.valor),
-      operation: transacao.operation,
+  const handleTogglePaid = (e: any) => {
+    if (!e.paid && wallets.length > 0) {
+      // Will use the dialog to select wallet
+      return;
+    }
+    togglePaid.mutate({ id: e.id, paid: !e.paid, amount: Number(e.amount), name: e.name });
+  };
+
+  const confirmPayWithWallet = (expense: any) => {
+    togglePaid.mutate({
+      id: expense.id,
+      paid: true,
+      wallet_id: payWalletId || null,
+      amount: Number(expense.amount),
+      name: expense.name,
     });
-    setTransacao({ walletId: "", valor: "", operation: "credit" });
+    setPayWalletId("");
   };
 
   const byCategory = expenses.reduce<Record<string, typeof expenses>>((acc, e) => {
@@ -132,7 +139,7 @@ export default function Planilha() {
     const monthLabel = new Date(year, month - 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 
     doc.setFontSize(18);
-    doc.text(`ORBE - Planilha Doméstica`, 14, 20);
+    doc.text("ORBE - Planilha Doméstica", 14, 20);
     doc.setFontSize(12);
     doc.text(monthLabel, 14, 28);
 
@@ -140,15 +147,13 @@ export default function Planilha() {
     doc.text(`Renda: R$ ${totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 38);
     doc.text(`Gastos: R$ ${totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 44);
     doc.text(`Saldo: R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 50);
-    doc.text(`Comprometimento: ${percentual}%`, 14, 56);
-    doc.text(`Total Carteiras: R$ ${totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 62);
+    doc.text(`Patrimônio (Carteiras): R$ ${totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, 14, 56);
 
-    // Wallets table
     if (wallets.length > 0) {
       doc.setFontSize(12);
-      doc.text("Carteiras / Bancos", 14, 72);
+      doc.text("Carteiras / Bancos", 14, 66);
       autoTable(doc, {
-        startY: 76,
+        startY: 70,
         head: [["Nome", "Saldo"]],
         body: wallets.map((w) => [
           w.name + (w.is_default ? " (Principal)" : ""),
@@ -157,36 +162,35 @@ export default function Planilha() {
       });
     }
 
-    // Incomes table
     if (incomes.length > 0) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 76;
+      const finalY = (doc as any).lastAutoTable?.finalY || 70;
       doc.setFontSize(12);
       doc.text("Rendas", 14, finalY + 10);
       autoTable(doc, {
         startY: finalY + 14,
-        head: [["Descrição", "Valor"]],
-        body: incomes.map((i) => [
+        head: [["Descrição", "Valor", "Carteira"]],
+        body: incomes.map((i: any) => [
           i.description,
           `R$ ${Number(i.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          i.wallets?.name || "—",
         ]),
       });
     }
 
-    // Expenses table
     if (expenses.length > 0) {
-      const finalY = (doc as any).lastAutoTable?.finalY || 76;
+      const finalY = (doc as any).lastAutoTable?.finalY || 70;
       doc.setFontSize(12);
       doc.text("Gastos", 14, finalY + 10);
       autoTable(doc, {
         startY: finalY + 14,
-        head: [["Nome", "Categoria", "Valor", "Vencimento", "Status", "Tipo"]],
-        body: expenses.map((e) => [
+        head: [["Nome", "Categoria", "Valor", "Vencimento", "Status", "Carteira"]],
+        body: expenses.map((e: any) => [
           e.name,
-          (e as any).categories?.name || "—",
+          e.categories?.name || "—",
           `R$ ${Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
           new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
           e.paid ? "Pago" : "Pendente",
-          e.type === "fixo" ? "Fixo" : "Variável",
+          e.wallets?.name || "—",
         ]),
       });
     }
@@ -227,10 +231,9 @@ export default function Planilha() {
           </div>
         </div>
 
-        {/* Due date alerts */}
         <DueDateAlerts expenses={expenses as any} />
 
-        {/* Wallets / Banks Section */}
+        {/* Wallets / Banks */}
         <Card>
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
@@ -238,15 +241,12 @@ export default function Planilha() {
                 <CreditCard className="h-5 w-5 text-primary" />
                 <CardTitle className="font-display text-lg">Carteiras & Bancos</CardTitle>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-display font-bold text-primary">
-                  Total: R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                </span>
-              </div>
+              <span className="text-sm font-display font-bold text-primary">
+                Total: R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+              </span>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Wallet list */}
             {wallets.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {wallets.map((w) => (
@@ -267,7 +267,7 @@ export default function Planilha() {
                     <div className="flex gap-2">
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTransacao({ walletId: w.id, valor: "", operation: "credit" })}>
+                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTxForm({ valor: "", descricao: "" })}>
                             <ArrowUpCircle className="h-3.5 w-3.5 text-primary" /> Creditar
                           </Button>
                         </DialogTrigger>
@@ -278,7 +278,11 @@ export default function Planilha() {
                           <div className="space-y-3 py-2">
                             <div className="space-y-1">
                               <Label>Valor (R$)</Label>
-                              <Input type="number" placeholder="0.00" value={transacao.walletId === w.id ? transacao.valor : ""} onChange={(e) => setTransacao({ walletId: w.id, valor: e.target.value, operation: "credit" })} min={0} step={0.01} />
+                              <Input type="number" placeholder="0.00" value={txForm.valor} onChange={(e) => setTxForm({ ...txForm, valor: e.target.value })} min={0} step={0.01} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Descrição</Label>
+                              <Input placeholder="Ex: Depósito" value={txForm.descricao} onChange={(e) => setTxForm({ ...txForm, descricao: e.target.value })} maxLength={100} />
                             </div>
                           </div>
                           <DialogFooter>
@@ -286,16 +290,19 @@ export default function Planilha() {
                               <Button variant="outline">Cancelar</Button>
                             </DialogClose>
                             <DialogClose asChild>
-                              <Button onClick={() => { if (transacao.valor) updateWalletBalance.mutate({ id: w.id, amount: parseFloat(transacao.valor), operation: "credit" }); }} disabled={!transacao.valor}>
-                                Confirmar Crédito
-                              </Button>
+                              <Button onClick={() => {
+                                if (txForm.valor) addWalletTx.mutate({
+                                  wallet_id: w.id, amount: parseFloat(txForm.valor), type: "credit",
+                                  description: txForm.descricao || "Crédito manual", reference_type: "manual",
+                                });
+                              }} disabled={!txForm.valor}>Confirmar</Button>
                             </DialogClose>
                           </DialogFooter>
                         </DialogContent>
                       </Dialog>
                       <Dialog>
                         <DialogTrigger asChild>
-                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTransacao({ walletId: w.id, valor: "", operation: "debit" })}>
+                          <Button size="sm" variant="outline" className="flex-1 gap-1 text-xs" onClick={() => setTxForm({ valor: "", descricao: "" })}>
                             <ArrowDownCircle className="h-3.5 w-3.5 text-destructive" /> Debitar
                           </Button>
                         </DialogTrigger>
@@ -306,7 +313,11 @@ export default function Planilha() {
                           <div className="space-y-3 py-2">
                             <div className="space-y-1">
                               <Label>Valor (R$)</Label>
-                              <Input type="number" placeholder="0.00" value={transacao.walletId === w.id ? transacao.valor : ""} onChange={(e) => setTransacao({ walletId: w.id, valor: e.target.value, operation: "debit" })} min={0} step={0.01} />
+                              <Input type="number" placeholder="0.00" value={txForm.valor} onChange={(e) => setTxForm({ ...txForm, valor: e.target.value })} min={0} step={0.01} />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>Descrição</Label>
+                              <Input placeholder="Ex: Saque" value={txForm.descricao} onChange={(e) => setTxForm({ ...txForm, descricao: e.target.value })} maxLength={100} />
                             </div>
                           </div>
                           <DialogFooter>
@@ -314,9 +325,12 @@ export default function Planilha() {
                               <Button variant="outline">Cancelar</Button>
                             </DialogClose>
                             <DialogClose asChild>
-                              <Button variant="destructive" onClick={() => { if (transacao.valor) updateWalletBalance.mutate({ id: w.id, amount: parseFloat(transacao.valor), operation: "debit" }); }} disabled={!transacao.valor}>
-                                Confirmar Débito
-                              </Button>
+                              <Button variant="destructive" onClick={() => {
+                                if (txForm.valor) addWalletTx.mutate({
+                                  wallet_id: w.id, amount: parseFloat(txForm.valor), type: "debit",
+                                  description: txForm.descricao || "Débito manual", reference_type: "manual",
+                                });
+                              }} disabled={!txForm.valor}>Confirmar</Button>
                             </DialogClose>
                           </DialogFooter>
                         </DialogContent>
@@ -326,14 +340,13 @@ export default function Planilha() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma carteira cadastrada. Adicione uma abaixo.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Nenhuma carteira cadastrada.</p>
             )}
 
-            {/* Add wallet form */}
             <div className="flex items-end gap-3 pt-2 border-t border-border">
               <div className="space-y-1 flex-1">
                 <Label className="text-xs">Nome</Label>
-                <Input placeholder="Ex: Nubank, Itaú, Carteira física" value={novaCarteira.nome} onChange={(e) => setNovaCarteira({ ...novaCarteira, nome: e.target.value })} maxLength={50} />
+                <Input placeholder="Ex: Nubank, Itaú" value={novaCarteira.nome} onChange={(e) => setNovaCarteira({ ...novaCarteira, nome: e.target.value })} maxLength={50} />
               </div>
               <div className="space-y-1 w-36">
                 <Label className="text-xs">Saldo inicial (R$)</Label>
@@ -399,7 +412,7 @@ export default function Planilha() {
           <Card>
             <CardHeader><CardTitle className="font-display">Adicionar Renda</CardTitle></CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="space-y-1">
                   <Label>Descrição</Label>
                   <Input placeholder="Ex: Salário" value={novaRenda.descricao} onChange={(e) => setNovaRenda({ ...novaRenda, descricao: e.target.value })} maxLength={100} />
@@ -407,6 +420,16 @@ export default function Planilha() {
                 <div className="space-y-1">
                   <Label>Valor (R$)</Label>
                   <Input type="number" placeholder="0.00" value={novaRenda.valor} onChange={(e) => setNovaRenda({ ...novaRenda, valor: e.target.value })} min={0} step={0.01} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Creditar em</Label>
+                  <Select value={novaRenda.walletId} onValueChange={(v) => setNovaRenda({ ...novaRenda, walletId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Nenhuma carteira" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex items-end">
                   <Button onClick={handleAddIncome} disabled={addIncome.isPending} className="font-display">
@@ -424,7 +447,7 @@ export default function Planilha() {
           <Card>
             <CardHeader><CardTitle className="font-display">Adicionar Gasto</CardTitle></CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div className="space-y-1">
                   <Label>Nome</Label>
                   <Input placeholder="Ex: Aluguel" value={novoGasto.nome} onChange={(e) => setNovoGasto({ ...novoGasto, nome: e.target.value })} maxLength={100} />
@@ -466,6 +489,16 @@ export default function Planilha() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1">
+                  <Label>Carteira vinculada</Label>
+                  <Select value={novoGasto.walletId} onValueChange={(v) => setNovoGasto({ ...novoGasto, walletId: v })}>
+                    <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhuma</SelectItem>
+                      {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <Button onClick={handleAddExpense} disabled={addExpense.isPending} className="mt-4 font-display">
                 {addExpense.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -487,11 +520,18 @@ export default function Planilha() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {incomes.map((inc) => (
+              {incomes.map((inc: any) => (
                 <div key={inc.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
                   <div>
                     <p className="font-medium">{inc.description}</p>
-                    {inc.recurring && <Badge variant="outline" className="text-[10px]">Recorrente</Badge>}
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {inc.recurring && <Badge variant="outline" className="text-[10px]">Recorrente</Badge>}
+                      {inc.wallets?.name && (
+                        <Badge variant="secondary" className="text-[10px] gap-1">
+                          <Wallet className="h-2.5 w-2.5" />{inc.wallets.name}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-bold font-display text-primary">
@@ -519,7 +559,7 @@ export default function Planilha() {
               </div>
             </CardHeader>
             <CardContent className="space-y-2">
-              {items.map((e) => (
+              {items.map((e: any) => (
                 <div
                   key={e.id}
                   className={`flex items-center justify-between p-3 rounded-lg border ${
@@ -527,15 +567,66 @@ export default function Planilha() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <button onClick={() => togglePaid.mutate({ id: e.id, paid: !e.paid })} className="shrink-0">
-                      {e.paid ? <Check className="h-5 w-5 text-primary" /> : <Clock className="h-5 w-5 text-muted-foreground" />}
-                    </button>
+                    {e.paid ? (
+                      <button onClick={() => togglePaid.mutate({ id: e.id, paid: false, amount: Number(e.amount), name: e.name })} className="shrink-0">
+                        <Check className="h-5 w-5 text-primary" />
+                      </button>
+                    ) : wallets.length > 0 ? (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <button className="shrink-0" onClick={() => setPayWalletId("")}>
+                            <Clock className="h-5 w-5 text-muted-foreground" />
+                          </button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle className="font-display">Pagar {e.name}</DialogTitle>
+                          </DialogHeader>
+                          <p className="text-sm text-muted-foreground">
+                            Valor: <strong>R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong>
+                          </p>
+                          <div className="space-y-1">
+                            <Label>Debitar de qual carteira?</Label>
+                            <Select value={payWalletId} onValueChange={setPayWalletId}>
+                              <SelectTrigger><SelectValue placeholder="Sem débito automático" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Nenhuma</SelectItem>
+                                {wallets.map((w) => (
+                                  <SelectItem key={w.id} value={w.id}>
+                                    {w.name} (R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <DialogFooter>
+                            <DialogClose asChild>
+                              <Button variant="outline">Cancelar</Button>
+                            </DialogClose>
+                            <DialogClose asChild>
+                              <Button onClick={() => confirmPayWithWallet(e)}>Confirmar Pagamento</Button>
+                            </DialogClose>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    ) : (
+                      <button onClick={() => togglePaid.mutate({ id: e.id, paid: true, amount: Number(e.amount), name: e.name })} className="shrink-0">
+                        <Clock className="h-5 w-5 text-muted-foreground" />
+                      </button>
+                    )}
                     <div>
                       <p className={`font-medium ${e.paid ? "line-through text-muted-foreground" : ""}`}>{e.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Vence: {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")} •{" "}
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <span className="text-xs text-muted-foreground">
+                          Vence: {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")}
+                        </span>
                         <Badge variant="outline" className="text-[10px]">{e.type === "fixo" ? "Fixo" : "Variável"}</Badge>
-                      </p>
+                        {e.wallets?.name && (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Wallet className="h-2.5 w-2.5" />{e.wallets.name}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -555,7 +646,43 @@ export default function Planilha() {
         {expenses.length === 0 && incomes.length === 0 && wallets.length === 0 && (
           <Card className="py-12 flex flex-col items-center justify-center text-center">
             <p className="text-muted-foreground mb-2">Nenhum lançamento este mês</p>
-            <p className="text-sm text-muted-foreground">Adicione sua renda, carteiras e gastos para começar</p>
+            <p className="text-sm text-muted-foreground">Adicione carteiras, renda e gastos para começar</p>
+          </Card>
+        )}
+
+        {/* Recent transactions */}
+        {transactions.length > 0 && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="font-display text-lg">Últimas Movimentações</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {transactions.slice(0, 8).map((tx: any) => (
+                <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
+                  <div className="flex items-center gap-3">
+                    {tx.type === "credit" ? (
+                      <ArrowUpCircle className="h-4 w-4 text-primary shrink-0" />
+                    ) : (
+                      <ArrowDownCircle className="h-4 w-4 text-destructive shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-medium text-sm">{tx.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {tx.wallets?.name} • {new Date(tx.created_at).toLocaleDateString("pt-BR")}
+                        {tx.reference_type && (
+                          <Badge variant="outline" className="ml-1 text-[10px]">
+                            {tx.reference_type === "income" ? "Renda" : tx.reference_type === "expense" ? "Gasto" : "Manual"}
+                          </Badge>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
+                    {tx.type === "credit" ? "+" : "-"} R$ {Number(tx.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
           </Card>
         )}
 

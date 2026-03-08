@@ -8,6 +8,7 @@ type Expense = Tables<"expenses">;
 type Income = Tables<"incomes">;
 type Category = Tables<"categories">;
 type Wallet = Tables<"wallets">;
+type WalletTransaction = Tables<"wallet_transactions">;
 
 const now = new Date();
 
@@ -30,13 +31,13 @@ export function useIncomes(month = now.getMonth() + 1, year = now.getFullYear())
     queryFn: async () => {
       const { data, error } = await supabase
         .from("incomes")
-        .select("*")
+        .select("*, wallets(name)")
         .eq("user_id", user!.id)
         .eq("month", month)
         .eq("year", year)
         .order("created_at");
       if (error) throw error;
-      return data as Income[];
+      return data;
     },
   });
 }
@@ -49,7 +50,7 @@ export function useExpenses(month = now.getMonth() + 1, year = now.getFullYear()
     queryFn: async () => {
       const { data, error } = await supabase
         .from("expenses")
-        .select("*, categories(name, icon, color)")
+        .select("*, categories(name, icon, color), wallets(name)")
         .eq("user_id", user!.id)
         .eq("month", month)
         .eq("year", year)
@@ -85,16 +86,35 @@ export function useAddWallet() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async (wallet: { name: string; balance?: number }) => {
+      const initialBalance = wallet.balance ?? 0;
+      // Create wallet with 0 balance, then add initial credit transaction if needed
       const { data, error } = await supabase
         .from("wallets")
-        .insert({ name: wallet.name, balance: wallet.balance ?? 0, user_id: user!.id })
+        .insert({ name: wallet.name, balance: 0, user_id: user!.id })
         .select()
         .single();
       if (error) throw error;
+
+      // If there's an initial balance, record it as a transaction (trigger updates balance)
+      if (initialBalance > 0) {
+        const { error: txError } = await supabase
+          .from("wallet_transactions")
+          .insert({
+            wallet_id: data.id,
+            user_id: user!.id,
+            amount: initialBalance,
+            type: "credit",
+            description: "Saldo inicial",
+            reference_type: "manual",
+          });
+        if (txError) throw txError;
+      }
+
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
       toast.success("Carteira criada");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -110,38 +130,61 @@ export function useDeleteWallet() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
       toast.success("Carteira removida");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 }
 
-export function useUpdateWalletBalance() {
+// Record a wallet transaction (balance updated automatically via DB trigger)
+export function useAddWalletTransaction() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ id, amount, operation }: { id: string; amount: number; operation: "credit" | "debit" }) => {
-      // Get current balance
-      const { data: wallet, error: fetchError } = await supabase
-        .from("wallets")
-        .select("balance")
-        .eq("id", id)
+    mutationFn: async (tx: {
+      wallet_id: string;
+      amount: number;
+      type: "credit" | "debit";
+      description: string;
+      reference_type?: string;
+      reference_id?: string;
+    }) => {
+      const { data, error } = await supabase
+        .from("wallet_transactions")
+        .insert({ ...tx, user_id: user!.id })
+        .select()
         .single();
-      if (fetchError) throw fetchError;
-
-      const currentBalance = Number(wallet.balance);
-      const newBalance = operation === "credit" ? currentBalance + amount : currentBalance - amount;
-
-      const { error } = await supabase
-        .from("wallets")
-        .update({ balance: newBalance })
-        .eq("id", id);
       if (error) throw error;
+      return data;
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["wallets"] });
-      toast.success(vars.operation === "credit" ? "Crédito adicionado" : "Débito registrado");
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
+      toast.success(vars.type === "credit" ? "Crédito registrado" : "Débito registrado");
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// Fetch wallet transactions (optionally filtered by wallet)
+export function useWalletTransactions(walletId?: string) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["wallet_transactions", user?.id, walletId],
+    enabled: !!user,
+    queryFn: async () => {
+      let query = supabase
+        .from("wallet_transactions")
+        .select("*, wallets(name)")
+        .eq("user_id", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (walletId) query = query.eq("wallet_id", walletId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
   });
 }
 
@@ -151,17 +194,36 @@ export function useAddIncome() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (income: Omit<TablesInsert<"incomes">, "user_id">) => {
+    mutationFn: async (income: Omit<TablesInsert<"incomes">, "user_id"> & { wallet_id?: string | null }) => {
       const { data, error } = await supabase
         .from("incomes")
         .insert({ ...income, user_id: user!.id })
         .select()
         .single();
       if (error) throw error;
+
+      // If linked to a wallet, create a credit transaction
+      if (income.wallet_id) {
+        const { error: txError } = await supabase
+          .from("wallet_transactions")
+          .insert({
+            wallet_id: income.wallet_id,
+            user_id: user!.id,
+            amount: income.amount,
+            type: "credit",
+            description: `Renda: ${income.description}`,
+            reference_type: "income",
+            reference_id: data.id,
+          });
+        if (txError) throw txError;
+      }
+
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["incomes"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
       toast.success("Renda adicionada");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -191,12 +253,44 @@ export function useAddExpense() {
 
 export function useToggleExpensePaid() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
-    mutationFn: async ({ id, paid }: { id: string; paid: boolean }) => {
-      const { error } = await supabase.from("expenses").update({ paid }).eq("id", id);
+    mutationFn: async ({ id, paid, wallet_id, amount, name }: {
+      id: string; paid: boolean; wallet_id?: string | null; amount?: number; name?: string;
+    }) => {
+      const { error } = await supabase.from("expenses").update({ paid, wallet_id: wallet_id || null }).eq("id", id);
       if (error) throw error;
+
+      // When marking as paid with a wallet, create a debit transaction
+      if (paid && wallet_id && amount) {
+        const { error: txError } = await supabase
+          .from("wallet_transactions")
+          .insert({
+            wallet_id,
+            user_id: user!.id,
+            amount,
+            type: "debit",
+            description: `Gasto: ${name || "Despesa"}`,
+            reference_type: "expense",
+            reference_id: id,
+          });
+        if (txError) throw txError;
+      }
+
+      // When unmarking as paid, remove the related transaction
+      if (!paid) {
+        await supabase
+          .from("wallet_transactions")
+          .delete()
+          .eq("reference_type", "expense")
+          .eq("reference_id", id);
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["expenses"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 }
@@ -205,11 +299,20 @@ export function useDeleteExpense() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Delete related transactions first (trigger reverses balance)
+      await supabase
+        .from("wallet_transactions")
+        .delete()
+        .eq("reference_type", "expense")
+        .eq("reference_id", id);
+
       const { error } = await supabase.from("expenses").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["expenses"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
       toast.success("Gasto removido");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -220,11 +323,20 @@ export function useDeleteIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      // Delete related transactions first (trigger reverses balance)
+      await supabase
+        .from("wallet_transactions")
+        .delete()
+        .eq("reference_type", "income")
+        .eq("reference_id", id);
+
       const { error } = await supabase.from("incomes").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["incomes"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
       toast.success("Renda removida");
     },
     onError: (e: Error) => toast.error(e.message),
