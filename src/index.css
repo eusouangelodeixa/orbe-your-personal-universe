@@ -6,7 +6,7 @@
    ORBE DESIGN SYSTEM — CSS Variables
    ═══════════════════════════════════════ */
 @layer base {
-  :root {
+  :root, .dark {
     --black: #080808;
     --dark: #0e0e0e;
     --card-raw: #141414;
@@ -21,50 +21,11 @@
     --grey2: #3a3a3a;
     --text: #C8BFB0;
 
-    --background: 0 0% 97%;
-    --foreground: 0 0% 5%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 5%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 5%;
-    --primary: 27 82% 51%;
-    --primary-foreground: 0 0% 3%;
-    --secondary: 0 0% 94%;
-    --secondary-foreground: 0 0% 10%;
-    --muted: 0 0% 94%;
-    --muted-foreground: 0 0% 42%;
-    --accent: 27 82% 51%;
-    --accent-foreground: 0 0% 3%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 27 82% 51%;
-    --radius: 0.125rem;
-
-    --sidebar-background: 0 0% 97%;
-    --sidebar-foreground: 0 0% 5%;
-    --sidebar-primary: 27 82% 51%;
-    --sidebar-primary-foreground: 0 0% 3%;
-    --sidebar-accent: 0 0% 94%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 214 32% 91%;
-    --sidebar-ring: 27 82% 51%;
-
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-    --warning: 27 82% 51%;
-    --warning-foreground: 0 0% 3%;
-    --info: 217 91% 60%;
-    --info-foreground: 0 0% 100%;
-  }
-
-  .dark {
     --background: 0 0% 3%;
     --foreground: 34 45% 93%;
     --card: 0 0% 8%;
     --card-foreground: 34 45% 93%;
-    --popover: 0 0% 8%;
+    --popover: 0 0% 6%;
     --popover-foreground: 34 45% 93%;
     --primary: 27 82% 51%;
     --primary-foreground: 0 0% 3%;
@@ -76,9 +37,10 @@
     --accent-foreground: 0 0% 3%;
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-    --border: 0 0% 7%;
-    --input: 0 0% 10%;
+    --border: 0 0% 12%;
+    --input: 0 0% 12%;
     --ring: 27 82% 51%;
+    --radius: 0.125rem;
 
     --sidebar-background: 0 0% 5%;
     --sidebar-foreground: 34 45% 93%;
@@ -86,7 +48,7 @@
     --sidebar-primary-foreground: 0 0% 3%;
     --sidebar-accent: 0 0% 10%;
     --sidebar-accent-foreground: 34 45% 93%;
-    --sidebar-border: 0 0% 7%;
+    --sidebar-border: 0 0% 10%;
     --sidebar-ring: 27 82% 51%;
 
     --success: 142 71% 45%;

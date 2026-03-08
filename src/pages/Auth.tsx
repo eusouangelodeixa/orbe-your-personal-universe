@@ -7,7 +7,6 @@ import { OrbeIcon } from "@/components/OrbeIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
@@ -53,67 +52,74 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 relative">
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="w-[500px] h-[500px] rounded-full bg-primary/5 blur-[100px]" />
+    <div className="min-h-screen flex items-center justify-center px-4 relative bg-background">
+      {/* Amber glow background */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/10 blur-[120px]" />
       </div>
 
-      <Card className="w-full max-w-md relative z-10 border-border">
-        <CardHeader className="text-center">
+      <div className="w-full max-w-md relative z-10 border border-border bg-card p-8">
+        {/* Top accent line */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent" />
+
+        <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <OrbeIcon size={48} />
           </div>
-          <CardTitle className="text-2xl font-display">
-            {isLogin ? "Entrar no ORBE" : "Criar conta"}
-          </CardTitle>
-          <CardDescription>
+          <h1 className="font-display text-4xl tracking-wider text-foreground mb-2">
+            {isLogin ? "ENTRAR" : "CRIAR CONTA"}
+          </h1>
+          <p className="font-syne text-[10px] font-semibold tracking-[3px] uppercase text-primary">
             {isLogin ? "Acesse seu universo pessoal" : "Comece a organizar sua vida"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="seu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                maxLength={255}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                maxLength={72}
-              />
-            </div>
-            <Button type="submit" className="w-full font-display" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLogin ? "Entrar" : "Criar conta"}
-            </Button>
-          </form>
+          </p>
+        </div>
 
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            {isLogin ? "Não tem conta? " : "Já tem conta? "}
-            <button
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-primary hover:underline font-medium"
-            >
-              {isLogin ? "Criar agora" : "Entrar"}
-            </button>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2">
+            <Label htmlFor="email" className="font-syne text-[10px] font-semibold tracking-[2px] uppercase text-muted-foreground">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="seu@email.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              maxLength={255}
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-11"
+            />
           </div>
-        </CardContent>
-      </Card>
+          <div className="space-y-2">
+            <Label htmlFor="password" className="font-syne text-[10px] font-semibold tracking-[2px] uppercase text-muted-foreground">Senha</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              maxLength={72}
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground h-11"
+            />
+          </div>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLogin ? "Entrar" : "Criar conta"}
+          </Button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <span className="text-sm text-muted-foreground">
+            {isLogin ? "Não tem conta? " : "Já tem conta? "}
+          </span>
+          <button
+            onClick={() => setIsLogin(!isLogin)}
+            className="font-syne text-xs font-semibold tracking-wider uppercase text-primary hover:text-primary/80 transition-colors"
+          >
+            {isLogin ? "Criar agora" : "Entrar"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
