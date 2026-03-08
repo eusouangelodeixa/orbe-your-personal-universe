@@ -106,7 +106,7 @@ function MermaidBlock({ chart }: { chart: string }) {
 
   return (
     <div className="my-2 overflow-x-auto rounded-md border border-border bg-card p-2">
-      <div className="min-w-[320px]" dangerouslySetInnerHTML={{ __html: svg }} />
+      <div className="max-w-[400px] [&_svg]:max-h-[280px] [&_svg]:w-full" dangerouslySetInnerHTML={{ __html: svg }} />
     </div>
   );
 }
