@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, Clock, BookOpen, User, GraduationCap, Loader2, MessageSquare, Calendar, Pencil } from "lucide-react";
+import { Plus, Trash2, Clock, User, GraduationCap, Loader2, Calendar, Pencil } from "lucide-react";
 import { useSubjects, useAddSubject, useUpdateSubject, useDeleteSubject, Subject } from "@/hooks/useStudies";
 import { useNavigate } from "react-router-dom";
 
