@@ -653,7 +653,7 @@ export default function Landing() {
             <span className="outline">SEU UNIVERSO</span><br />
             <span style={{ color: "var(--amber)" }}>ORGANIZADO.</span>
           </div>
-          <p className="landing-cta-sub">Junte-se a quem já controla finanças, estudos e saúde num só lugar. Comece agora e sinta a diferença em 7 dias.</p>
+          <p className="landing-cta-sub">Junte-se a quem já controla finanças, estudos e saúde num só lugar. Comece agora e sinta a diferença em 3 dias.</p>
           <div className="landing-cta-btns">
             <button className="landing-btn-primary" onClick={() => navigate("/auth")}>Começar Agora — 7 dias grátis</button>
             <button className="landing-btn-secondary">Ver todos os planos ↗</button>
