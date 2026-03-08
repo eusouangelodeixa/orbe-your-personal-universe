@@ -1,16 +1,21 @@
+import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { TrendingUp, TrendingDown, Wallet, AlertTriangle, Loader2 } from "lucide-react";
 import { useIncomes, useExpenses } from "@/hooks/useFinance";
+import { MonthSelector } from "@/components/MonthSelector";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 const COLORS = ["#4CAF50", "#FF9800", "#2196F3", "#9C27B0", "#F44336", "#3F51B5", "#E91E63", "#607D8B"];
 
 export default function Dashboard() {
   const now = new Date();
-  const { data: incomes = [], isLoading: li } = useIncomes(now.getMonth() + 1, now.getFullYear());
-  const { data: expenses = [], isLoading: le } = useExpenses(now.getMonth() + 1, now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(now.getFullYear());
+
+  const { data: incomes = [], isLoading: li } = useIncomes(month, year);
+  const { data: expenses = [], isLoading: le } = useExpenses(month, year);
 
   const renda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
@@ -18,7 +23,6 @@ export default function Dashboard() {
   const percentual = renda > 0 ? Math.round((totalGastos / renda) * 100) : 0;
   const isCritical = percentual > 80;
 
-  // Pie data by category
   const byCat = expenses.reduce<Record<string, { name: string; value: number; color: string }>>((acc, e) => {
     const catName = (e as any).categories?.name || "Outros";
     const catColor = (e as any).categories?.color || "#607D8B";
@@ -41,9 +45,12 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold font-display">Dashboard</h1>
-          <p className="text-muted-foreground">Visão geral das suas finanças</p>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-3xl font-bold font-display">Dashboard</h1>
+            <p className="text-muted-foreground">Visão geral das suas finanças</p>
+          </div>
+          <MonthSelector month={month} year={year} onChange={(m, y) => { setMonth(m); setYear(y); }} />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
