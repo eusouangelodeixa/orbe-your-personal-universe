@@ -62,6 +62,9 @@ Deno.serve(async (req) => {
     const action = url.searchParams.get("action") || "overview";
 
     if (action === "overview") {
+      const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+      const stripe = stripeKey ? new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" }) : null;
+
       // Get all users from auth
       const {
         data: { users },
@@ -74,18 +77,10 @@ Deno.serve(async (req) => {
         { count: subjectsCount },
         { count: fitProfilesCount },
       ] = await Promise.all([
-        adminClient
-          .from("tasks")
-          .select("*", { count: "exact", head: true }),
-        adminClient
-          .from("expenses")
-          .select("*", { count: "exact", head: true }),
-        adminClient
-          .from("subjects")
-          .select("*", { count: "exact", head: true }),
-        adminClient
-          .from("fit_profiles")
-          .select("*", { count: "exact", head: true }),
+        adminClient.from("tasks").select("*", { count: "exact", head: true }),
+        adminClient.from("expenses").select("*", { count: "exact", head: true }),
+        adminClient.from("subjects").select("*", { count: "exact", head: true }),
+        adminClient.from("fit_profiles").select("*", { count: "exact", head: true }),
       ]);
 
       // Get recent profiles with names
@@ -94,9 +89,78 @@ Deno.serve(async (req) => {
         .select("user_id, display_name, phone, created_at, phone_verified")
         .order("created_at", { ascending: false });
 
-      // Merge users + profiles
+      // Admin emails
+      const adminEmailsLower = adminEmails;
+
+      // Get all Stripe customers + subscriptions in batch
+      const stripeStatusMap: Record<string, { status: string; plan: string | null; ends_at: string | null }> = {};
+      if (stripe) {
+        try {
+          const allSubs = await stripe.subscriptions.list({ limit: 100, status: "active" });
+          const trialSubs = await stripe.subscriptions.list({ limit: 100, status: "trialing" });
+          const allCustomerSubs = [...allSubs.data, ...trialSubs.data];
+
+          for (const sub of allCustomerSubs) {
+            const email = sub.customer && typeof sub.customer !== "string"
+              ? (sub.customer as any).email
+              : null;
+            // Need to get customer email
+            let customerEmail = email;
+            if (!customerEmail && sub.customer) {
+              try {
+                const cust = await stripe.customers.retrieve(sub.customer as string);
+                if (cust && !cust.deleted) customerEmail = (cust as any).email;
+              } catch { /* ignore */ }
+            }
+            if (customerEmail) {
+              let planName: string | null = null;
+              try {
+                const prodId = sub.items.data[0]?.price?.product;
+                if (prodId) {
+                  const product = await stripe.products.retrieve(prodId as string);
+                  planName = product.name;
+                }
+              } catch { /* ignore */ }
+
+              stripeStatusMap[customerEmail.toLowerCase()] = {
+                status: sub.status,
+                plan: planName,
+                ends_at: new Date(sub.current_period_end * 1000).toISOString(),
+              };
+            }
+          }
+        } catch (e) {
+          console.error("Stripe batch fetch error:", e);
+        }
+      }
+
+      const TRIAL_DAYS = 3;
+
+      // Merge users + profiles + subscription status
       const userList = (users || []).map((u) => {
         const profile = profiles?.find((p) => p.user_id === u.id);
+        const email = (u.email || "").toLowerCase();
+        const isAdmin = adminEmailsLower.includes(email);
+
+        const createdAt = new Date(u.created_at);
+        const trialEndsAt = new Date(createdAt.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+        const isInTrial = new Date() < trialEndsAt;
+
+        const stripeSub = stripeStatusMap[email];
+        let subscriptionStatus = "free";
+        let planName: string | null = null;
+        let subscriptionEnd: string | null = null;
+
+        if (isAdmin) {
+          subscriptionStatus = "admin";
+        } else if (stripeSub) {
+          subscriptionStatus = stripeSub.status; // "active" or "trialing"
+          planName = stripeSub.plan;
+          subscriptionEnd = stripeSub.ends_at;
+        } else if (isInTrial) {
+          subscriptionStatus = "trial";
+        }
+
         return {
           id: u.id,
           email: u.email,
@@ -106,6 +170,10 @@ Deno.serve(async (req) => {
           created_at: u.created_at,
           last_sign_in_at: u.last_sign_in_at,
           email_confirmed_at: u.email_confirmed_at,
+          subscription_status: subscriptionStatus,
+          plan_name: planName,
+          subscription_end: subscriptionEnd,
+          trial_ends_at: trialEndsAt.toISOString(),
         };
       });
 

@@ -25,6 +25,7 @@ interface AdminData {
   users: Array<{
     id: string; email: string; display_name: string | null; phone: string | null;
     phone_verified: boolean; created_at: string; last_sign_in_at: string | null; email_confirmed_at: string | null;
+    subscription_status: string; plan_name: string | null; subscription_end: string | null; trial_ends_at: string | null;
   }>;
   metrics: { totalUsers: number; totalTasks: number; totalExpenses: number; totalSubjects: number; totalFitProfiles: number };
   recentActivity: {
@@ -228,36 +229,54 @@ export default function Admin() {
                     <TableRow className="border-border">
                       <TableHead className="text-muted-foreground">Nome</TableHead>
                       <TableHead className="text-muted-foreground">Email</TableHead>
-                      <TableHead className="text-muted-foreground">Telefone</TableHead>
+                      <TableHead className="text-muted-foreground">Assinatura</TableHead>
+                      <TableHead className="text-muted-foreground">Plano</TableHead>
                       <TableHead className="text-muted-foreground">Cadastro</TableHead>
                       <TableHead className="text-muted-foreground">Último Acesso</TableHead>
-                      <TableHead className="text-muted-foreground">Status</TableHead>
+                      <TableHead className="text-muted-foreground">Email</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {data?.users.map((u) => (
-                      <TableRow key={u.id} className="border-border">
-                        <TableCell className="text-foreground font-medium">{u.display_name || "—"}</TableCell>
-                        <TableCell className="text-foreground flex items-center gap-1.5"><Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" /><span className="text-xs">{u.email}</span></TableCell>
-                        <TableCell className="text-foreground">
-                          {u.phone ? (
-                            <span className="flex items-center gap-1.5 text-xs">
-                              <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />{u.phone}
-                              {u.phone_verified ? <CheckCircle2 className="h-3.5 w-3.5 text-green-500" /> : <XCircle className="h-3.5 w-3.5 text-destructive" />}
-                            </span>
-                          ) : <span className="text-muted-foreground text-xs">—</span>}
-                        </TableCell>
-                        <TableCell className="text-foreground text-xs">{format(new Date(u.created_at), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
-                        <TableCell className="text-foreground text-xs">{u.last_sign_in_at ? format(new Date(u.last_sign_in_at), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "—"}</TableCell>
-                        <TableCell>
-                          {u.email_confirmed_at ? (
-                            <Badge variant="outline" className="border-green-500/30 text-green-500 text-[10px]">Verificado</Badge>
-                          ) : (
-                            <Badge variant="outline" className="border-destructive/30 text-destructive text-[10px]">Pendente</Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {data?.users.map((u) => {
+                      const statusConfig: Record<string, { label: string; className: string }> = {
+                        admin: { label: "Admin", className: "border-primary/30 text-primary" },
+                        active: { label: "Pagante", className: "border-green-500/30 text-green-500" },
+                        trialing: { label: "Trial Stripe", className: "border-amber-500/30 text-amber-500" },
+                        trial: { label: "Trial", className: "border-amber-500/30 text-amber-500" },
+                        free: { label: "Gratuito", className: "border-muted-foreground/30 text-muted-foreground" },
+                      };
+                      const sc = statusConfig[u.subscription_status] || statusConfig.free;
+
+                      return (
+                        <TableRow key={u.id} className="border-border">
+                          <TableCell className="text-foreground font-medium text-xs">{u.display_name || "—"}</TableCell>
+                          <TableCell className="text-foreground">
+                            <span className="flex items-center gap-1.5 text-xs"><Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />{u.email}</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] ${sc.className}`}>{sc.label}</Badge>
+                          </TableCell>
+                          <TableCell className="text-foreground text-xs">
+                            {u.plan_name || (u.subscription_status === "trial" ? "Trial 3 dias" : "—")}
+                            {u.subscription_end && u.subscription_status === "active" && (
+                              <span className="block text-[10px] text-muted-foreground">até {format(new Date(u.subscription_end), "dd/MM/yyyy")}</span>
+                            )}
+                            {u.subscription_status === "trial" && u.trial_ends_at && (
+                              <span className="block text-[10px] text-muted-foreground">expira {format(new Date(u.trial_ends_at), "dd/MM HH:mm")}</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-foreground text-xs">{format(new Date(u.created_at), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
+                          <TableCell className="text-foreground text-xs">{u.last_sign_in_at ? format(new Date(u.last_sign_in_at), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "—"}</TableCell>
+                          <TableCell>
+                            {u.email_confirmed_at ? (
+                              <Badge variant="outline" className="border-green-500/30 text-green-500 text-[10px]">✓</Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-destructive/30 text-destructive text-[10px]">✗</Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </CardContent>
