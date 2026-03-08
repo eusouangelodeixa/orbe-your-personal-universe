@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode 
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-// Stripe product/price mapping
 export const ORBE_PLANS = {
   basic: { product_id: "prod_U73CrhAJW5hnAY", price_id: "price_1T8p6B4tVPtm5YNwmqviEphn", name: "Basic", price: 19 },
   student: { product_id: "prod_U73CVnib4ajQ4N", price_id: "price_1T8p6Y4tVPtm5YNwADcxhwGk", name: "Student", price: 29 },
@@ -14,9 +13,12 @@ export type PlanKey = keyof typeof ORBE_PLANS;
 
 interface SubscriptionInfo {
   subscribed: boolean;
+  isAdmin: boolean;
   product_id: string | null;
   plan: PlanKey | null;
   subscription_end: string | null;
+  trial: boolean;
+  trialEndsAt: string | null;
 }
 
 interface AuthContextType {
@@ -29,16 +31,15 @@ interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
-const defaultSub: SubscriptionInfo = { subscribed: false, product_id: null, plan: null, subscription_end: null };
+const defaultSub: SubscriptionInfo = {
+  subscribed: false, isAdmin: false, product_id: null, plan: null,
+  subscription_end: null, trial: false, trialEndsAt: null,
+};
 
 const AuthContext = createContext<AuthContextType>({
-  session: null,
-  user: null,
-  loading: true,
-  subscription: defaultSub,
-  subscriptionLoading: true,
-  checkSubscription: async () => {},
-  signOut: async () => {},
+  session: null, user: null, loading: true,
+  subscription: defaultSub, subscriptionLoading: true,
+  checkSubscription: async () => {}, signOut: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -62,11 +63,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.functions.invoke("check-subscription");
       if (error) { console.error("check-subscription error:", error); return; }
       if (data) {
+        const plan = data.is_admin ? "full" as PlanKey : (data.trial && !data.product_id ? "full" as PlanKey : productToPlan(data.product_id));
         setSubscription({
           subscribed: data.subscribed || false,
+          isAdmin: data.is_admin || false,
           product_id: data.product_id || null,
-          plan: productToPlan(data.product_id),
+          plan,
           subscription_end: data.subscription_end || null,
+          trial: data.trial || false,
+          trialEndsAt: data.trial_ends_at || null,
         });
       }
     } catch (err) {
@@ -100,16 +105,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => authSub.unsubscribe();
   }, [checkSubscription]);
 
-  // Auto-refresh subscription every 60s
   useEffect(() => {
     if (!session) return;
     const interval = setInterval(checkSubscription, 60_000);
     return () => clearInterval(interval);
   }, [session, checkSubscription]);
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  const signOut = async () => { await supabase.auth.signOut(); };
 
   return (
     <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, subscription, subscriptionLoading, checkSubscription, signOut }}>

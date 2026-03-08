@@ -1,20 +1,17 @@
 import { useAuth, ORBE_PLANS, PlanKey } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Lock, Loader2, Crown, Sparkles } from "lucide-react";
+import { Lock, Loader2, Crown, Sparkles, Clock } from "lucide-react";
 import { toast } from "sonner";
 
-// Which plans grant access to which route groups
 const ROUTE_ACCESS: Record<string, PlanKey[]> = {
   finance: ["basic", "student", "full", "fit"],
   studies: ["student", "full"],
   fit: ["fit", "full"],
 };
 
-// Suggested plan for each route group
 const SUGGESTED_PLAN: Record<string, PlanKey> = {
   finance: "basic",
   studies: "student",
@@ -29,13 +26,11 @@ const GROUP_LABELS: Record<string, string> = {
 
 interface PlanGateProps {
   children: React.ReactNode;
-  /** Which feature group this gate protects */
   group: "finance" | "studies" | "fit";
 }
 
 export function PlanGate({ children, group }: PlanGateProps) {
   const { subscription, subscriptionLoading } = useAuth();
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   if (subscriptionLoading) {
     return (
@@ -45,6 +40,20 @@ export function PlanGate({ children, group }: PlanGateProps) {
     );
   }
 
+  // Admin bypass — full access
+  if (subscription.isAdmin) return <>{children}</>;
+
+  // Trial — full access to everything
+  if (subscription.trial && subscription.subscribed) {
+    return (
+      <>
+        <TrialBanner trialEndsAt={subscription.trialEndsAt} />
+        {children}
+      </>
+    );
+  }
+
+  // Paid subscription — check plan
   const allowedPlans = ROUTE_ACCESS[group];
   const hasAccess = subscription.subscribed && subscription.plan && allowedPlans.includes(subscription.plan);
 
@@ -53,11 +62,27 @@ export function PlanGate({ children, group }: PlanGateProps) {
   return <UpgradeWall group={group} />;
 }
 
+function TrialBanner({ trialEndsAt }: { trialEndsAt: string | null }) {
+  if (!trialEndsAt) return null;
+  const ends = new Date(trialEndsAt);
+  const now = new Date();
+  const hoursLeft = Math.max(0, Math.ceil((ends.getTime() - now.getTime()) / (1000 * 60 * 60)));
+  const daysLeft = Math.ceil(hoursLeft / 24);
+
+  return (
+    <div className="bg-primary/10 border-b border-primary/20 px-4 py-2 flex items-center justify-center gap-2 text-sm">
+      <Clock className="h-4 w-4 text-primary" />
+      <span className="text-foreground">
+        Trial gratuito: <strong className="text-primary">{daysLeft > 1 ? `${daysLeft} dias` : `${hoursLeft}h`}</strong> restantes
+      </span>
+      <span className="text-muted-foreground">·</span>
+      <span className="text-muted-foreground">Assine para não perder acesso</span>
+    </div>
+  );
+}
+
 function UpgradeWall({ group }: { group: string }) {
   const [loading, setLoading] = useState<string | null>(null);
-
-  const suggestedKey = SUGGESTED_PLAN[group];
-  const suggested = ORBE_PLANS[suggestedKey];
 
   const handleCheckout = async (planKey: PlanKey) => {
     setLoading(planKey);
@@ -67,11 +92,8 @@ function UpgradeWall({ group }: { group: string }) {
         body: { priceId: plan.price_id },
       });
       if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, "_blank");
-      }
-    } catch (err) {
-      console.error(err);
+      if (data?.url) window.open(data.url, "_blank");
+    } catch {
       toast.error("Erro ao iniciar checkout. Tente novamente.");
     } finally {
       setLoading(null);
@@ -81,6 +103,7 @@ function UpgradeWall({ group }: { group: string }) {
   const relevantPlans = Object.entries(ORBE_PLANS).filter(([key]) =>
     ROUTE_ACCESS[group].includes(key as PlanKey)
   );
+  const suggestedKey = SUGGESTED_PLAN[group];
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center p-6">
@@ -94,7 +117,7 @@ function UpgradeWall({ group }: { group: string }) {
             Módulo {GROUP_LABELS[group]}
           </h2>
           <p className="text-muted-foreground mt-2">
-            Assine um plano compatível para desbloquear esta funcionalidade.
+            Seu trial expirou. Assine um plano para continuar usando.
           </p>
         </div>
 
@@ -105,9 +128,7 @@ function UpgradeWall({ group }: { group: string }) {
               <div
                 key={key}
                 className={`relative p-4 rounded-xl border transition-all ${
-                  isRecommended
-                    ? "border-primary bg-primary/5 shadow-md"
-                    : "border-border bg-card hover:border-primary/40"
+                  isRecommended ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/40"
                 }`}
               >
                 {isRecommended && (
@@ -139,18 +160,14 @@ function UpgradeWall({ group }: { group: string }) {
           })}
         </div>
 
-        <p className="text-xs text-muted-foreground">
-          🔒 Garantia de 7 dias. Cancele quando quiser.
-        </p>
+        <p className="text-xs text-muted-foreground">🔒 Garantia de 7 dias. Cancele quando quiser.</p>
       </div>
     </div>
   );
 }
 
-/** Reusable hook to trigger checkout from anywhere */
 export function useCheckout() {
   const [loading, setLoading] = useState(false);
-
   const checkout = async (planKey: PlanKey) => {
     setLoading(true);
     try {
@@ -160,12 +177,8 @@ export function useCheckout() {
       });
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");
-    } catch {
-      toast.error("Erro ao iniciar checkout.");
-    } finally {
-      setLoading(false);
-    }
+    } catch { toast.error("Erro ao iniciar checkout."); }
+    finally { setLoading(false); }
   };
-
   return { checkout, loading };
 }
