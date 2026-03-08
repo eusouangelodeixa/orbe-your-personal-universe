@@ -575,17 +575,82 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const body = await req.json();
 
-    // UAZAPI webhook format
-    const phone = body.phone || body.from || body.number;
-    const textMessage = body.message || body.text || body.body || "";
-    const audioUrl = body.audioUrl || body.audio_url || body.mediaUrl || null;
-    const isAudio = body.isAudio || body.type === "audio" || !!audioUrl;
+    console.log("Webhook received:", JSON.stringify(body).slice(0, 500));
+
+    // ===== PARSE UAZAPI WEBHOOK FORMAT =====
+    // UAZAPI (whatsmeow-based) sends messages in baileys format:
+    // { event: "messages.upsert", data: { key: { remoteJid, fromMe, id }, message: { conversation, extendedTextMessage, audioMessage, ... }, pushName } }
+    // OR flat format: { phone, message, type, ... }
+
+    let phone = "";
+    let textMessage = "";
+    let audioUrl: string | null = null;
+    let isAudio = false;
+
+    if (body.event === "messages.upsert" || body.data?.key) {
+      // Baileys/whatsmeow format (UAZAPI v2)
+      const data = body.data || body;
+      const key = data.key || {};
+      const msg = data.message || {};
+
+      // Ignore own messages
+      if (key.fromMe) {
+        return new Response(JSON.stringify({ handled: false, reason: "own message" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Extract phone from remoteJid: "5511999999999@s.whatsapp.net" -> "5511999999999"
+      const jid = key.remoteJid || "";
+      phone = jid.replace(/@.*$/, "");
+
+      // Extract text from different message types
+      textMessage = msg.conversation
+        || msg.extendedTextMessage?.text
+        || msg.buttonsResponseMessage?.selectedDisplayText
+        || msg.listResponseMessage?.title
+        || msg.templateButtonReplyMessage?.selectedDisplayText
+        || "";
+
+      // Audio message
+      if (msg.audioMessage) {
+        isAudio = true;
+        audioUrl = msg.audioMessage.url || msg.audioMessage.directPath || null;
+        // UAZAPI may provide base64 or a download URL
+        if (data.base64 || data.mediaBase64) {
+          audioUrl = data.base64 || data.mediaBase64;
+        }
+        if (data.mediaUrl) {
+          audioUrl = data.mediaUrl;
+        }
+      }
+
+      // Image/document with caption
+      if (!textMessage && (msg.imageMessage?.caption || msg.documentMessage?.caption || msg.videoMessage?.caption)) {
+        textMessage = msg.imageMessage?.caption || msg.documentMessage?.caption || msg.videoMessage?.caption || "";
+      }
+    } else {
+      // Flat/legacy format fallback
+      phone = body.phone || body.from || body.number || body.remoteJid?.replace(/@.*$/, "") || "";
+      textMessage = body.message || body.text || body.body || body.conversation || "";
+      audioUrl = body.audioUrl || body.audio_url || body.mediaUrl || null;
+      isAudio = body.isAudio || body.type === "audio" || body.messageType === "audioMessage" || !!audioUrl;
+    }
+
+    // Ignore group messages (JID contains @g.us)
+    if (phone.includes("@g.us") || body.data?.key?.remoteJid?.includes("@g.us")) {
+      return new Response(JSON.stringify({ handled: false, reason: "group message" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!phone) {
-      return new Response(JSON.stringify({ error: "no phone" }), {
+      return new Response(JSON.stringify({ error: "no phone found in payload" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    console.log(`Parsed: phone=${phone}, text=${textMessage?.slice(0, 100)}, isAudio=${isAudio}`);
 
     // Find user by phone
     const { data: profile } = await supabase
