@@ -16,6 +16,12 @@ import StudiesDashboard from "./pages/StudiesDashboard";
 import SubjectDetail from "./pages/SubjectDetail";
 import Agenda from "./pages/Agenda";
 import Profile from "./pages/Profile";
+import FitDashboard from "./pages/FitDashboard";
+import FitOnboarding from "./pages/FitOnboarding";
+import FitWorkout from "./pages/FitWorkout";
+import FitMeals from "./pages/FitMeals";
+import FitProgress from "./pages/FitProgress";
+import FitChat from "./pages/FitChat";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +45,12 @@ const App = () => (
             <Route path="/disciplina/:subjectId" element={<ProtectedRoute><SubjectDetail /></ProtectedRoute>} />
             <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
             <Route path="/perfil" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/fit" element={<ProtectedRoute><FitDashboard /></ProtectedRoute>} />
+            <Route path="/fit/onboarding" element={<ProtectedRoute><FitOnboarding /></ProtectedRoute>} />
+            <Route path="/fit/treino" element={<ProtectedRoute><FitWorkout /></ProtectedRoute>} />
+            <Route path="/fit/alimentacao" element={<ProtectedRoute><FitMeals /></ProtectedRoute>} />
+            <Route path="/fit/progresso" element={<ProtectedRoute><FitProgress /></ProtectedRoute>} />
+            <Route path="/fit/chat" element={<ProtectedRoute><FitChat /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

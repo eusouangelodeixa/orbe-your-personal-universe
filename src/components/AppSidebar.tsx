@@ -44,8 +44,15 @@ const studiesItems = [
   { title: "Agenda", url: "/agenda", icon: Calendar },
 ];
 
+const fitItems = [
+  { title: "Dashboard", url: "/fit", icon: LayoutDashboard },
+  { title: "Treino", url: "/fit/treino", icon: Dumbbell },
+  { title: "Alimentação", url: "/fit/alimentacao", icon: Utensils },
+  { title: "Evolução", url: "/fit/progresso", icon: TrendingUp },
+  { title: "Nutricionista IA", url: "/fit/chat", icon: Bot },
+];
+
 const comingSoon = [
-  { title: "Fit", icon: Dumbbell },
   { title: "Tarefas", icon: CheckSquare },
 ];
 
