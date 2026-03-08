@@ -1463,10 +1463,25 @@ serve(async (req) => {
       const nome = profile.display_name?.split(" ")[0] || "Usuário";
       const context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
 
-      // Parse intent with timeout + deterministic fallback
-      // intent already declared above
+      // Fetch recent chat history (last 10 messages within 30 min)
+      let chatHistory: Array<{role: string, content: string}> = [];
       try {
-        intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context), 18000, "parse_intent");
+        const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+        const { data: historyRows } = await supabase
+          .from("whatsapp_chat_history")
+          .select("role, content")
+          .eq("user_id", userId)
+          .gte("created_at", thirtyMinAgo)
+          .order("created_at", { ascending: true })
+          .limit(10);
+        chatHistory = historyRows || [];
+      } catch (histErr) {
+        console.warn("Failed to fetch chat history:", histErr);
+      }
+
+      // Parse intent with timeout + deterministic fallback
+      try {
+        intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context, chatHistory), 18000, "parse_intent");
       } catch (intentError) {
         console.error("Intent parsing failed, using fallback:", intentError);
         intent = parseFallbackIntent(userText);
@@ -1479,6 +1494,16 @@ serve(async (req) => {
         console.error("Action execution failed:", actionError);
         responseText = "❌ Tive um erro ao executar sua solicitação. Tente novamente em instantes.";
       }
+    }
+
+    // Store user message and bot reply in chat history
+    try {
+      await supabase.from("whatsapp_chat_history").insert([
+        { user_id: userId, role: "user", content: userText },
+        { user_id: userId, role: "assistant", content: responseText },
+      ]);
+    } catch (storeErr) {
+      console.warn("Failed to store chat history:", storeErr);
     }
 
     // Send reply and expose send status
