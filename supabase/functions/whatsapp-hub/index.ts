@@ -1238,6 +1238,25 @@ serve(async (req) => {
     }
 
     const userId = profile.user_id;
+
+    // Deduplicate incoming messages to avoid loops/repeated replies from webhook retries
+    if (messageId) {
+      const { error: dedupError } = await supabase
+        .from("whatsapp_processed_messages")
+        .insert({ user_id: userId, message_id: messageId });
+
+      if (dedupError) {
+        // 23505 = unique_violation (already processed)
+        if ((dedupError as any).code === "23505") {
+          console.log(`Duplicate message ignored: ${messageId}`);
+          return new Response(JSON.stringify({ handled: false, reason: "duplicate message" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw dedupError;
+      }
+    }
+
     let userText = textMessage;
 
     // Transcribe audio if needed
