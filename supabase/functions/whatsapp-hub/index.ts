@@ -16,6 +16,68 @@ function brNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
 
+function normalizeText(value: unknown): string {
+  return safeString(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const WEEKDAY_KEYS = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const;
+const WEEKDAY_LABELS: Record<string, string> = {
+  domingo: "domingo",
+  segunda: "segunda-feira",
+  terca: "terça-feira",
+  quarta: "quarta-feira",
+  quinta: "quinta-feira",
+  sexta: "sexta-feira",
+  sabado: "sábado",
+};
+const WEEKDAY_ALIASES: Record<string, string[]> = {
+  domingo: ["domingo", "dom"],
+  segunda: ["segunda", "segunda feira", "seg", "monday"],
+  terca: ["terca", "terca feira", "ter", "tuesday"],
+  quarta: ["quarta", "quarta feira", "qua", "wednesday"],
+  quinta: ["quinta", "quinta feira", "qui", "thursday"],
+  sexta: ["sexta", "sexta feira", "sex", "friday"],
+  sabado: ["sabado", "sab", "saturday"],
+};
+
+function getRequestedWeekdayFromText(text: string, now = brNow()): string | null {
+  const normalized = normalizeText(text);
+  if (!normalized) return null;
+
+  if (normalized.includes("hoje")) {
+    return WEEKDAY_KEYS[now.getDay()];
+  }
+  if (normalized.includes("amanha")) {
+    return WEEKDAY_KEYS[(now.getDay() + 1) % 7];
+  }
+
+  for (const [dayKey, aliases] of Object.entries(WEEKDAY_ALIASES)) {
+    if (aliases.some((alias) => normalized.includes(alias))) return dayKey;
+  }
+
+  return null;
+}
+
+function workoutMatchesWeekday(workout: any, weekday: string): boolean {
+  const haystack = normalizeText(`${safeString(workout?.day)} ${safeString(workout?.name)}`);
+  const aliases = WEEKDAY_ALIASES[weekday] || [weekday];
+  return aliases.some((alias) => haystack.includes(alias));
+}
+
+function formatWorkoutMessage(planTitle: string, workout: any): string {
+  const label = safeString(workout?.day) || safeString(workout?.name) || "Treino";
+  let msg = `🏋️ *${planTitle}*\n\n📌 *${label}*\n`;
+  (workout?.exercises || []).slice(0, 8).forEach((ex: any) => {
+    msg += `\n• ${safeString(ex?.name)}${ex?.sets ? ` ${ex.sets}x${ex.reps || ""}` : ""}`;
+  });
+  return msg;
+}
+
 function safeString(value: unknown): string {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean") return String(value);
