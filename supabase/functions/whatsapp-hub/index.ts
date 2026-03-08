@@ -791,7 +791,7 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
         const { error } = await supabase.from("academic_events").insert({
           user_id: userId,
-          title: params.name || "Evento WhatsApp",
+          title: params.name || params.task_title || params.description || "Evento WhatsApp",
           event_date: params.due_date || now.toISOString(),
           type: params.type || "prova",
           subject_id: subjectId,
