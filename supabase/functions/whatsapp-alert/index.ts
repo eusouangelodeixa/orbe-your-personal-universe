@@ -24,8 +24,8 @@ serve(async (req) => {
       });
     }
 
-    // uazapi v1: /send/text with header 'token'
-    const response = await fetch(`${UAZAPI_URL}/send/text`, {
+    // Try uazapi v2 endpoint
+    const response = await fetch(`${UAZAPI_URL}/chat/send/text`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
