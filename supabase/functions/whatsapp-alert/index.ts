@@ -17,20 +17,50 @@ serve(async (req) => {
 
     const body = await req.json();
 
-    // Debug mode: check instance status
+    // Debug: try multiple endpoints
     if (body.debug === true) {
-      const statusRes = await fetch(`${UAZAPI_URL}/instance/status`, {
-        method: "GET",
-        headers: { "token": UAZAPI_TOKEN },
-      });
-      const statusData = await statusRes.json();
-      return new Response(JSON.stringify({ status: statusRes.status, data: statusData }), {
+      const endpoints = [
+        "/message/sendText",
+        "/message/send-text",
+        "/message/text",
+        "/sendText",
+        "/send-text",
+        "/send/text",
+        "/chat/sendText",
+      ];
+      
+      const results: Record<string, any> = {};
+      
+      for (const ep of endpoints) {
+        try {
+          const res = await fetch(`${UAZAPI_URL}${ep}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "token": UAZAPI_TOKEN,
+            },
+            body: JSON.stringify({
+              number: "553498925759",
+              text: "teste endpoint",
+            }),
+          });
+          const data = await res.json();
+          results[ep] = { status: res.status, data };
+          // If we get a success, stop trying
+          if (res.ok) break;
+        } catch (err) {
+          results[ep] = { error: String(err) };
+        }
+      }
+      
+      return new Response(JSON.stringify(results), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const { phone, message } = body;
+
     if (!phone || !message) {
       return new Response(JSON.stringify({ error: "phone e message são obrigatórios" }), {
         status: 400,
@@ -38,7 +68,6 @@ serve(async (req) => {
       });
     }
 
-    // uazapi v2: POST /message/sendText with header 'token'
     const response = await fetch(`${UAZAPI_URL}/message/sendText`, {
       method: "POST",
       headers: {
