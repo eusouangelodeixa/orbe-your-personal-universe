@@ -1474,14 +1474,16 @@ serve(async (req) => {
     }
 
     // Send reply and expose send status
+    const intentModule = intent?.module || "geral";
+    const intentAction = intent?.action || "pending_action";
     try {
       await withTimeout(sendWhatsApp(UAZAPI_URL, outboundTokens, phone, responseText), 12000, "send_reply");
     } catch (sendError) {
       console.error("Reply send failed:", sendError);
       return new Response(JSON.stringify({
         handled: true,
-        module: intent.module,
-        action: intent.action,
+        module: intentModule,
+        action: intentAction,
         transcribed: isAudio ? userText : undefined,
         send_status: "failed",
         send_error: sendError instanceof Error ? sendError.message : "unknown",
@@ -1492,8 +1494,8 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       handled: true,
-      module: intent.module,
-      action: intent.action,
+      module: intentModule,
+      action: intentAction,
       transcribed: isAudio ? userText : undefined,
       send_status: "sent",
     }), {
