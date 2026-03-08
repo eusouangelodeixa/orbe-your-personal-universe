@@ -60,6 +60,7 @@ export default function Admin() {
   const [data, setData] = useState<AdminData | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<AdminSetting[]>([]);
+  const [connections, setConnections] = useState<Array<{key: string; connected: boolean; label: string; description: string}>>([]);
   const [financial, setFinancial] = useState<FinancialData | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
