@@ -8,6 +8,7 @@ import {
   Bot,
   Lock,
   LogOut,
+  PiggyBank,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -30,6 +31,7 @@ import { Button } from "@/components/ui/button";
 const financeItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Planilha", url: "/planilha", icon: Receipt },
+  { title: "Cofrinho", url: "/cofrinho", icon: PiggyBank },
   { title: "Consultor IA", url: "/consultor", icon: Bot },
 ];
 

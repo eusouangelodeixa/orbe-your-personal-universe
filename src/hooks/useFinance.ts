@@ -361,3 +361,55 @@ export function useSavingsGoals() {
     },
   });
 }
+
+export function useAddSavingsGoal() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (goal: { name: string; target_amount: number; deadline?: string }) => {
+      const { error } = await supabase.from("savings_goals").insert({
+        ...goal,
+        user_id: user!.id,
+        current_amount: 0,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["savings_goals"] });
+      toast.success("Meta criada!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateSavingsGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, current_amount }: { id: string; current_amount: number }) => {
+      const { error } = await supabase
+        .from("savings_goals")
+        .update({ current_amount })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["savings_goals"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteSavingsGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("savings_goals").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["savings_goals"] });
+      toast.success("Meta removida");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
