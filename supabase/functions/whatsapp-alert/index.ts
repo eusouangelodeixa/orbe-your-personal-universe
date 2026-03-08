@@ -30,7 +30,20 @@ serve(async (req) => {
       });
     }
 
-    const { phone, message } = body;
+    const { phone, message, debug } = body;
+
+    // Debug mode: check instance status
+    if (debug === true) {
+      const statusRes = await fetch(`${UAZAPI_URL}/instance/status`, {
+        method: "GET",
+        headers: { "token": UAZAPI_TOKEN },
+      });
+      const statusData = await statusRes.json();
+      return new Response(JSON.stringify({ status: statusRes.status, data: statusData }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!phone || !message) {
       return new Response(JSON.stringify({ error: "phone e message são obrigatórios" }), {
