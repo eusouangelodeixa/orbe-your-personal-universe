@@ -1238,6 +1238,25 @@ serve(async (req) => {
     }
 
     const userId = profile.user_id;
+
+    // Deduplicate incoming messages to avoid loops/repeated replies from webhook retries
+    if (messageId) {
+      const { error: dedupError } = await supabase
+        .from("whatsapp_processed_messages")
+        .insert({ user_id: userId, message_id: messageId });
+
+      if (dedupError) {
+        // 23505 = unique_violation (already processed)
+        if ((dedupError as any).code === "23505") {
+          console.log(`Duplicate message ignored: ${messageId}`);
+          return new Response(JSON.stringify({ handled: false, reason: "duplicate message" }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        throw dedupError;
+      }
+    }
+
     let userText = textMessage;
 
     // Transcribe audio if needed
@@ -1339,8 +1358,9 @@ serve(async (req) => {
 
         // Match by number or name
         let selectedGoal: any = null;
-        const num = parseInt(input);
-        if (!isNaN(num) && num >= 1 && num <= goals.length) {
+        const numMatch = input.match(/\d+/);
+        const num = numMatch ? Number(numMatch[0]) : Number.NaN;
+        if (!Number.isNaN(num) && num >= 1 && num <= goals.length) {
           selectedGoal = goals[num - 1];
         } else {
           const normalized = input.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
