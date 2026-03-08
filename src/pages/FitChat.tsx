@@ -183,7 +183,7 @@ export default function FitChat() {
                   {msg.content ? (
                     msg.role === "assistant" ? (
                       <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{sanitizeLatex(msg.content)}</ReactMarkdown>
                       </div>
                     ) : msg.content
                   ) : (
