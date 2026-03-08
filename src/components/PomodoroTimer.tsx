@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Play, Pause, RotateCcw, SkipForward, Coffee, BookOpen, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Phase = "focus" | "short_break" | "long_break";
 
@@ -16,17 +18,80 @@ const PHASE_CONFIG: Record<Phase, { label: string; icon: typeof BookOpen; minute
 
 interface Props {
   subjectName: string;
+  subjectId: string;
 }
 
-export function PomodoroTimer({ subjectName }: Props) {
+export function PomodoroTimer({ subjectName, subjectId }: Props) {
+  const { user } = useAuth();
   const [phase, setPhase] = useState<Phase>("focus");
   const [timeLeft, setTimeLeft] = useState(PHASE_CONFIG.focus.minutes * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [completedPomodoros, setCompletedPomodoros] = useState(0);
   const [totalFocusSeconds, setTotalFocusSeconds] = useState(0);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [todayStats, setTodayStats] = useState<{ pomodoros: number; focusMin: number } | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Load today's stats
+  useEffect(() => {
+    if (!user) return;
+    const today = new Date().toISOString().split("T")[0];
+    supabase
+      .from("pomodoro_sessions")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("subject_id", subjectId)
+      .eq("session_date", today)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setTodayStats({
+            pomodoros: (data as any).completed_pomodoros,
+            focusMin: Math.floor((data as any).total_focus_seconds / 60),
+          });
+        }
+      });
+  }, [user, subjectId]);
+
+  const saveSession = useCallback(async (pomodoros: number, focusSec: number) => {
+    if (!user) return;
+    const today = new Date().toISOString().split("T")[0];
+    
+    // Check if session exists for today
+    const { data: existing } = await supabase
+      .from("pomodoro_sessions")
+      .select("id, completed_pomodoros, total_focus_seconds")
+      .eq("user_id", user.id)
+      .eq("subject_id", subjectId)
+      .eq("session_date", today)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase
+        .from("pomodoro_sessions")
+        .update({
+          completed_pomodoros: (existing as any).completed_pomodoros + pomodoros,
+          total_focus_seconds: (existing as any).total_focus_seconds + focusSec,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq("id", (existing as any).id);
+    } else {
+      await supabase.from("pomodoro_sessions").insert({
+        user_id: user.id,
+        subject_id: subjectId,
+        completed_pomodoros: pomodoros,
+        total_focus_seconds: focusSec,
+        session_date: today,
+      } as any);
+    }
+
+    setTodayStats(prev => ({
+      pomodoros: (prev?.pomodoros || 0) + pomodoros,
+      focusMin: Math.floor(((prev?.focusMin || 0) * 60 + focusSec) / 60),
+    }));
+  }, [user, subjectId]);
 
   const playBeep = useCallback(() => {
     if (!soundEnabled) return;
@@ -73,6 +138,9 @@ export function PomodoroTimer({ subjectName }: Props) {
           if (phase === "focus") {
             const next = completedPomodoros + 1;
             setCompletedPomodoros(next);
+            // Save completed pomodoro with focus time
+            const focusTime = PHASE_CONFIG.focus.minutes * 60;
+            saveSession(1, focusTime);
             toast.success(`🎉 Pomodoro #${next} concluído!`);
             const nextPhase = next % 4 === 0 ? "long_break" : "short_break";
             setTimeout(() => switchPhase(nextPhase), 500);
@@ -82,18 +150,16 @@ export function PomodoroTimer({ subjectName }: Props) {
           }
           return 0;
         }
-        if (phase === "focus") setTotalFocusSeconds(s => s + 1);
         return prev - 1;
       });
     }, 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [isRunning, phase, completedPomodoros, playBeep, switchPhase]);
+  }, [isRunning, phase, completedPomodoros, playBeep, switchPhase, saveSession]);
 
   const totalSeconds = PHASE_CONFIG[phase].minutes * 60;
   const progress = ((totalSeconds - timeLeft) / totalSeconds) * 100;
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
-  const focusMinutes = Math.floor(totalFocusSeconds / 60);
 
   const reset = () => {
     setIsRunning(false);
@@ -117,39 +183,27 @@ export function PomodoroTimer({ subjectName }: Props) {
       <Card className="overflow-hidden">
         <CardContent className="pt-6">
           <div className="flex flex-col items-center space-y-6">
-            {/* Phase indicator */}
             <div className="flex items-center gap-2">
               <PhaseIcon className={`h-5 w-5 ${PHASE_CONFIG[phase].color}`} />
               <span className={`font-semibold text-lg ${PHASE_CONFIG[phase].color}`}>
                 {PHASE_CONFIG[phase].label}
               </span>
               {phase === "focus" && (
-                <Badge variant="outline" className="text-xs ml-2">
-                  {subjectName}
-                </Badge>
+                <Badge variant="outline" className="text-xs ml-2">{subjectName}</Badge>
               )}
             </div>
 
-            {/* Timer display */}
-            <div className="relative">
-              <div className="text-7xl font-mono font-bold tracking-tight tabular-nums text-foreground">
-                {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-              </div>
+            <div className="text-7xl font-mono font-bold tracking-tight tabular-nums text-foreground">
+              {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
             </div>
 
-            {/* Progress bar */}
             <Progress value={progress} className="h-2 w-full max-w-xs" />
 
-            {/* Controls */}
             <div className="flex items-center gap-3">
               <Button variant="outline" size="icon" onClick={reset} title="Reiniciar">
                 <RotateCcw className="h-4 w-4" />
               </Button>
-              <Button
-                size="lg"
-                className="h-14 w-14 rounded-full"
-                onClick={() => setIsRunning(!isRunning)}
-              >
+              <Button size="lg" className="h-14 w-14 rounded-full" onClick={() => setIsRunning(!isRunning)}>
                 {isRunning ? <Pause className="h-6 w-6" /> : <Play className="h-6 w-6 ml-0.5" />}
               </Button>
               <Button variant="outline" size="icon" onClick={skip} title="Pular">
@@ -157,13 +211,7 @@ export function PomodoroTimer({ subjectName }: Props) {
               </Button>
             </div>
 
-            {/* Sound toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground"
-              onClick={() => setSoundEnabled(!soundEnabled)}
-            >
+            <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => setSoundEnabled(!soundEnabled)}>
               {soundEnabled ? <Volume2 className="h-3.5 w-3.5 mr-1" /> : <VolumeX className="h-3.5 w-3.5 mr-1" />}
               {soundEnabled ? "Som ligado" : "Som desligado"}
             </Button>
@@ -172,17 +220,11 @@ export function PomodoroTimer({ subjectName }: Props) {
       </Card>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card>
           <CardContent className="py-4 text-center">
             <p className="text-2xl font-bold text-primary">{completedPomodoros}</p>
-            <p className="text-xs text-muted-foreground">Pomodoros</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="py-4 text-center">
-            <p className="text-2xl font-bold text-primary">{focusMinutes}</p>
-            <p className="text-xs text-muted-foreground">Min. de foco</p>
+            <p className="text-xs text-muted-foreground">Sessão atual</p>
           </CardContent>
         </Card>
         <Card>
@@ -191,21 +233,31 @@ export function PomodoroTimer({ subjectName }: Props) {
             <p className="text-xs text-muted-foreground">Até pausa longa</p>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-2xl font-bold text-primary">{todayStats?.pomodoros || 0}</p>
+            <p className="text-xs text-muted-foreground">Pomodoros hoje</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="py-4 text-center">
+            <p className="text-2xl font-bold text-primary">{todayStats?.focusMin || 0}</p>
+            <p className="text-xs text-muted-foreground">Min. foco hoje</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Pomodoro dots */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Sessão de hoje</CardTitle>
+          <CardTitle className="text-sm font-medium text-muted-foreground">Progresso da sessão</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-2">
             {Array.from({ length: Math.max(completedPomodoros, 4) }).map((_, i) => (
               <div
                 key={i}
-                className={`h-4 w-4 rounded-full transition-colors ${
-                  i < completedPomodoros ? "bg-primary" : "bg-muted"
-                }`}
+                className={`h-4 w-4 rounded-full transition-colors ${i < completedPomodoros ? "bg-primary" : "bg-muted"}`}
               />
             ))}
           </div>
