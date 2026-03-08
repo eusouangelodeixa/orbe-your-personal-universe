@@ -352,7 +352,7 @@ const INTENT_TOOLS = [
   },
 ];
 
-async function parseIntent(apiKey: string, text: string, context: string) {
+async function parseIntent(apiKey: string, text: string, context: string, chatHistory?: Array<{role: string, content: string}>) {
   const now = brNow();
   const systemPrompt = `Você é o assistente ORBE via WhatsApp. Analise a mensagem e determine a ação a executar.
 
@@ -380,9 +380,10 @@ REGRAS:
 - IMPORTANTE: Quando o usuário perguntar sobre metas de economia, cofrinho, reserva de emergência, quanto falta para alcançar uma meta, use action "check_savings_goal" e preencha params.goal_name. NÃO use monthly_summary para perguntas sobre metas.
 - IMPORTANTE: Quando o usuário quiser GUARDAR/DEPOSITAR dinheiro no cofrinho (ex: "guardei 500 no cofrinho", "depositar 200 na reserva"), use action "save_to_cofrinho". Preencha params.amount, params.wallet_name (de onde sai o dinheiro) e params.goal_name (meta destino). Se o usuário NÃO mencionar o nome da meta, deixe goal_name vazio — o sistema vai listar as opções.
 - IMPORTANTE: Quando o usuário perguntar sobre saldo, gastos ou informações de uma carteira/conta ESPECÍFICA, preencha params.wallet_name com o nome da carteira. Responda APENAS com os dados da carteira pedida. NÃO inclua dados de outras carteiras, resumo geral ou patrimônio total a menos que o usuário peça explicitamente.
-- Mantenha respostas CONCISAS e FOCADAS no que foi perguntado. Máximo 10-15 linhas no WhatsApp.`;
+- Mantenha respostas CONCISAS e FOCADAS no que foi perguntado. Máximo 10-15 linhas no WhatsApp.
+- MUITO IMPORTANTE: Leve em conta o HISTÓRICO DE CONVERSA recente. Se o usuário está respondendo a uma pergunta anterior (ex: fornecendo um valor, confirmando algo), CONECTE com o contexto anterior. Ex: se antes ele disse que comprou açaí e agora diz "20 reais", isso é o valor do açaí.`;
 
-  const result = await callAI(apiKey, systemPrompt, text, INTENT_TOOLS, { type: "function", function: { name: "execute_action" } });
+  const result = await callAI(apiKey, systemPrompt, text, INTENT_TOOLS, { type: "function", function: { name: "execute_action" } }, chatHistory);
 
   const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
   if (toolCall) {
