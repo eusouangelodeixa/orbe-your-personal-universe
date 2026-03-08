@@ -303,7 +303,7 @@ const INTENT_TOOLS = [
             enum: [
               // Financeiro
               "add_expense", "add_income", "mark_paid", "list_expenses", "list_incomes",
-              "wallet_balance", "monthly_summary", "financial_projection",
+              "wallet_balance", "monthly_summary", "financial_projection", "check_savings_goal",
               // Estudos
               "list_events", "add_event", "list_subjects", "subject_question",
               // Fit
@@ -336,6 +336,7 @@ const INTENT_TOOLS = [
               year: { type: "number" },
               wallet_name: { type: "string" },
               paid: { type: "boolean" },
+              goal_name: { type: "string", description: "Name of a savings goal (cofrinho/meta). E.g. 'reserva emergência', 'viagem'." },
             },
           },
           reply_text: { type: "string", description: "Friendly reply message to send back to user via WhatsApp. Portuguese Brazilian." },
@@ -366,6 +367,7 @@ REGRAS:
 - Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente
 - IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".
 - IMPORTANTE: Ao responder sobre treinos, dieta ou agenda, responda APENAS sobre o dia específico perguntado. NÃO liste a semana inteira. Se perguntaram "treino de segunda", mostre SÓ o de segunda. Se perguntaram "treino de hoje", mostre SÓ o de hoje.
+- IMPORTANTE: Quando o usuário perguntar sobre metas de economia, cofrinho, reserva de emergência, quanto falta para alcançar uma meta, use action "check_savings_goal" e preencha params.goal_name. NÃO use monthly_summary para perguntas sobre metas.
 - IMPORTANTE: Quando o usuário perguntar sobre saldo, gastos ou informações de uma carteira/conta ESPECÍFICA, preencha params.wallet_name com o nome da carteira. Responda APENAS com os dados da carteira pedida. NÃO inclua dados de outras carteiras, resumo geral ou patrimônio total a menos que o usuário peça explicitamente.
 - Mantenha respostas CONCISAS e FOCADAS no que foi perguntado. Máximo 10-15 linhas no WhatsApp.`;
 
@@ -598,6 +600,34 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           `📊 Comprometimento: ${commitment}%\n` +
           `🏦 Patrimônio: ${fmtBRL(totalWal)}\n` +
           `💰 Disponível: ${fmtBRL(totalWal - (totalExp - paidExp))}`;
+      }
+
+      case "check_savings_goal": {
+        let query = supabase.from("savings_goals")
+          .select("name, target_amount, current_amount, deadline")
+          .eq("user_id", userId);
+        if (params.goal_name) {
+          query = query.ilike("name", `%${params.goal_name}%`);
+        }
+        const { data } = await query;
+        if (!data?.length) return params.goal_name
+          ? `🐷 Meta "${params.goal_name}" não encontrada.`
+          : "🐷 Nenhuma meta de economia cadastrada.";
+        
+        let msg = "";
+        for (const g of data) {
+          const target = Number(g.target_amount);
+          const current = Number(g.current_amount);
+          const remaining = Math.max(target - current, 0);
+          const pct = target > 0 ? Math.round((current / target) * 100) : 0;
+          msg += `🐷 *${g.name}*\n`;
+          msg += `🎯 Meta: ${fmtBRL(target)}\n`;
+          msg += `💰 Guardado: ${fmtBRL(current)} (${pct}%)\n`;
+          msg += `📌 Falta: ${fmtBRL(remaining)}\n`;
+          if (g.deadline) msg += `📅 Prazo: ${new Date(g.deadline).toLocaleDateString("pt-BR")}\n`;
+          msg += "\n";
+        }
+        return msg.trim();
       }
 
       // ===== ESTUDOS =====
