@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon,
-  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard,
+  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
