@@ -16,6 +16,15 @@ function brNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
 
+function normalizePhone(value: string | null | undefined) {
+  return (value || "").replace(/\D/g, "");
+}
+
+function stripCountryCodeBR(value: string) {
+  const digits = normalizePhone(value);
+  return digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
+}
+
 async function sendWhatsApp(url: string, token: string, phone: string, text: string) {
   await fetch(`${url}/send/text`, {
     method: "POST",
