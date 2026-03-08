@@ -848,6 +848,9 @@ serve(async (req) => {
         }
       }
 
+      // Extract messageid for media download via UAZAPI
+      messageId = msg.messageid || msg.id || msg.key?.id || "";
+
       // Audio
       if (!isAudio && (
         msg.type === "audio"
