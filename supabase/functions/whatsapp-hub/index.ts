@@ -305,7 +305,7 @@ const INTENT_TOOLS = [
               "add_expense", "add_income", "mark_paid", "list_expenses", "list_incomes",
               "wallet_balance", "monthly_summary", "financial_projection", "check_savings_goal", "save_to_cofrinho",
               // Estudos
-              "list_events", "add_event", "list_subjects", "subject_question",
+              "list_events", "add_event", "list_subjects", "subject_question", "check_class_schedule",
               // Fit
               "log_workout", "active_plan", "check_progress", "nutrition_question",
               // Tarefas
