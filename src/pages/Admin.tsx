@@ -41,11 +41,15 @@ interface AdminSetting {
 
 interface FinancialData {
   totalUsers: number;
-  currentMonth: { revenue: number; expenses: number; paid: number; pending: number };
+  totalSubscribers: number;
+  trialingUsers: number;
+  canceledSubscriptions: number;
   mrr: number;
-  totalWalletBalance: number;
-  wallets: Array<{ name: string; balance: number }>;
-  monthlyHistory: Array<{ month: number; year: number; revenue: number; expenses: number }>;
+  monthlyRevenue: number;
+  refunds: number;
+  planBreakdown: Array<{ name: string; count: number; revenue: number }>;
+  monthlyHistory: Array<{ month: number; year: number; revenue: number }>;
+  recentPayments: Array<{ id: string; email: string; amount: number; date: string; description: string }>;
 }
 
 const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
