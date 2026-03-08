@@ -23,13 +23,13 @@ serve(async (req) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: claims, error: claimsErr } = await supabase.auth.getClaims(authHeader.replace("Bearer ", ""));
-    if (claimsErr || !claims?.claims) {
+    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !user) {
       return new Response(JSON.stringify({ error: "Token inválido" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const userId = claims.claims.sub as string;
+    const userId = user.id;
 
     const { messages } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -55,6 +55,20 @@ PERFIL DO USUÁRIO:
 - Orçamento alimentar: R$${fitProfile.monthly_food_budget}/mês
 ` : "Perfil não cadastrado.";
 
+    // Get active plans for context
+    const [workoutRes, mealRes] = await Promise.all([
+      supabase.from("fit_workout_plans").select("title, plan_data").eq("user_id", userId).eq("active", true).maybeSingle(),
+      supabase.from("fit_meal_plans").select("title, plan_data, shopping_list").eq("user_id", userId).eq("active", true).maybeSingle(),
+    ]);
+
+    let plansContext = "";
+    if (workoutRes.data) {
+      plansContext += `\nPLANO DE TREINO ATIVO: ${workoutRes.data.title}\n${JSON.stringify(workoutRes.data.plan_data).slice(0, 2000)}`;
+    }
+    if (mealRes.data) {
+      plansContext += `\nPLANO ALIMENTAR ATIVO: ${mealRes.data.title}\n${JSON.stringify(mealRes.data.plan_data).slice(0, 2000)}`;
+    }
+
     const systemPrompt = `Você é o ORBE Fit, um nutricionista e personal trainer IA.
 
 REGRAS DE COMUNICAÇÃO (OBRIGATÓRIAS):
@@ -69,8 +83,10 @@ REGRAS DE COMUNICAÇÃO (OBRIGATÓRIAS):
 - Português brasileiro, sem formalidade excessiva.
 
 ${profileContext}
+${plansContext}
 
 Você orienta sobre treino, alimentação, suplementação e ajustes de plano.
+Quando o usuário pedir para ajustar o plano, sugira as mudanças de forma clara e objetiva.
 Para questões médicas sérias, oriente brevemente a buscar um profissional.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
