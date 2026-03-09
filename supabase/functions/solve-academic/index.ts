@@ -96,13 +96,11 @@ EXECUTE AGORA. Vá direto ao conteúdo. Sem preâmbulos.`;
     if (pdfBase64) {
       userContent.push({
         type: "text",
-        text: `Extraia todo o conteúdo deste PDF (${fileName || "documento"}) e resolva completamente todas as questões/itens encontrados:\n\n${content && !content.startsWith("[") ? content : ""}`,
+        text: `Analise este PDF (${fileName || "documento"}) e resolva completamente:\n\n${content && !content.startsWith("[") ? content : ""}`,
       });
       userContent.push({
         type: "image_url",
-        image_url: {
-          url: `data:application/pdf;base64,${pdfBase64}`,
-        },
+        image_url: { url: `data:application/pdf;base64,${pdfBase64}` },
       });
     } else if (imageBase64) {
       const ext = (fileName || "").split(".").pop()?.toLowerCase() || "png";
@@ -113,19 +111,31 @@ EXECUTE AGORA. Vá direto ao conteúdo. Sem preâmbulos.`;
       const mime = mimeMap[ext] || "image/png";
       userContent.push({
         type: "text",
-        text: `Extraia todo o conteúdo desta imagem (${fileName || "imagem"}) e resolva completamente todas as questões/itens encontrados:\n\n${content && !content.startsWith("[") ? content : ""}`,
+        text: `Analise esta imagem (${fileName || "imagem"}) e resolva completamente:\n\n${content && !content.startsWith("[") ? content : ""}`,
       });
       userContent.push({
         type: "image_url",
-        image_url: {
-          url: `data:${mime};base64,${imageBase64}`,
-        },
+        image_url: { url: `data:${mime};base64,${imageBase64}` },
       });
     } else {
       userContent.push({
         type: "text",
         text: `Resolva o seguinte material:\n\n${content}`,
       });
+    }
+
+    // Append additional files (multi-upload)
+    if (additionalFiles && Array.isArray(additionalFiles)) {
+      for (const file of additionalFiles) {
+        userContent.push({
+          type: "text",
+          text: `Arquivo adicional: ${file.name}`,
+        });
+        userContent.push({
+          type: "image_url",
+          image_url: { url: `data:${file.mime};base64,${file.base64}` },
+        });
+      }
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
