@@ -35,6 +35,7 @@ interface ProfileData {
 }
 
 export default function Profile() {
+  const { user } = useAuth();
   const { currency, setCurrency: setGlobalCurrency } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
