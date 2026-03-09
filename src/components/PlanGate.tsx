@@ -1,4 +1,4 @@
-import { useAuth, ORBE_PLANS, PlanKey } from "@/contexts/AuthContext";
+import { useAuth, ORBE_PLANS, PlanKey, BillingPeriod } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
