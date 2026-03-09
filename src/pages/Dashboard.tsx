@@ -144,7 +144,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className={`text-3xl font-bold font-display ${(totalCarteiras - gastosPendentes) < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {(totalCarteiras - gastosPendentes).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalCarteiras - gastosPendentes)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">Patrimônio − Gastos pendentes</p>
             </CardContent>
