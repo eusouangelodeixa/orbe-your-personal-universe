@@ -37,6 +37,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthProvider>
+        <CurrencyProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
