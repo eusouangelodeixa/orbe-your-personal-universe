@@ -587,17 +587,38 @@ export default function Landing() {
         </div>
 
         <div className="landing-pricing-grid fade-up">
-          {[
-            { plan: "Basic", planKey: "basic", price: currentPrices.basic, period: "Módulo Financeiro", features: ["Planilha doméstica inteligente", "Registro via WhatsApp", "Alertas de vencimento", "Dashboard financeiro"], disabled: ["Módulo de Estudos", "Módulo Fit"], featured: false },
-            { plan: "Student", planKey: "student", price: currentPrices.student, period: "Financeiro + Estudos", features: ["Tudo do Basic", "Agenda acadêmica completa", "IA especialista por matéria", "Lembretes de provas e trabalhos", "Simulados com correção IA"], disabled: ["Módulo Fit"], featured: false },
-            { plan: "Full", planKey: "full", price: currentPrices.full, period: "Todos os Módulos", features: ["Tudo do Student", "Plano alimentar IA personalizado", "Plano de treino adaptado", "Nutricionista IA 24h", "Lembretes de treino e dieta", "Suporte prioritário"], disabled: [], featured: true },
-            { plan: "Fit Only", planKey: "fit", price: currentPrices.fit, period: "Financeiro + Fit", features: ["Tudo do Basic", "Plano alimentar personalizado", "Divisão de treinos IA", "Nutricionista pessoal IA", "Acompanhamento de IMC"], disabled: ["Módulo de Estudos"], featured: false },
-          ].map((p) => (
-            <div key={p.plan} className={`landing-price-card ${p.featured ? "featured" : ""}`}>
-              {p.featured && <div className="landing-price-popular">Mais Popular</div>}
-              <div className="landing-price-plan">{p.plan}</div>
-              <div className="landing-price-val"><sup>R$</sup>{p.price}</div>
-              <div className="landing-price-period">/{pricePeriod === "mensal" ? "mês" : pricePeriod === "trimestral" ? "trimestre" : "ano"} · {p.period}</div>
+          {(() => {
+            const monthlyPrices = prices.mensal;
+            return [
+              { plan: "Basic", planKey: "basic", price: currentPrices.basic, monthlyPrice: monthlyPrices.basic, period: "Módulo Financeiro", features: ["Planilha doméstica inteligente", "Registro via WhatsApp", "Alertas de vencimento", "Dashboard financeiro"], disabled: ["Módulo de Estudos", "Módulo Fit"], featured: false },
+              { plan: "Student", planKey: "student", price: currentPrices.student, monthlyPrice: monthlyPrices.student, period: "Financeiro + Estudos", features: ["Tudo do Basic", "Agenda acadêmica completa", "IA especialista por matéria", "Lembretes de provas e trabalhos", "Simulados com correção IA"], disabled: ["Módulo Fit"], featured: false },
+              { plan: "Full", planKey: "full", price: currentPrices.full, monthlyPrice: monthlyPrices.full, period: "Todos os Módulos", features: ["Tudo do Student", "Plano alimentar IA personalizado", "Plano de treino adaptado", "Nutricionista IA 24h", "Lembretes de treino e dieta", "Suporte prioritário"], disabled: [], featured: true },
+              { plan: "Fit Only", planKey: "fit", price: currentPrices.fit, monthlyPrice: monthlyPrices.fit, period: "Financeiro + Fit", features: ["Tudo do Basic", "Plano alimentar personalizado", "Divisão de treinos IA", "Nutricionista pessoal IA", "Acompanhamento de IMC"], disabled: ["Módulo de Estudos"], featured: false },
+            ].map((p) => {
+              const isNotMonthly = pricePeriod !== "mensal";
+              const monthlyEquivalent = isNotMonthly ? Math.round(p.price / (pricePeriod === "trimestral" ? 3 : 12)) : p.price;
+              const billingLabel = pricePeriod === "trimestral"
+                ? `Cobrado R$${p.price} a cada 3 meses`
+                : pricePeriod === "anual"
+                  ? `Cobrado R$${p.price} por ano`
+                  : null;
+
+              return (
+                <div key={p.plan} className={`landing-price-card ${p.featured ? "featured" : ""}`}>
+                  {p.featured && <div className="landing-price-popular">Mais Popular</div>}
+                  <div className="landing-price-plan">{p.plan}</div>
+                  {isNotMonthly && (
+                    <div style={{ textDecoration: "line-through", opacity: 0.5, fontSize: "14px", fontFamily: "'Syne',sans-serif", marginBottom: "4px" }}>
+                      De R$ {p.monthlyPrice}/mês
+                    </div>
+                  )}
+                  <div className="landing-price-val"><sup>R$</sup>{monthlyEquivalent}</div>
+                  <div className="landing-price-period">/mês · {p.period}</div>
+                  {billingLabel && (
+                    <div style={{ fontSize: "11px", color: "var(--grey)", marginTop: "4px", fontFamily: "'Space Grotesk',sans-serif" }}>
+                      {billingLabel}
+                    </div>
+                  )}
               <div className="landing-price-divider" />
               <div className="landing-price-features">
                 {p.features.map((f) => (

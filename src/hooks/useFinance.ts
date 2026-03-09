@@ -540,10 +540,10 @@ export function useAddSavingsGoal() {
 export function useUpdateSavingsGoal() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, current_amount }: { id: string; current_amount: number }) => {
+    mutationFn: async ({ id, ...data }: { id: string; current_amount?: number; name?: string; target_amount?: number; deadline?: string | null }) => {
       const { error } = await supabase
         .from("savings_goals")
-        .update({ current_amount })
+        .update(data)
         .eq("id", id);
       if (error) throw error;
     },
@@ -564,6 +564,45 @@ export function useDeleteSavingsGoal() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["savings_goals"] });
       toast.success("Meta removida");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ========== SAVINGS TRANSACTIONS ==========
+
+export function useSavingsTransactions(goalId?: string) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["savings_transactions", user?.id, goalId],
+    enabled: !!user && !!goalId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("savings_transactions")
+        .select("*")
+        .eq("user_id", user!.id)
+        .eq("goal_id", goalId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useAddSavingsTransaction() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (tx: { goal_id: string; amount: number; type: string; description?: string }) => {
+      const { error } = await supabase.from("savings_transactions").insert({
+        ...tx,
+        user_id: user!.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["savings_transactions"] });
+      qc.invalidateQueries({ queryKey: ["savings_goals"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
