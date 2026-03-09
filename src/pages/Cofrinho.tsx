@@ -65,10 +65,10 @@ export default function Cofrinho() {
     updateGoal.mutate({ id: goal.id, current_amount: Number(goal.current_amount) + amount });
     addTransaction.mutate({
       goal_id: goal.id, amount, type: "deposit",
-      description: `Depósito de R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      description: `Depósito de ${formatMoney(amount)}`,
     });
     setDepositAmount("");
-    toast.success(`R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} adicionado a ${goal.name}`);
+    toast.success(`${formatMoney(amount)} adicionado a ${goal.name}`);
   };
 
   const handleEditGoal = () => {
