@@ -64,11 +64,16 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
   };
 
   const formatMoney = (value: number) => {
-    return Number(value).toLocaleString(currency.locale, {
+    const formatted = Number(value).toLocaleString(currency.locale, {
       style: "currency",
       currency: currency.code,
       minimumFractionDigits: currency.code === "JPY" ? 0 : 2,
     });
+    // Intl uses "MTn"/"MTN" for MZN; replace with our custom symbol
+    if (currency.code === "MZN") {
+      return formatted.replace(/MTn|MTN/g, "MT");
+    }
+    return formatted;
   };
 
   return (
