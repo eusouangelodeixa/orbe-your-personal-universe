@@ -871,7 +871,7 @@ export default function Planilha() {
                     </div>
                   </div>
                   <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
-                    {tx.type === "credit" ? "+" : "-"} R$ {Number(tx.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {tx.type === "credit" ? "+" : "-"} {formatMoney(Number(tx.amount))}
                   </span>
                 </div>
               ))}
