@@ -75,7 +75,7 @@ serve(async (req) => {
       planSub
     ) {
       const plan = mapLojouPlan(planSub.plan_name);
-      const period = mapLojouPeriod(planSub.plan_type);
+      const period = mapLojouPeriod(planSub.plan_type, planSub.plan_name);
 
       if (!plan) {
         console.log("[LOJOU-WEBHOOK] Could not map plan:", planSub.plan_name);
