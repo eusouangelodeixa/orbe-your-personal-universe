@@ -143,7 +143,7 @@ function UpgradeWall({ group }: { group: string }) {
                       {plan.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      R$ {plan.price}<span className="text-xs">/mês</span>
+                      R$ {plan.prices.mensal.amount}<span className="text-xs">/mês</span>
                     </p>
                   </div>
                   <Button
