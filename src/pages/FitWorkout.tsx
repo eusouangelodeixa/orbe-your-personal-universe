@@ -91,6 +91,8 @@ export default function FitWorkout() {
   };
 
   // === CHECKLIST MODE ===
+  const isNumericWeight = (w?: string) => w ? /^\d/.test(w.trim()) : false;
+
   const startChecklist = (dayIndex: number, day: WorkoutDay) => {
     const checked: Record<string, boolean> = {};
     const weights: Record<string, string> = {};
@@ -98,7 +100,7 @@ export default function FitWorkout() {
     day.exercises.forEach((ex, i) => {
       const key = `${i}-${ex.name}`;
       checked[key] = false;
-      weights[key] = ex.weight || "";
+      weights[key] = isNumericWeight(ex.weight) ? (ex.weight || "") : "";
       reps[key] = String(ex.reps).replace(/[^0-9-]/g, '') || "12";
     });
     setActiveChecklist({ dayIndex, day, checked, weights, reps, startTime: Date.now() });
@@ -479,15 +481,18 @@ export default function FitWorkout() {
                             const key = `${j}-${ex.name}`;
                             const isChecked = activeChecklist.checked[key];
                             return (
-                              <div key={j} className={`flex items-center gap-3 rounded-md px-2 py-2 transition-all ${isChecked ? "bg-primary/10 opacity-70" : "hover:bg-muted/50"}`}>
+                              <div key={j} className={`flex items-center gap-2 rounded-md px-2 py-2 transition-all ${isChecked ? "bg-primary/10 opacity-70" : "hover:bg-muted/50"}`}>
                                 <Checkbox checked={isChecked} onCheckedChange={() => toggleExercise(key)} className="h-5 w-5" />
-                                <div className={`flex-1 text-sm ${isChecked ? "line-through text-muted-foreground" : ""}`}>
-                                  {ex.name}
-                                  <span className="text-xs text-muted-foreground ml-2">{ex.sets}×{ex.reps}</span>
+                                <div className={`flex-1 min-w-0 ${isChecked ? "line-through text-muted-foreground" : ""}`}>
+                                  <span className="text-sm">{ex.name}</span>
+                                  <span className="text-xs text-muted-foreground ml-1">{ex.sets}×{ex.reps}</span>
+                                  {ex.weight && !isNumericWeight(ex.weight) && (
+                                    <span className="text-[10px] ml-1.5 px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{ex.weight}</span>
+                                  )}
                                 </div>
-                                <Input value={activeChecklist.weights[key]} onChange={e => updateChecklistWeight(key, e.target.value)} className="h-7 text-xs w-16" placeholder="Carga" />
+                                <Input value={activeChecklist.weights[key]} onChange={e => updateChecklistWeight(key, e.target.value)} className="h-7 text-xs w-16 shrink-0" placeholder="kg" />
                                 <span className="text-xs text-muted-foreground">×</span>
-                                <Input value={activeChecklist.reps[key]} onChange={e => updateChecklistReps(key, e.target.value)} className="h-7 text-xs w-14" placeholder="Reps" />
+                                <Input value={activeChecklist.reps[key]} onChange={e => updateChecklistReps(key, e.target.value)} className="h-7 text-xs w-14 shrink-0" placeholder="Reps" />
                               </div>
                             );
                           })}
