@@ -881,6 +881,7 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const resultRef = useRef<HTMLDivElement>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -981,47 +982,235 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
     }
   };
 
+  // ─── ABNT-compliant PDF export ───
   const exportPDF = async () => {
     if (!result) return;
     const { default: jsPDF } = await import("jspdf");
-    const doc = new jsPDF();
-    const lines = doc.splitTextToSize(result.replace(/[#*`]/g, ""), 180);
-    let y = 15;
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+
+    // ABNT margins: top 30mm, left 30mm, bottom 20mm, right 20mm
+    const marginLeft = 30;
+    const marginRight = 20;
+    const marginTop = 30;
+    const marginBottom = 20;
+    const pageWidth = 210 - marginLeft - marginRight; // 160mm usable
+    const pageHeight = 297;
+    let y = marginTop;
+    let pageNum = 1;
+
+    const addPage = () => {
+      doc.addPage();
+      pageNum++;
+      y = marginTop;
+      // Page number top-right (ABNT)
+      doc.setFontSize(10);
+      doc.setFont("times", "normal");
+      doc.text(String(pageNum), 210 - marginRight, 15, { align: "right" });
+    };
+
+    const checkPage = (needed: number) => {
+      if (y + needed > pageHeight - marginBottom) addPage();
+    };
+
+    // First page number
     doc.setFontSize(10);
-    for (const line of lines) {
-      if (y > 280) { doc.addPage(); y = 15; }
-      doc.text(line, 15, y);
-      y += 5;
+    doc.setFont("times", "normal");
+
+    const lines = result.split("\n");
+
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "");
+
+      // Heading 1: # or 1 SECTION
+      if (line.match(/^#{1}\s/) || line.match(/^\d+\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,}/)) {
+        checkPage(12);
+        y += 6;
+        doc.setFontSize(14);
+        doc.setFont("times", "bold");
+        const heading = line.replace(/^#+\s*/, "").toUpperCase();
+        doc.text(heading, marginLeft, y);
+        y += 8;
+        doc.setFontSize(12);
+        doc.setFont("times", "normal");
+      }
+      // Heading 2: ##
+      else if (line.match(/^#{2}\s/)) {
+        checkPage(10);
+        y += 4;
+        doc.setFontSize(12);
+        doc.setFont("times", "bold");
+        doc.text(line.replace(/^#+\s*/, ""), marginLeft, y);
+        y += 7;
+        doc.setFont("times", "normal");
+      }
+      // Heading 3: ###
+      else if (line.match(/^#{3,}\s/)) {
+        checkPage(8);
+        y += 3;
+        doc.setFontSize(12);
+        doc.setFont("times", "italic");
+        doc.text(line.replace(/^#+\s*/, ""), marginLeft, y);
+        y += 6;
+        doc.setFont("times", "normal");
+      }
+      // Empty line → paragraph spacing
+      else if (line.trim() === "") {
+        y += 4;
+      }
+      // Long citation (starts with >)
+      else if (line.startsWith(">")) {
+        const citText = line.replace(/^>\s*/, "");
+        doc.setFontSize(10);
+        const citLines = doc.splitTextToSize(citText, pageWidth - 40); // extra 40mm indent = recuo 4cm
+        for (const cl of citLines) {
+          checkPage(5);
+          doc.text(cl, marginLeft + 40, y);
+          y += 4; // single spacing for citations
+        }
+        doc.setFontSize(12);
+        y += 2;
+      }
+      // Regular paragraph
+      else {
+        doc.setFontSize(12);
+        doc.setFont("times", "normal");
+        const wrapped = doc.splitTextToSize(line, pageWidth);
+        let first = true;
+        for (const wl of wrapped) {
+          checkPage(6);
+          // ABNT paragraph indent 1.25cm = ~12.5mm on first line
+          const indent = first ? 12.5 : 0;
+          doc.text(wl, marginLeft + indent, y);
+          y += 6; // ~1.5 line spacing at 12pt
+          first = false;
+        }
+        y += 1;
+      }
     }
+
     doc.save(`resolucao-${subjectName.replace(/\s+/g, "-").toLowerCase()}.pdf`);
-    toast.success("PDF exportado!");
+    toast.success("PDF exportado com formatação ABNT!");
   };
 
+  // ─── ABNT-compliant DOCX export ───
   const exportDOCX = async () => {
     if (!result) return;
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, convertMillimetersToTwip, PageBreak } = await import("docx");
+
+    const FONT = "Times New Roman";
+    const SIZE_12 = 24; // half-points
+    const SIZE_10 = 20;
+    const LINE_SPACING_1_5 = 360; // 1.5 lines in twips
+    const LINE_SPACING_SINGLE = 240;
+    const INDENT_FIRST_LINE = convertMillimetersToTwip(12.5); // 1.25cm
+
     const paragraphs: any[] = [];
     const lines = result.split("\n");
-    for (const line of lines) {
-      if (line.startsWith("# ")) {
-        paragraphs.push(new Paragraph({ text: line.slice(2), heading: HeadingLevel.HEADING_1 }));
-      } else if (line.startsWith("## ")) {
-        paragraphs.push(new Paragraph({ text: line.slice(3), heading: HeadingLevel.HEADING_2 }));
-      } else if (line.startsWith("### ")) {
-        paragraphs.push(new Paragraph({ text: line.slice(4), heading: HeadingLevel.HEADING_3 }));
-      } else if (line.trim() === "") {
-        paragraphs.push(new Paragraph({ text: "" }));
-      } else {
+
+    // Helper to parse inline bold/italic from markdown
+    const parseInlineFormatting = (text: string, fontSize: number): any[] => {
+      const runs: any[] = [];
+      // Match **bold**, *italic*, ***bold-italic***, and plain text
+      const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+))/g;
+      let match;
+      while ((match = regex.exec(text)) !== null) {
+        if (match[2]) {
+          runs.push(new TextRun({ text: match[2], bold: true, italics: true, font: FONT, size: fontSize }));
+        } else if (match[3]) {
+          runs.push(new TextRun({ text: match[3], bold: true, font: FONT, size: fontSize }));
+        } else if (match[4]) {
+          runs.push(new TextRun({ text: match[4], italics: true, font: FONT, size: fontSize }));
+        } else if (match[5]) {
+          runs.push(new TextRun({ text: match[5].replace(/`/g, ""), font: FONT, size: fontSize }));
+        }
+      }
+      return runs.length ? runs : [new TextRun({ text: text.replace(/[*`]/g, ""), font: FONT, size: fontSize })];
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine;
+
+      // Heading 1
+      if (line.match(/^#{1}\s/) || line.match(/^\d+\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,}/)) {
+        const text = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
         paragraphs.push(new Paragraph({
-          children: [new TextRun({ text: line.replace(/\*\*/g, "").replace(/\*/g, ""), size: 24 })],
+          children: [new TextRun({ text: text.toUpperCase(), bold: true, font: FONT, size: SIZE_12 })],
+          heading: HeadingLevel.HEADING_1,
+          spacing: { before: 240, after: 120, line: LINE_SPACING_1_5 },
+        }));
+      }
+      // Heading 2
+      else if (line.match(/^#{2}\s/)) {
+        const text = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+        paragraphs.push(new Paragraph({
+          children: [new TextRun({ text, bold: true, font: FONT, size: SIZE_12 })],
+          heading: HeadingLevel.HEADING_2,
+          spacing: { before: 200, after: 100, line: LINE_SPACING_1_5 },
+        }));
+      }
+      // Heading 3+
+      else if (line.match(/^#{3,}\s/)) {
+        const text = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+        paragraphs.push(new Paragraph({
+          children: [new TextRun({ text, bold: true, italics: true, font: FONT, size: SIZE_12 })],
+          heading: HeadingLevel.HEADING_3,
+          spacing: { before: 160, after: 80, line: LINE_SPACING_1_5 },
+        }));
+      }
+      // Empty line
+      else if (line.trim() === "") {
+        paragraphs.push(new Paragraph({ text: "", spacing: { line: LINE_SPACING_1_5 } }));
+      }
+      // Blockquote / long citation (ABNT: recuo 4cm, font 10, single spacing)
+      else if (line.startsWith(">")) {
+        const text = line.replace(/^>\s*/, "");
+        paragraphs.push(new Paragraph({
+          children: parseInlineFormatting(text, SIZE_10),
+          indent: { left: convertMillimetersToTwip(40) },
+          spacing: { line: LINE_SPACING_SINGLE },
+        }));
+      }
+      // Bullet list
+      else if (line.match(/^[-•]\s/)) {
+        const text = line.replace(/^[-•]\s*/, "");
+        paragraphs.push(new Paragraph({
+          children: parseInlineFormatting(text, SIZE_12),
+          indent: { left: convertMillimetersToTwip(12.5) },
+          spacing: { line: LINE_SPACING_1_5 },
+          bullet: { level: 0 },
+        }));
+      }
+      // Regular paragraph with ABNT first-line indent
+      else {
+        paragraphs.push(new Paragraph({
+          children: parseInlineFormatting(line, SIZE_12),
+          indent: { firstLine: INDENT_FIRST_LINE },
+          spacing: { line: LINE_SPACING_1_5 },
+          alignment: AlignmentType.JUSTIFIED,
         }));
       }
     }
-    const doc = new Document({ sections: [{ children: paragraphs }] });
+
+    const doc = new Document({
+      sections: [{
+        properties: {
+          page: {
+            margin: {
+              top: convertMillimetersToTwip(30),
+              right: convertMillimetersToTwip(20),
+              bottom: convertMillimetersToTwip(20),
+              left: convertMillimetersToTwip(30),
+            },
+          },
+        },
+        children: paragraphs,
+      }],
+    });
+
     const blob = await Packer.toBlob(doc);
     const { saveAs } = await import("file-saver");
     saveAs(blob, `resolucao-${subjectName.replace(/\s+/g, "-").toLowerCase()}.docx`);
-    toast.success("DOCX exportado!");
+    toast.success("DOCX exportado com formatação ABNT!");
   };
 
   return (
@@ -1075,7 +1264,7 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
             <Input
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
-              placeholder="Ex: Use normas ABNT, inclua referências, resolva apenas as questões 1-5..."
+              placeholder="Ex: Inclua referências, resolva apenas as questões 1-5..."
             />
           </div>
 
@@ -1102,10 +1291,42 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-3 [&_th]:py-1.5 [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5 [&_pre]:bg-muted [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:text-xs [&_pre]:overflow-x-auto [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-3 [&_blockquote]:italic">
+            <div
+              ref={resultRef}
+              className="academic-result prose prose-sm dark:prose-invert max-w-none
+                [&_h1]:text-lg [&_h1]:font-bold [&_h1]:uppercase [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:border-b [&_h1]:border-border [&_h1]:pb-2
+                [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2
+                [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2
+                [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-3 [&_p]:text-justify
+                [&_ul]:pl-5 [&_ul]:mb-3 [&_ol]:pl-5 [&_ol]:mb-3
+                [&_li]:text-sm [&_li]:mb-1 [&_li]:leading-relaxed
+                [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_table]:my-4 [&_table]:rounded-md [&_table]:overflow-hidden
+                [&_thead]:bg-muted
+                [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:text-xs
+                [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:text-xs
+                [&_tr:nth-child(even)]:bg-muted/30
+                [&_pre]:bg-muted [&_pre]:rounded-md [&_pre]:p-4 [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-3
+                [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded
+                [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:px-0 [&_pre_code]:py-0
+                [&_blockquote]:border-l-4 [&_blockquote]:border-primary/60 [&_blockquote]:pl-4 [&_blockquote]:pr-2 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:bg-muted/20 [&_blockquote]:rounded-r-md [&_blockquote]:italic [&_blockquote]:text-sm
+                [&_hr]:border-border [&_hr]:my-6
+                [&_.katex]:text-sm
+                [&_.katex-display]:my-4 [&_.katex-display]:overflow-x-auto
+                [&_strong]:font-bold [&_em]:italic"
+            >
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
+                components={{
+                  code({ className, children, ...props }) {
+                    const language = /language-(\w+)/.exec(className || "")?.[1];
+                    const codeText = String(children).replace(/\n$/, "");
+                    if (language === "mermaid") {
+                      return <MermaidBlock chart={codeText} />;
+                    }
+                    return <code className={className} {...props}>{children}</code>;
+                  },
+                }}
               >
                 {sanitizeLatex(result)}
               </ReactMarkdown>
