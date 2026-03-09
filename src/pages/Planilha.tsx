@@ -888,7 +888,7 @@ export default function Planilha() {
                 <p className="text-xs text-muted-foreground">Renda − Gastos do mês</p>
               </div>
               <p className={`text-2xl font-bold font-display ${saldo < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(saldo)}
               </p>
             </div>
             <div className="border-t border-border pt-4 flex justify-between items-center">
