@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ORBE_PLANS, PlanKey } from "@/contexts/AuthContext";
+import { ORBE_PLANS, PlanKey, BillingPeriod } from "@/contexts/AuthContext";
 import { OrbeIcon } from "@/components/OrbeIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ export default function Auth() {
   const [searchParams] = useSearchParams();
   const { session } = useAuth();
   const selectedPlan = searchParams.get("plan") as PlanKey | null;
+  const selectedPeriod = (searchParams.get("period") as BillingPeriod) || "mensal";
 
   useEffect(() => {
     if (!session) return;
@@ -27,8 +28,9 @@ export default function Auth() {
       const triggerCheckout = async () => {
         try {
           const plan = ORBE_PLANS[selectedPlan];
+          const period: BillingPeriod = selectedPeriod in plan.prices ? selectedPeriod : "mensal";
           const { data, error } = await supabase.functions.invoke("create-checkout", {
-            body: { priceId: plan.price_id },
+            body: { priceId: plan.prices[period].price_id },
           });
           if (error) throw error;
           if (data?.url) window.open(data.url, "_blank");

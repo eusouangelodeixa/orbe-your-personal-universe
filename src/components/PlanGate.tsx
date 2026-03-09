@@ -1,4 +1,4 @@
-import { useAuth, ORBE_PLANS, PlanKey } from "@/contexts/AuthContext";
+import { useAuth, ORBE_PLANS, PlanKey, BillingPeriod } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -84,12 +84,12 @@ function TrialBanner({ trialEndsAt }: { trialEndsAt: string | null }) {
 function UpgradeWall({ group }: { group: string }) {
   const [loading, setLoading] = useState<string | null>(null);
 
-  const handleCheckout = async (planKey: PlanKey) => {
+  const handleCheckout = async (planKey: PlanKey, period: BillingPeriod = "mensal") => {
     setLoading(planKey);
     try {
       const plan = ORBE_PLANS[planKey];
       const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { priceId: plan.price_id },
+        body: { priceId: plan.prices[period].price_id },
       });
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");
@@ -143,7 +143,7 @@ function UpgradeWall({ group }: { group: string }) {
                       {plan.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      R$ {plan.price}<span className="text-xs">/mês</span>
+                      R$ {plan.prices.mensal.amount}<span className="text-xs">/mês</span>
                     </p>
                   </div>
                   <Button
@@ -168,12 +168,12 @@ function UpgradeWall({ group }: { group: string }) {
 
 export function useCheckout() {
   const [loading, setLoading] = useState(false);
-  const checkout = async (planKey: PlanKey) => {
+  const checkout = async (planKey: PlanKey, period: BillingPeriod = "mensal") => {
     setLoading(true);
     try {
       const plan = ORBE_PLANS[planKey];
       const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { priceId: plan.price_id },
+        body: { priceId: plan.prices[period].price_id },
       });
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");

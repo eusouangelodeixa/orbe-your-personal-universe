@@ -2,11 +2,45 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode 
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
+export type BillingPeriod = "mensal" | "trimestral" | "anual";
+
 export const ORBE_PLANS = {
-  basic: { product_id: "prod_U73CrhAJW5hnAY", price_id: "price_1T8p6B4tVPtm5YNwmqviEphn", name: "Basic", price: 19 },
-  student: { product_id: "prod_U73CVnib4ajQ4N", price_id: "price_1T8p6Y4tVPtm5YNwADcxhwGk", name: "Student", price: 29 },
-  full: { product_id: "prod_U73DsZWuSfdT22", price_id: "price_1T8p6t4tVPtm5YNwmi0BmeaK", name: "Full", price: 44 },
-  fit: { product_id: "prod_U73DxXtdvzBmJe", price_id: "price_1T8p7J4tVPtm5YNwryI6eC3Y", name: "Fit Only", price: 24 },
+  basic: {
+    product_ids: ["prod_U73CrhAJW5hnAY", "prod_U7GZLZmtQEs6nC"],
+    name: "Basic",
+    prices: {
+      mensal:     { price_id: "price_1T8p6B4tVPtm5YNwmqviEphn", amount: 19 },
+      trimestral: { price_id: "price_1T925D4tVPtm5YNwovJCBB5I", amount: 48 },
+      anual:      { price_id: "price_1T922Y4tVPtm5YNwXh4TxBoX", amount: 156 },
+    },
+  },
+  student: {
+    product_ids: ["prod_U73CVnib4ajQ4N", "prod_U7GaODnTewAWGr"],
+    name: "Student",
+    prices: {
+      mensal:     { price_id: "price_1T8p6Y4tVPtm5YNwADcxhwGk", amount: 29 },
+      trimestral: { price_id: "price_1T925D4tVPtm5YNwPVVvO2lP", amount: 72 },
+      anual:      { price_id: "price_1T923H4tVPtm5YNwWTw2CCIN", amount: 228 },
+    },
+  },
+  full: {
+    product_ids: ["prod_U73DsZWuSfdT22", "prod_U7Gaazxt8yszR9"],
+    name: "Full",
+    prices: {
+      mensal:     { price_id: "price_1T8p6t4tVPtm5YNwmi0BmeaK", amount: 44 },
+      trimestral: { price_id: "price_1T925D4tVPtm5YNwvNJZ23i7", amount: 111 },
+      anual:      { price_id: "price_1T923o4tVPtm5YNwDqUHYuBJ", amount: 348 },
+    },
+  },
+  fit: {
+    product_ids: ["prod_U73DxXtdvzBmJe", "prod_U7GbYmSLchwfz8"],
+    name: "Fit Only",
+    prices: {
+      mensal:     { price_id: "price_1T8p7J4tVPtm5YNwryI6eC3Y", amount: 24 },
+      trimestral: { price_id: "price_1T925D4tVPtm5YNwPlIrZ69H", amount: 60 },
+      anual:      { price_id: "price_1T924S4tVPtm5YNwoMxSFbWE", amount: 192 },
+    },
+  },
 } as const;
 
 export type PlanKey = keyof typeof ORBE_PLANS;
@@ -47,7 +81,7 @@ export const useAuth = () => useContext(AuthContext);
 function productToPlan(productId: string | null): PlanKey | null {
   if (!productId) return null;
   for (const [key, plan] of Object.entries(ORBE_PLANS)) {
-    if (plan.product_id === productId) return key as PlanKey;
+    if ((plan.product_ids as readonly string[]).includes(productId)) return key as PlanKey;
   }
   return null;
 }

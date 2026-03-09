@@ -100,8 +100,8 @@ export default function Landing() {
 
   const prices: Record<string, { basic: number; student: number; full: number; fit: number }> = {
     mensal: { basic: 19, student: 29, full: 44, fit: 24 },
-    trimestral: { basic: 16, student: 24, full: 37, fit: 20 },
-    anual: { basic: 13, student: 19, full: 29, fit: 16 },
+    trimestral: { basic: 48, student: 72, full: 111, fit: 60 },
+    anual: { basic: 156, student: 228, full: 348, fit: 192 },
   };
 
   const currentPrices = prices[pricePeriod];
@@ -597,7 +597,7 @@ export default function Landing() {
               {p.featured && <div className="landing-price-popular">Mais Popular</div>}
               <div className="landing-price-plan">{p.plan}</div>
               <div className="landing-price-val"><sup>R$</sup>{p.price}</div>
-              <div className="landing-price-period">/mês · {p.period}</div>
+              <div className="landing-price-period">/{pricePeriod === "mensal" ? "mês" : pricePeriod === "trimestral" ? "trimestre" : "ano"} · {p.period}</div>
               <div className="landing-price-divider" />
               <div className="landing-price-features">
                 {p.features.map((f) => (
@@ -607,7 +607,7 @@ export default function Landing() {
                   <div key={f} className="landing-pf-item disabled">{f}</div>
                 ))}
               </div>
-              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate(`/auth?plan=${p.planKey}`)}>
+              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate(`/auth?plan=${p.planKey}&period=${pricePeriod}`)}>
                 {p.featured ? "Começar Agora" : "Começar"}
               </button>
             </div>
