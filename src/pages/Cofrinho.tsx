@@ -214,10 +214,10 @@ export default function Cofrinho() {
                         </div>
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-2xl font-bold font-display text-primary">
-                            R$ {Number(goal.current_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            {formatMoney(Number(goal.current_amount))}
                           </span>
                           <span className="text-muted-foreground">
-                            / R$ {Number(goal.target_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            / {formatMoney(Number(goal.target_amount))}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
