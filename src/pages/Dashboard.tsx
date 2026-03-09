@@ -199,7 +199,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="font-display">Gastos por Categoria (R$)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="font-display">Gastos por Categoria ({currency.symbol})</CardTitle></CardHeader>
             <CardContent className="h-64">
               {pieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
