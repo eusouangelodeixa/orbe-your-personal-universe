@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 const SPECIALIST_MAP: Record<string, string> = {
@@ -49,19 +50,19 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const authHeader = req.headers.get("Authorization");
     const { messages, subjectName, subjectType, ementaText } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const specialist = getSpecialist(subjectName);
-    const typeLabel = subjectType === "pratica" ? "prática" : subjectType === "laboratorio" ? "de laboratório" : "teórica";
+    const specialist = getSpecialist(subjectName || "");
+    const typeLabel =
+      subjectType === "pratica" ? "prática" : subjectType === "laboratorio" ? "de laboratório" : "teórica";
 
     let ementaSection = "";
     if (ementaText) {
-      ementaSection = `\n\nEMENTA:\n${ementaText}\nPriorize o conteúdo da ementa nas respostas.`;
+      ementaSection = `\nEMENTA:\n${ementaText}\nPriorize o conteúdo da ementa nas respostas.`;
     }
 
-    const systemPrompt = `Você é ${specialist}. Disciplina: "${subjectName}" (${typeLabel}). Idioma: português brasileiro.
+    const extraSystemPrompt = `Você é ${specialist}. Disciplina: "${subjectName}" (${typeLabel}). Idioma: português brasileiro.
 
 COMPORTAMENTO:
 - Responda APENAS o que foi perguntado. Direto ao assunto na primeira frase.
@@ -74,15 +75,9 @@ Toda expressão matemática deve usar LaTeX entre cifrões. Cada expressão apar
 
 Correto: "O coeficiente angular é $m = 2$ e o linear é $b = 0$."
 Correto: "O domínio é $\\mathbb{R}$."
-Correto: "A função é $f(x) = 2x$."
 
 PROIBIDO (texto duplicado após a fórmula):
-- "$m = 2$m = 2" ← ERRADO, o "m = 2" após o cifrão é lixo
-- "$f(x) = 2x$f(x) = 2x" ← ERRADO
-- "$y$y" ← ERRADO
-- "$\\mathbb{R}$R" ← ERRADO
-
-Regra: após fechar o cifrão "$", a próxima coisa DEVE ser espaço, pontuação ou quebra de linha. NUNCA repita o conteúdo.
+- "$m = 2$m = 2" ← ERRADO
 
 GRÁFICOS (use EXATAMENTE esta sintaxe mermaid):
 \`\`\`mermaid
@@ -93,41 +88,44 @@ xychart-beta
   line [9, 4, 1, 0, 1, 4, 9]
 \`\`\`
 REGRAS MERMAID:
-- x-axis SEMPRE usa array de valores: x-axis [-3, -2, -1, 0, 1, 2, 3]
-- y-axis usa "label" min --> max: y-axis "y" 0 --> 9
-- PROIBIDO usar "min" ou "max" como palavras. Use apenas números e "-->".
-- NUNCA use: x-axis "x" min -2 max 2 ← SINTAXE INVÁLIDA
-- Cada eixo e linha DEVE estar em sua própria linha (quebra de linha obrigatória).
+- x-axis SEMPRE usa array de valores
+- y-axis usa "label" min --> max
+- Cada eixo e linha DEVE estar em sua própria linha
 
 OUTROS:
 - Tabelas markdown para comparações.
-- Máximo 2 emojis por resposta (📌 💡 ⚠️ ✅).
+- Máximo 2 emojis por resposta.
 - Negrito para termos-chave.${ementaSection}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+    };
+    if (authHeader) headers["Authorization"] = authHeader;
+
+    const orchestratorUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/agent-orchestrator`;
+    const resp = await fetch(orchestratorUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
-        stream: true,
+        messages,
+        agent: "studies",
+        extraSystemPrompt,
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limited" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      if (response.status === 402) return new Response(JSON.stringify({ error: "Payment required" }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      const t = await response.text();
-      console.error("AI error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro no serviço de IA" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-
-    return new Response(response.body, { headers: { ...corsHeaders, "Content-Type": "text/event-stream" } });
+    return new Response(resp.body, {
+      status: resp.status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": resp.headers.get("Content-Type") || "application/json",
+      },
+    });
   } catch (e) {
-    console.error("subject-chat error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    console.error("subject-chat proxy error:", e);
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
