@@ -428,6 +428,7 @@ export default function SubjectDetail() {
                             {format(parseISO(ev.event_date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                             {ev.content_topics && ` • ${ev.content_topics}`}
                             {ev.weight && ` • Peso: ${ev.weight}`}
+                            {ev.grade != null && ` • Nota: ${ev.grade}`}
                           </div>
                         </div>
                         <Badge variant={STATUS_MAP[ev.status]?.variant} className="cursor-pointer text-xs" onClick={() => cycleStatus(ev)}>
