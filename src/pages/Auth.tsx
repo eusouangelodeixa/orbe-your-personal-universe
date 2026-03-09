@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { ORBE_PLANS, PlanKey } from "@/contexts/AuthContext";
+import { ORBE_PLANS, PlanKey, BillingPeriod } from "@/contexts/AuthContext";
 import { OrbeIcon } from "@/components/OrbeIcon";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
