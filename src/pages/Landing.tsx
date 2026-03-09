@@ -100,8 +100,8 @@ export default function Landing() {
 
   const prices: Record<string, { basic: number; student: number; full: number; fit: number }> = {
     mensal: { basic: 19, student: 29, full: 44, fit: 24 },
-    trimestral: { basic: 16, student: 24, full: 37, fit: 20 },
-    anual: { basic: 13, student: 19, full: 29, fit: 16 },
+    trimestral: { basic: 48, student: 72, full: 111, fit: 60 },
+    anual: { basic: 156, student: 228, full: 348, fit: 192 },
   };
 
   const currentPrices = prices[pricePeriod];
