@@ -206,7 +206,7 @@ export default function Dashboard() {
                   <BarChart data={pieData} layout="vertical">
                     <XAxis type="number" tick={{ fontSize: 12 }} />
                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                    <Tooltip formatter={(v: number) => formatMoney(v)} />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color || COLORS[i % COLORS.length]} />)}
                     </Bar>
