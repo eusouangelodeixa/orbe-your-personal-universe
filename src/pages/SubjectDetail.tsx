@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Loader2, FileText, ClipboardList, BookOpen, RotateCw,
-  Send, ArrowLeft, CalendarPlus, Upload, Pencil, User, GraduationCap, Clock, MessageSquare, FileUp, Timer, Sparkles, Download,
+  Send, ArrowLeft, CalendarPlus, Upload, Pencil, User, GraduationCap, Clock, MessageSquare, FileUp, Timer, Sparkles, Download, History, GitCompare, Save, Eye, X,
 } from "lucide-react";
 import { PomodoroTimer } from "@/components/PomodoroTimer";
 import { format, parseISO } from "date-fns";
