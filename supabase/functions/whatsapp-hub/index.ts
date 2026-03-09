@@ -902,7 +902,7 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         if (!plan) return "🏋️ Nenhum plano de treino ativo. Crie um no app.";
 
         const workouts = (plan.plan_data as any)?.workouts || (plan.plan_data as any)?.days || [];
-        const requestedWeekday = normalizeText(params.day || params.weekday || params.dia) || getRequestedWeekdayFromText(originalText, now);
+        const requestedWeekday = getRequestedWeekdayFromText(params.day || params.weekday || params.dia || "", now) || getRequestedWeekdayFromText(originalText, now);
 
         if (requestedWeekday) {
           // 1. Try direct name/day match first
