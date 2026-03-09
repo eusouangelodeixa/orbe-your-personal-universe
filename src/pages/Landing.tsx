@@ -93,17 +93,36 @@ export default function Landing() {
   const containerRef = useFadeUp();
   const [pricePeriod, setPricePeriod] = useState<"mensal" | "trimestral" | "anual">("mensal");
   const [openFaq, setOpenFaq] = useState(0);
+  const [isMozambique, setIsMozambique] = useState(false);
+
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      const lang = navigator.language || "";
+      if (tz === "Africa/Maputo" || lang.toLowerCase().includes("mz")) {
+        setIsMozambique(true);
+      }
+    } catch {}
+  }, []);
 
   const toggleFaq = useCallback((i: number) => {
     setOpenFaq((prev) => (prev === i ? -1 : i));
   }, []);
 
-  const prices: Record<string, { basic: number; student: number; full: number; fit: number }> = {
+  const pricesBRL: Record<string, { basic: number; student: number; full: number; fit: number }> = {
     mensal: { basic: 19, student: 29, full: 44, fit: 24 },
     trimestral: { basic: 48, student: 72, full: 111, fit: 60 },
     anual: { basic: 156, student: 228, full: 348, fit: 192 },
   };
 
+  const pricesMZN: Record<string, { basic: number; student: number; full: number; fit: number }> = {
+    mensal: { basic: 229, student: 349, full: 539, fit: 299 },
+    trimestral: { basic: 589, student: 889, full: 1389, fit: 739 },
+    anual: { basic: 1899, student: 2789, full: 4249, fit: 2349 },
+  };
+
+  const prices = isMozambique ? pricesMZN : pricesBRL;
+  const currencySymbol = isMozambique ? "MT" : "R$";
   const currentPrices = prices[pricePeriod];
 
   return (
