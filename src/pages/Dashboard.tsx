@@ -80,7 +80,7 @@ export default function Dashboard() {
               <ArrowUpCircle className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display text-primary">R$ {renda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              <p className="text-2xl font-bold font-display text-primary">{formatMoney(renda)}</p>
               <p className="text-xs text-muted-foreground mt-1">Total recebido no mês</p>
             </CardContent>
           </Card>
