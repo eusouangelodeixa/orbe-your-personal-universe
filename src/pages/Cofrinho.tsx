@@ -20,6 +20,7 @@ import { useSavingsGoals, useAddSavingsGoal, useUpdateSavingsGoal, useDeleteSavi
 import { toast } from "sonner";
 
 export default function Cofrinho() {
+  const { formatMoney } = useCurrency();
   const { data: goals = [], isLoading } = useSavingsGoals();
   const addGoal = useAddSavingsGoal();
   const updateGoal = useUpdateSavingsGoal();
