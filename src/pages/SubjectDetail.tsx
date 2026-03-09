@@ -890,6 +890,15 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
     setPdfBase64(null);
     setImageBase64(null);
     setFileName(file.name);
+    const toBase64 = (buf: ArrayBuffer): string => {
+      const bytes = new Uint8Array(buf);
+      let binary = "";
+      const chunk = 8192;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+      }
+      return btoa(binary);
+    };
     try {
       if (file.type.includes("text") || file.name.endsWith(".txt") || file.name.endsWith(".md") || file.name.endsWith(".csv")) {
         const text = await file.text();
@@ -897,13 +906,13 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
         toast.success(`Arquivo "${file.name}" carregado!`);
       } else if (file.type === "application/pdf") {
         const buffer = await file.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        const base64 = toBase64(buffer);
         setPdfBase64(base64);
         setContent(`[PDF carregado: ${file.name}]`);
         toast.success(`PDF "${file.name}" carregado! A IA vai analisar o conteúdo visualmente.`);
       } else if (file.type.startsWith("image/")) {
         const buffer = await file.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        const base64 = toBase64(buffer);
         setImageBase64(base64);
         setContent(`[Imagem carregada: ${file.name}]`);
         toast.success(`Imagem "${file.name}" carregada! A IA vai extrair e resolver o conteúdo.`);
