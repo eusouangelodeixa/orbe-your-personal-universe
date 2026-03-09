@@ -495,7 +495,12 @@ export default function SubjectDetail() {
                   <div><Label>Data/Hora *</Label><Input type="datetime-local" value={eventForm.event_date} onChange={e => setEventForm(f => ({ ...f, event_date: e.target.value }))} /></div>
                   <div><Label>Conteúdo/Tópicos</Label><Input value={eventForm.content_topics} onChange={e => setEventForm(f => ({ ...f, content_topics: e.target.value }))} /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    {eventForm.type === "prova" && <div><Label>Peso</Label><Input type="number" value={eventForm.weight} onChange={e => setEventForm(f => ({ ...f, weight: e.target.value }))} /></div>}
+                    {(eventForm.type === "prova" || eventForm.type === "trabalho" || eventForm.type === "atividade") && (
+                      <div><Label>Peso</Label><Input type="number" step="0.1" value={eventForm.weight} onChange={e => setEventForm(f => ({ ...f, weight: e.target.value }))} placeholder="Ex: 2.0" /></div>
+                    )}
+                    {(eventForm.type === "prova" || eventForm.type === "trabalho" || eventForm.type === "atividade") && (
+                      <div><Label>Nota</Label><Input type="number" step="0.1" min="0" max="10" value={eventForm.grade} onChange={e => setEventForm(f => ({ ...f, grade: e.target.value }))} placeholder="0-10" /></div>
+                    )}
                     {eventForm.type === "trabalho" && (
                       <div className="flex items-center gap-2 pt-6">
                         <Checkbox checked={eventForm.is_group} onCheckedChange={v => setEventForm(f => ({ ...f, is_group: !!v }))} />
