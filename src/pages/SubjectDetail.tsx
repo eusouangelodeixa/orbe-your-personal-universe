@@ -262,6 +262,7 @@ export default function SubjectDetail() {
       type: ev.type, title: ev.title, description: ev.description || "",
       event_date: ev.event_date.slice(0, 16), content_topics: ev.content_topics || "",
       weight: ev.weight?.toString() || "", is_group: ev.is_group, status: ev.status,
+      grade: ev.grade?.toString() || "",
     });
     setEventOpen(true);
   };
