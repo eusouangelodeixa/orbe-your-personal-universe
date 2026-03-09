@@ -1091,7 +1091,7 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
     ];
   };
 
-  // ─── ABNT PDF export with cover + tables ───
+  // ─── ABNT PDF export with cover + folha de rosto + resumo + sumário + content ───
   const exportPDF = async () => {
     if (!result) return;
     const { default: jsPDF } = await import("jspdf");
@@ -1101,53 +1101,161 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
     const mL = 30, mR = 20, mT = 30, mB = 20;
     const pw = 210 - mL - mR;
     let y = mT;
-    let pageNum = 0;
+    let pageCount = 0; // tracks pages for numbering (starting from intro)
+    let preTextualPages = 0; // pages before content (no arabic numbers)
 
-    const addPage = () => {
+    const newPage = (numbered: boolean = true) => {
       doc.addPage();
-      pageNum++;
       y = mT;
-      doc.setFontSize(10);
-      doc.setFont("times", "normal");
-      doc.text(String(pageNum), 210 - mR, 15, { align: "right" });
+      if (numbered) {
+        pageCount++;
+        doc.setFontSize(10);
+        doc.setFont("times", "normal");
+        doc.text(String(pageCount), 210 - mR, 15, { align: "right" });
+      } else {
+        preTextualPages++;
+      }
     };
-    const checkPage = (n: number) => { if (y + n > 297 - mB) addPage(); };
+    const checkPage = (n: number) => {
+      if (y + n > 297 - mB) {
+        newPage(true);
+      }
+    };
 
-    // ─── Cover page ───
-    if (showCover) {
-      const coverLines = buildCoverLines();
-      doc.setFont("times", "bold");
-      doc.setFontSize(14);
+    // ─── Extract sections from result for TOC ───
+    const lines = result.split("\n");
+    const tocEntries: { title: string; level: number; page: number }[] = [];
 
-      // University + course at top
-      doc.text(coverLines[0].toUpperCase(), 105, 50, { align: "center" });
-      doc.setFontSize(12);
-      doc.text(coverLines[1].toUpperCase(), 105, 60, { align: "center" });
-
-      // Student name at middle
-      doc.setFontSize(14);
-      doc.text(coverLines[5].toUpperCase(), 105, 120, { align: "center" });
-
-      // Subject/title
-      doc.setFontSize(16);
-      doc.text(coverLines[9], 105, 160, { align: "center" });
-
-      // City + year at bottom
-      doc.setFontSize(12);
-      doc.setFont("times", "normal");
-      const cityYear = coverLines[15].split("\n");
-      doc.text(cityYear[0], 105, 265, { align: "center" });
-      doc.text(cityYear[1] || "", 105, 272, { align: "center" });
-
-      addPage();
+    // Pre-scan headings (we'll fill page numbers during content render)
+    const headingLines: { idx: number; level: number; title: string }[] = [];
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (l.match(/^#{1}\s/)) {
+        headingLines.push({ idx: i, level: 1, title: l.replace(/^#+\s*/, "").replace(/\*\*/g, "") });
+      } else if (l.match(/^#{2}\s/)) {
+        headingLines.push({ idx: i, level: 2, title: l.replace(/^#+\s*/, "").replace(/\*\*/g, "") });
+      } else if (l.match(/^#{3,}\s/)) {
+        headingLines.push({ idx: i, level: 3, title: l.replace(/^#+\s*/, "").replace(/\*\*/g, "") });
+      }
     }
 
-    // ─── Content ───
-    doc.setFontSize(12);
-    doc.setFont("times", "normal");
+    // ════════ PAGE 1: CAPA (no number) ════════
+    if (showCover) {
+      const year = new Date().getFullYear();
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.text((coverData.university || "UNIVERSIDADE").toUpperCase(), 105, 50, { align: "center" });
+      doc.setFontSize(12);
+      doc.text((coverData.course || "CURSO").toUpperCase(), 105, 60, { align: "center" });
 
-    const lines = result.split("\n");
+      doc.setFontSize(14);
+      doc.text((coverData.studentName || "NOME DO ALUNO").toUpperCase(), 105, 130, { align: "center" });
+
+      doc.setFontSize(16);
+      doc.text(subjectName.toUpperCase(), 105, 170, { align: "center", maxWidth: pw });
+
+      doc.setFontSize(12);
+      doc.setFont("times", "normal");
+      doc.text(coverData.city || "Cidade", 105, 265, { align: "center" });
+      doc.text(String(year), 105, 272, { align: "center" });
+
+      // ════════ PAGE 2: FOLHA DE ROSTO (no number) ════════
+      newPage(false);
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.text((coverData.studentName || "NOME DO ALUNO").toUpperCase(), 105, 60, { align: "center" });
+
+      doc.setFontSize(16);
+      doc.text(subjectName.toUpperCase(), 105, 100, { align: "center", maxWidth: pw });
+
+      doc.setFont("times", "normal");
+      doc.setFontSize(11);
+      const natureza = `Trabalho acadêmico apresentado à disciplina de ${subjectName}, do curso de ${coverData.course || "graduação"}, da ${coverData.university || "universidade"}.`;
+      const natLines = doc.splitTextToSize(natureza, pw * 0.5);
+      let natY = 130;
+      for (const nl of natLines) {
+        doc.text(nl, 210 - mR, natY, { align: "right", maxWidth: pw * 0.5 });
+        natY += 5;
+      }
+
+      doc.setFontSize(12);
+      doc.text(coverData.city || "Cidade", 105, 265, { align: "center" });
+      doc.text(String(year), 105, 272, { align: "center" });
+    }
+
+    // ════════ RESUMO PAGE (no number) ════════
+    // Extract RESUMO section from the AI result
+    const resumoMatch = result.match(/# RESUMO\n([\s\S]*?)(?=\n# SUMÁRIO|\n# 1 )/i);
+    if (resumoMatch) {
+      newPage(false);
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.text("RESUMO", 105, y, { align: "center" });
+      y += 10;
+
+      doc.setFont("times", "normal");
+      doc.setFontSize(12);
+      const resumoText = resumoMatch[1].trim().replace(/\*\*/g, "").replace(/\*/g, "");
+      // Split by paragraphs
+      const resumoParts = resumoText.split("\n").filter(l => l.trim());
+      for (const part of resumoParts) {
+        const wrapped = doc.splitTextToSize(part, pw);
+        for (const wl of wrapped) {
+          if (y + 5 > 297 - mB) { newPage(false); }
+          doc.text(wl, mL, y);
+          y += 5; // single spacing for resumo
+        }
+        y += 2;
+      }
+    }
+
+    // ════════ SUMÁRIO PAGE (no number) ════════
+    newPage(false);
+    doc.setFont("times", "bold");
+    doc.setFontSize(14);
+    doc.text("SUMÁRIO", 105, y, { align: "center" });
+    y += 12;
+
+    doc.setFontSize(12);
+    // Filter headings that are not RESUMO or SUMÁRIO
+    const contentHeadings = headingLines.filter(h => {
+      const upper = h.title.toUpperCase();
+      return !upper.startsWith("RESUMO") && !upper.startsWith("SUMÁRIO");
+    });
+
+    for (const h of contentHeadings) {
+      doc.setFont("times", h.level === 1 ? "bold" : "normal");
+      const indent = h.level === 1 ? 0 : (h.level - 1) * 8;
+      const displayTitle = h.level === 1 ? h.title.toUpperCase() : h.title;
+      doc.text(displayTitle, mL + indent, y);
+      y += 7;
+      if (y > 297 - mB) { newPage(false); }
+    }
+
+    // ════════ CONTENT PAGES (numbered from 1) ════════
+    newPage(true); // Page 1 = Introduction
+
+    // Skip RESUMO and SUMÁRIO sections in content rendering
     let i = 0;
+    // Find where actual content starts (after SUMÁRIO or from the first heading that's not RESUMO/SUMÁRIO)
+    let contentStartIdx = 0;
+    for (let ci = 0; ci < lines.length; ci++) {
+      const l = lines[ci].trim().toUpperCase();
+      if (l.match(/^#\s*(1\s|INTRODUÇÃO|INTRODUCAO)/i)) {
+        contentStartIdx = ci;
+        break;
+      }
+      // Skip past SUMÁRIO content
+      if (l.match(/^#\s*SUMÁRIO/i)) {
+        // Skip until next heading
+        let ni = ci + 1;
+        while (ni < lines.length && !lines[ni].match(/^#/)) ni++;
+        contentStartIdx = ni;
+        break;
+      }
+    }
+
+    i = contentStartIdx;
     while (i < lines.length) {
       const rawLine = lines[i];
       const line = rawLine.replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "");
@@ -1159,7 +1267,6 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
           tableLines.push(lines[i]);
           i++;
         }
-        // Parse table
         const rows = tableLines
           .filter(l => !l.match(/^\|[\s-:|]+\|$/))
           .map(l => l.split("|").filter(c => c.trim() !== "").map(c => c.trim()));
@@ -1181,19 +1288,24 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
         continue;
       }
 
-      // Heading 1
-      if (line.match(/^#{1}\s/) || line.match(/^\d+\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,}/)) {
+      // Heading 1 — page break before major sections (except first)
+      if (rawLine.match(/^#{1}\s/) || rawLine.match(/^\d+\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,}/)) {
+        const headTitle = line.replace(/^#+\s*/, "").toUpperCase();
+        // Page break before major sections if not at top of page
+        if (y > mT + 10 && (headTitle.match(/^\d+\s/) || headTitle === "REFERÊNCIAS" || headTitle === "REFERENCIAS")) {
+          newPage(true);
+        }
         checkPage(12);
         y += 6;
         doc.setFontSize(14);
         doc.setFont("times", "bold");
-        doc.text(line.replace(/^#+\s*/, "").toUpperCase(), mL, y);
+        doc.text(headTitle, mL, y);
         y += 8;
         doc.setFontSize(12);
         doc.setFont("times", "normal");
       }
       // Heading 2
-      else if (line.match(/^#{2}\s/)) {
+      else if (rawLine.match(/^#{2}\s/)) {
         checkPage(10);
         y += 4;
         doc.setFontSize(12);
@@ -1203,7 +1315,7 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
         doc.setFont("times", "normal");
       }
       // Heading 3
-      else if (line.match(/^#{3,}\s/)) {
+      else if (rawLine.match(/^#{3,}\s/)) {
         checkPage(8);
         y += 3;
         doc.setFontSize(12);
@@ -1216,29 +1328,41 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
       else if (line.trim() === "") {
         y += 4;
       }
-      // Blockquote
-      else if (line.startsWith(">")) {
+      // Blockquote (citação longa ABNT — recuo 4cm, fonte 10, espaçamento simples)
+      else if (rawLine.startsWith(">")) {
         const citText = line.replace(/^>\s*/, "");
         doc.setFontSize(10);
         const citLines = doc.splitTextToSize(citText, pw - 40);
         for (const cl of citLines) {
-          checkPage(5);
+          checkPage(4);
           doc.text(cl, mL + 40, y);
           y += 4;
         }
         doc.setFontSize(12);
         y += 2;
       }
-      // Regular paragraph
+      // References section lines (single spacing, no indent, hanging indent style)
+      else if (line.match(/^[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,},\s/)) {
+        doc.setFontSize(12);
+        doc.setFont("times", "normal");
+        const wrapped = doc.splitTextToSize(line, pw);
+        for (const wl of wrapped) {
+          checkPage(5);
+          doc.text(wl, mL, y);
+          y += 5; // single spacing for references
+        }
+        y += 3; // extra space between references
+      }
+      // Regular paragraph (1.25cm indent, 1.5 spacing)
       else {
         doc.setFontSize(12);
         doc.setFont("times", "normal");
         const wrapped = doc.splitTextToSize(line, pw);
         let first = true;
         for (const wl of wrapped) {
-          checkPage(6);
+          checkPage(7);
           doc.text(wl, mL + (first ? 12.5 : 0), y);
-          y += 6;
+          y += 7; // 1.5 spacing ≈ 7mm
           first = false;
         }
         y += 1;
@@ -1251,19 +1375,25 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
     toast.success("PDF exportado com formatação ABNT!");
   };
 
-  // ─── ABNT DOCX export with cover + TOC ───
+  // ─── ABNT DOCX export with cover + folha de rosto + resumo + sumário + content ───
   const exportDOCX = async () => {
     if (!result) return;
     const {
       Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
       convertMillimetersToTwip, PageBreak, TableOfContents, Table, TableRow, TableCell,
-      WidthType, BorderStyle,
+      WidthType,
     } = await import("docx");
 
     const FONT = "Times New Roman";
     const SZ12 = 24, SZ10 = 20, SZ14 = 28, SZ16 = 32;
     const SP15 = 360, SP1 = 240;
     const INDENT = convertMillimetersToTwip(12.5);
+    const pageMargins = {
+      top: convertMillimetersToTwip(30),
+      right: convertMillimetersToTwip(20),
+      bottom: convertMillimetersToTwip(20),
+      left: convertMillimetersToTwip(30),
+    };
 
     const parseInline = (text: string, fontSize: number): any[] => {
       const runs: any[] = [];
@@ -1279,45 +1409,99 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
     };
 
     const sections: any[] = [];
+    const year = new Date().getFullYear();
 
-    // ─── Cover page section ───
+    // ════════ SECTION 1: CAPA ════════
     if (showCover) {
-      const year = new Date().getFullYear();
       sections.push({
-        properties: {
-          page: { margin: { top: convertMillimetersToTwip(30), right: convertMillimetersToTwip(20), bottom: convertMillimetersToTwip(20), left: convertMillimetersToTwip(30) } },
-        },
+        properties: { page: { margin: pageMargins } },
         children: [
           new Paragraph({ spacing: { before: 1200 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: (coverData.university || "UNIVERSIDADE").toUpperCase(), bold: true, font: FONT, size: SZ14 })] }),
           new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: (coverData.course || "CURSO").toUpperCase(), bold: true, font: FONT, size: SZ12 })] }),
+          new Paragraph({ spacing: { before: 3600 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: (coverData.studentName || "NOME DO ALUNO").toUpperCase(), bold: true, font: FONT, size: SZ14 })] }),
+          new Paragraph({ spacing: { before: 3600 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: subjectName.toUpperCase(), bold: true, font: FONT, size: SZ16 })] }),
+          new Paragraph({ spacing: { before: 7200 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: coverData.city || "Cidade", font: FONT, size: SZ12 })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(year), font: FONT, size: SZ12 })] }),
+        ],
+      });
+
+      // ════════ SECTION 2: FOLHA DE ROSTO ════════
+      const natureza = `Trabalho acadêmico apresentado à disciplina de ${subjectName}, do curso de ${coverData.course || "graduação"}, da ${coverData.university || "universidade"}.`;
+      sections.push({
+        properties: { page: { margin: pageMargins } },
+        children: [
           new Paragraph({ spacing: { before: 2400 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: (coverData.studentName || "NOME DO ALUNO").toUpperCase(), bold: true, font: FONT, size: SZ14 })] }),
-          new Paragraph({ spacing: { before: 2400 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: subjectName.toUpperCase(), bold: true, font: FONT, size: SZ16 })] }),
-          new Paragraph({ spacing: { before: 4800 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: coverData.city || "Cidade", font: FONT, size: SZ12 })] }),
+          new Paragraph({ spacing: { before: 3600 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: subjectName.toUpperCase(), bold: true, font: FONT, size: SZ16 })] }),
+          new Paragraph({
+            spacing: { before: 2400 },
+            alignment: AlignmentType.RIGHT,
+            indent: { left: convertMillimetersToTwip(80) },
+            children: [new TextRun({ text: natureza, font: FONT, size: SZ10, italics: true })],
+          }),
+          new Paragraph({ spacing: { before: 7200 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: coverData.city || "Cidade", font: FONT, size: SZ12 })] }),
           new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(year), font: FONT, size: SZ12 })] }),
         ],
       });
     }
 
-    // ─── Content section with TOC ───
-    const paragraphs: any[] = [];
+    // ════════ SECTION 3: RESUMO (separate page) ════════
+    const resumoMatch = result.match(/# RESUMO\n([\s\S]*?)(?=\n# SUMÁRIO|\n# 1 )/i);
+    if (resumoMatch) {
+      const resumoText = resumoMatch[1].trim();
+      const resumoParagraphs = resumoText.split("\n").filter(l => l.trim());
+      sections.push({
+        properties: { page: { margin: pageMargins } },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 },
+            children: [new TextRun({ text: "RESUMO", bold: true, font: FONT, size: SZ14 })],
+          }),
+          ...resumoParagraphs.map(p => new Paragraph({
+            children: parseInline(p, SZ12),
+            spacing: { line: SP1 }, // single spacing for resumo
+            alignment: AlignmentType.JUSTIFIED,
+          })),
+        ],
+      });
+    }
 
-    // Table of Contents
-    paragraphs.push(
-      new Paragraph({ children: [new TextRun({ text: "SUMÁRIO", bold: true, font: FONT, size: SZ14 })], heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }),
+    // ════════ SECTION 4: SUMÁRIO (auto-generated TOC) ════════
+    const tocChildren: any[] = [
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+        children: [new TextRun({ text: "SUMÁRIO", bold: true, font: FONT, size: SZ14 })],
+      }),
       new TableOfContents("Sumário", { hyperlink: true, headingStyleRange: "1-3" }),
-      new Paragraph({ children: [new PageBreak()] }),
-    );
+    ];
+    sections.push({
+      properties: { page: { margin: pageMargins } },
+      children: tocChildren,
+    });
 
-    const lines = result.split("\n");
+    // ════════ SECTION 5: CONTENT (starts on new page, numbered) ════════
+    const contentParagraphs: any[] = [];
+
+    // Skip RESUMO and SUMÁRIO in content
+    const contentLines = result.split("\n");
     let li = 0;
-    while (li < lines.length) {
-      const rawLine = lines[li];
+    // Find where content starts (after SUMÁRIO or at first numbered heading)
+    for (let ci = 0; ci < contentLines.length; ci++) {
+      if (contentLines[ci].match(/^#\s*(1\s|INTRODUÇÃO|INTRODUCAO)/i)) {
+        li = ci;
+        break;
+      }
+    }
+
+    while (li < contentLines.length) {
+      const rawLine = contentLines[li];
 
       // Detect markdown table
       if (rawLine.includes("|") && rawLine.trim().startsWith("|")) {
         const tLines: string[] = [];
-        while (li < lines.length && lines[li].trim().startsWith("|")) {
-          tLines.push(lines[li]);
+        while (li < contentLines.length && contentLines[li].trim().startsWith("|")) {
+          tLines.push(contentLines[li]);
           li++;
         }
         const tRows = tLines
@@ -1338,16 +1522,20 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
               ),
             })
           );
-          paragraphs.push(new Table({ rows: docRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
-          paragraphs.push(new Paragraph({ text: "", spacing: { line: SP15 } }));
+          contentParagraphs.push(new Table({ rows: docRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+          contentParagraphs.push(new Paragraph({ text: "", spacing: { line: SP15 } }));
         }
         continue;
       }
 
-      // Heading 1
+      // Heading 1 — page break before major sections
       if (rawLine.match(/^#{1}\s/) || rawLine.match(/^\d+\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,}/)) {
         const text = rawLine.replace(/^#+\s*/, "").replace(/\*\*/g, "");
-        paragraphs.push(new Paragraph({
+        // Add page break before sections (except the very first)
+        if (contentParagraphs.length > 0) {
+          contentParagraphs.push(new Paragraph({ children: [new PageBreak()] }));
+        }
+        contentParagraphs.push(new Paragraph({
           children: [new TextRun({ text: text.toUpperCase(), bold: true, font: FONT, size: SZ12 })],
           heading: HeadingLevel.HEADING_1,
           spacing: { before: 240, after: 120, line: SP15 },
@@ -1356,7 +1544,7 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
       // Heading 2
       else if (rawLine.match(/^#{2}\s/)) {
         const text = rawLine.replace(/^#+\s*/, "").replace(/\*\*/g, "");
-        paragraphs.push(new Paragraph({
+        contentParagraphs.push(new Paragraph({
           children: [new TextRun({ text, bold: true, font: FONT, size: SZ12 })],
           heading: HeadingLevel.HEADING_2,
           spacing: { before: 200, after: 100, line: SP15 },
@@ -1365,7 +1553,7 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
       // Heading 3
       else if (rawLine.match(/^#{3,}\s/)) {
         const text = rawLine.replace(/^#+\s*/, "").replace(/\*\*/g, "");
-        paragraphs.push(new Paragraph({
+        contentParagraphs.push(new Paragraph({
           children: [new TextRun({ text, bold: true, italics: true, font: FONT, size: SZ12 })],
           heading: HeadingLevel.HEADING_3,
           spacing: { before: 160, after: 80, line: SP15 },
@@ -1373,12 +1561,12 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
       }
       // Empty
       else if (rawLine.trim() === "") {
-        paragraphs.push(new Paragraph({ text: "", spacing: { line: SP15 } }));
+        contentParagraphs.push(new Paragraph({ text: "", spacing: { line: SP15 } }));
       }
-      // Blockquote
+      // Blockquote (citação longa ABNT)
       else if (rawLine.startsWith(">")) {
         const text = rawLine.replace(/^>\s*/, "");
-        paragraphs.push(new Paragraph({
+        contentParagraphs.push(new Paragraph({
           children: parseInline(text, SZ10),
           indent: { left: convertMillimetersToTwip(40) },
           spacing: { line: SP1 },
@@ -1387,16 +1575,24 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
       // Bullet
       else if (rawLine.match(/^[-•]\s/)) {
         const text = rawLine.replace(/^[-•]\s*/, "");
-        paragraphs.push(new Paragraph({
+        contentParagraphs.push(new Paragraph({
           children: parseInline(text, SZ12),
           indent: { left: convertMillimetersToTwip(12.5) },
           spacing: { line: SP15 },
           bullet: { level: 0 },
         }));
       }
+      // Reference line (starts with uppercase surname)
+      else if (rawLine.match(/^[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,},\s/)) {
+        contentParagraphs.push(new Paragraph({
+          children: parseInline(rawLine, SZ12),
+          spacing: { line: SP1, after: 120 }, // single spacing, extra after
+          alignment: AlignmentType.LEFT,
+        }));
+      }
       // Regular paragraph
       else {
-        paragraphs.push(new Paragraph({
+        contentParagraphs.push(new Paragraph({
           children: parseInline(rawLine, SZ12),
           indent: { firstLine: INDENT },
           spacing: { line: SP15 },
@@ -1409,9 +1605,12 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
 
     sections.push({
       properties: {
-        page: { margin: { top: convertMillimetersToTwip(30), right: convertMillimetersToTwip(20), bottom: convertMillimetersToTwip(20), left: convertMillimetersToTwip(30) } },
+        page: {
+          margin: pageMargins,
+          pageNumbers: { start: 1 },
+        },
       },
-      children: paragraphs,
+      children: contentParagraphs,
     });
 
     const doc = new Document({
@@ -1422,7 +1621,7 @@ function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId
     const blob = await Packer.toBlob(doc);
     const { saveAs } = await import("file-saver");
     saveAs(blob, `resolucao-${subjectName.replace(/\s+/g, "-").toLowerCase()}.docx`);
-    toast.success("DOCX exportado com capa ABNT e sumário!");
+    toast.success("DOCX exportado com capa, folha de rosto, resumo e sumário ABNT!");
   };
 
   // ─── Load resolution from history ───
