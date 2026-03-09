@@ -290,7 +290,7 @@ export default function Planilha() {
                 <CardTitle className="font-display text-lg">Carteiras & Bancos</CardTitle>
               </div>
               <span className="text-sm font-display font-bold text-primary">
-                Total: R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                Total: {formatMoney(totalCarteiras)}
               </span>
             </div>
           </CardHeader>
