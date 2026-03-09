@@ -617,10 +617,18 @@ export default function Landing() {
               const isNotMonthly = pricePeriod !== "mensal";
               const monthlyEquivalent = isNotMonthly ? Math.round(p.price / (pricePeriod === "trimestral" ? 3 : 12)) : p.price;
               const billingLabel = pricePeriod === "trimestral"
-                ? `Cobrado R$${p.price} a cada 3 meses`
+                ? `Cobrado ${currencySymbol} ${p.price} a cada 3 meses`
                 : pricePeriod === "anual"
-                  ? `Cobrado R$${p.price} por ano`
+                  ? `Cobrado ${currencySymbol} ${p.price} por ano`
                   : null;
+
+              const handleClick = () => {
+                if (isMozambique) {
+                  window.open("https://pay.lojou.app/p/iGdxz", "_blank");
+                } else {
+                  navigate(`/auth?plan=${p.planKey}&period=${pricePeriod}`);
+                }
+              };
 
               return (
                 <div key={p.plan} className={`landing-price-card ${p.featured ? "featured" : ""}`}>
@@ -628,10 +636,10 @@ export default function Landing() {
                   <div className="landing-price-plan">{p.plan}</div>
                   {isNotMonthly && (
                     <div style={{ textDecoration: "line-through", opacity: 0.5, fontSize: "14px", fontFamily: "'Syne',sans-serif", marginBottom: "4px" }}>
-                      De R$ {p.monthlyPrice}/mês
+                      De {currencySymbol} {p.monthlyPrice}/mês
                     </div>
                   )}
-                  <div className="landing-price-val"><sup>R$</sup>{monthlyEquivalent}</div>
+                  <div className="landing-price-val"><sup>{currencySymbol}</sup>{monthlyEquivalent}</div>
                   <div className="landing-price-period">/mês · {p.period}</div>
                   {billingLabel && (
                     <div style={{ fontSize: "11px", color: "var(--grey)", marginTop: "4px", fontFamily: "'Space Grotesk',sans-serif" }}>
@@ -647,7 +655,7 @@ export default function Landing() {
                   <div key={f} className="landing-pf-item disabled">{f}</div>
                 ))}
               </div>
-              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate(`/auth?plan=${p.planKey}&period=${pricePeriod}`)}>
+              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={handleClick}>
                 {p.featured ? "Começar Agora" : "Começar"}
               </button>
             </div>
