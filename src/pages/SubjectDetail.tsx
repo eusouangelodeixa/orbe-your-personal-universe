@@ -743,7 +743,7 @@ export default function SubjectDetail() {
 
           {/* ─── RESOLVER COM IA TAB ─── */}
           <TabsContent value="resolver" className="space-y-4">
-            <ResolverIA subjectName={subject.name} />
+            <ResolverIA subjectName={subject.name} subjectId={subject.id} />
           </TabsContent>
 
           {/* ─── POMODORO TAB ─── */}
