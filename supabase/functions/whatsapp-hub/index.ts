@@ -346,6 +346,7 @@ const INTENT_TOOLS = [
               wallet_name: { type: "string" },
               paid: { type: "boolean" },
               goal_name: { type: "string", description: "Name of a savings goal (cofrinho/meta). E.g. 'reserva emergência', 'viagem'." },
+              show_exercises: { type: "boolean", description: "Set to true when the user explicitly asks to see the exercises of a workout. Default false — just confirm which workout it is." },
             },
           },
           reply_text: { type: "string", description: "Friendly reply message to send back to user via WhatsApp. Portuguese Brazilian." },
@@ -381,6 +382,8 @@ REGRAS:
   • Se mencionar disciplina, matéria, faculdade, professor, ou termos acadêmicos → SEMPRE é add_event, NUNCA add_task.
 - IMPORTANTE: Quando o usuário perguntar "tenho aula hoje?", "quais aulas de quarta?", "tenho aula amanhã?" ou qualquer pergunta sobre HORÁRIO/GRADE de aulas, use action "check_class_schedule" com params.day preenchido (ex: "quarta", "hoje", "amanha"). NÃO use list_events — list_events é para provas/trabalhos/eventos, NÃO para grade de aulas.
 - IMPORTANTE: Ao responder sobre treinos, dieta ou agenda, responda APENAS sobre o dia específico perguntado. NÃO liste a semana inteira. Se perguntaram "treino de segunda", mostre SÓ o de segunda. Se perguntaram "treino de hoje", mostre SÓ o de hoje.
+- MUITO IMPORTANTE: Quando o usuário perguntar "temos treino hoje?", "tem treino hoje?", "qual o treino de hoje?", "treino de segunda?" ou qualquer pergunta sobre QUAL TREINO fazer em um dia, use action "active_plan" com params.day preenchido (ex: "hoje", "segunda", "amanha"). NÃO use check_progress — check_progress é APENAS para ver peso, IMC e evolução corporal. active_plan é para ver o PLANO DE TREINO do dia.
+- Quando o usuário pedir para ver os exercícios de um treino específico, use action "active_plan" com params.day e params.show_exercises = true.
 - IMPORTANTE: Quando o usuário perguntar sobre metas de economia, cofrinho, reserva de emergência, quanto falta para alcançar uma meta, use action "check_savings_goal" e preencha params.goal_name. NÃO use monthly_summary para perguntas sobre metas.
 - IMPORTANTE: Quando o usuário quiser GUARDAR/DEPOSITAR dinheiro no cofrinho (ex: "guardei 500 no cofrinho", "depositar 200 na reserva"), use action "save_to_cofrinho". Preencha params.amount, params.wallet_name (de onde sai o dinheiro) e params.goal_name (meta destino). Se o usuário NÃO mencionar o nome da meta, deixe goal_name vazio — o sistema vai listar as opções.
 - IMPORTANTE: Quando o usuário perguntar sobre saldo, gastos ou informações de uma carteira/conta ESPECÍFICA, preencha params.wallet_name com o nome da carteira. Responda APENAS com os dados da carteira pedida. NÃO inclua dados de outras carteiras, resumo geral ou patrimônio total a menos que o usuário peça explicitamente.
@@ -944,10 +947,20 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
             }
           }
 
-          if (!workout) return `❌ Não encontrei treino para *${WEEKDAY_LABELS[requestedWeekday] || requestedWeekday}* no seu plano atual.`;
+          if (!workout) return `❌ Não encontrei treino para *${WEEKDAY_LABELS[requestedWeekday] || requestedWeekday}* no seu plano atual.\n\nHoje pode ser dia de descanso! 💤`;
           
           const dayLabel = WEEKDAY_LABELS[requestedWeekday] || requestedWeekday;
-          return `📅 *${dayLabel}*\n\n` + formatWorkoutMessage(plan.title, workout);
+          const workoutLabel = safeString(workout?.name) || safeString(workout?.day) || "Treino";
+          
+          // If user just asked "temos treino hoje?" → simple confirmation
+          // If user asked for exercises → show full detail
+          if (params.show_exercises) {
+            return `📅 *${dayLabel}*\n\n` + formatWorkoutMessage(plan.title, workout);
+          }
+          
+          // Simple, motivational confirmation
+          const exerciseCount = (workout?.exercises || []).length;
+          return `💪 Sim, campeão! Para *${dayLabel}* temos:\n\n🏋️ *${workoutLabel}*${exerciseCount ? ` (${exerciseCount} exercícios)` : ""}\n\nQuer ver os exercícios detalhados? É só me dizer! 🔥`;
         }
 
         let msg = `🏋️ *${plan.title}*\n\n`;
