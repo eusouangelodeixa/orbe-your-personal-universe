@@ -632,7 +632,9 @@ export default function Landing() {
                 {p.featured ? "Começar Agora" : "Começar"}
               </button>
             </div>
-          ))}
+              );
+            });
+          })()}
         </div>
 
         <div className="landing-price-guarantee fade-up">
