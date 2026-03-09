@@ -812,7 +812,7 @@ export default function Planilha() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold font-display">
-                      R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {formatMoney(Number(e.amount))}
                     </span>
                     <button onClick={() => {
                       setEditExpense(e);
