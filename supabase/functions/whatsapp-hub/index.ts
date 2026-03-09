@@ -346,6 +346,7 @@ const INTENT_TOOLS = [
               wallet_name: { type: "string" },
               paid: { type: "boolean" },
               goal_name: { type: "string", description: "Name of a savings goal (cofrinho/meta). E.g. 'reserva emergência', 'viagem'." },
+              show_exercises: { type: "boolean", description: "Set to true when the user explicitly asks to see the exercises of a workout. Default false — just confirm which workout it is." },
             },
           },
           reply_text: { type: "string", description: "Friendly reply message to send back to user via WhatsApp. Portuguese Brazilian." },
