@@ -132,7 +132,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className={`text-3xl font-bold font-display ${totalCarteiras < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalCarteiras)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">Saldo total de todas as carteiras</p>
             </CardContent>
