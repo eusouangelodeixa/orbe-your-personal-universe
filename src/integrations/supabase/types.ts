@@ -898,6 +898,57 @@ export type Database = {
         }
         Relationships: []
       }
+      subscriptions: {
+        Row: {
+          created_at: string
+          ends_at: string
+          id: string
+          order_number: string | null
+          plan: string
+          plan_period: string
+          portal_url: string | null
+          provider: string
+          raw_payload: Json | null
+          starts_at: string
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at: string
+          id?: string
+          order_number?: string | null
+          plan: string
+          plan_period?: string
+          portal_url?: string | null
+          provider?: string
+          raw_payload?: Json | null
+          starts_at?: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string
+          id?: string
+          order_number?: string | null
+          plan?: string
+          plan_period?: string
+          portal_url?: string | null
+          provider?: string
+          raw_payload?: Json | null
+          starts_at?: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           category: string
