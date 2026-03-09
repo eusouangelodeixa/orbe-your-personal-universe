@@ -97,7 +97,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.functions.invoke("check-subscription");
       if (error) { console.error("check-subscription error:", error); return; }
       if (data) {
-        const plan = data.is_admin ? "full" as PlanKey : (data.trial && !data.product_id ? "full" as PlanKey : productToPlan(data.product_id));
+        // Lojou returns plan directly as string (basic/student/full/fit)
+        const isLojou = data.provider === "lojou";
+        const plan = data.is_admin
+          ? "full" as PlanKey
+          : isLojou && data.plan
+            ? data.plan as PlanKey
+            : (data.trial && !data.product_id ? "full" as PlanKey : productToPlan(data.product_id));
         setSubscription({
           subscribed: data.subscribed || false,
           isAdmin: data.is_admin || false,
