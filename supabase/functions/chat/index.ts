@@ -2,102 +2,64 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    const authHeader = req.headers.get("Authorization");
     const { messages, financialContext } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Build financial snapshot for the system prompt
-    let financialSnapshot = "";
+    // Build auth header — Consultor uses anon key from frontend, so we pass it through
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+    };
+    if (authHeader) headers["Authorization"] = authHeader;
+
+    // Build extra context from financialContext if provided (for backwards compat)
+    let extraSystemPrompt = "";
     if (financialContext) {
       const fc = financialContext;
-      const fmtBRL = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+      const fmtBRL = (v: number) =>
+        `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
-      financialSnapshot = `\n\n--- DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}) ---
+      extraSystemPrompt = `DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}):
 Renda total: ${fmtBRL(fc.totalIncome)}
-Rendas: ${(fc.incomes || []).map((i: any) => `${i.description}: ${fmtBRL(i.amount)}${i.wallet ? ` (${i.wallet})` : ""}`).join("; ") || "Nenhuma"}
-
-Gastos total: ${fmtBRL(fc.totalExpenses)}
-Gastos pagos: ${fmtBRL(fc.paidExpenses)} | Gastos pendentes: ${fmtBRL(fc.pendingExpenses)}
-Lista de gastos: ${(fc.expenses || []).map((e: any) => `${e.name}: ${fmtBRL(e.amount)} (${e.paid ? "✅ pago" : "⏳ pendente"}, vence ${e.due_date}${e.category ? `, cat: ${e.category}` : ""}${e.wallet ? `, carteira: ${e.wallet}` : ""})`).join("; ") || "Nenhum"}
-
-Carteiras/Bancos:
-${(fc.wallets || []).map((w: any) => `- ${w.name}: ${fmtBRL(w.balance)}${w.is_default ? " (principal)" : ""}`).join("\n") || "Nenhuma"}
+Gastos total: ${fmtBRL(fc.totalExpenses)} (pagos: ${fmtBRL(fc.paidExpenses)}, pendentes: ${fmtBRL(fc.pendingExpenses)})
+Carteiras: ${(fc.wallets || []).map((w: any) => `${w.name}: ${fmtBRL(w.balance)}`).join(", ")}
 Patrimônio total: ${fmtBRL(fc.totalWallets)}
-Disponível real (patrimônio - pendentes): ${fmtBRL(fc.availableBalance)}
-
-Fluxo mensal (renda - gastos): ${fmtBRL(fc.monthlyFlow)}
-Comprometimento: ${fc.commitmentPercent}%
-
-Metas de poupança: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmtBRL(g.current_amount)}/${fmtBRL(g.target_amount)}${g.deadline ? ` (prazo: ${g.deadline})` : ""}`).join("; ") || "Nenhuma"}
---- FIM DOS DADOS ---`;
+Disponível: ${fmtBRL(fc.availableBalance)}
+Fluxo mensal: ${fmtBRL(fc.monthlyFlow)} (${fc.commitmentPercent}% comprometido)
+Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmtBRL(g.current_amount)}/${fmtBRL(g.target_amount)}`).join(", ") || "Nenhuma"}`;
     }
 
-    const systemPrompt = `Você é o Consultor Financeiro do ORBE. Direto, esperto e útil.
-
-REGRAS DE COMUNICAÇÃO (siga à risca):
-- Seja CURTO e DIRETO. Responda o que foi perguntado, sem enrolação.
-- Se o usuário perguntar "quanto temos?", responda o valor e pronto. Não faça diagnóstico completo nem dê dicas não solicitadas.
-- Só elabore quando o usuário pedir detalhes, análise ou conselho.
-- Use no máximo 2-3 linhas para perguntas simples.
-- Para perguntas complexas (ex: "analise meus gastos"), aí sim pode detalhar.
-- Não repita saudações. Não use "Olá!" em toda resposta.
-- Use emojis com parcimônia (máximo 1-2 por resposta).
-- Evite blocos enormes de markdown. Prefira texto corrido curto.
-
-Você TEM acesso aos dados financeiros reais do usuário abaixo. Use-os sem pedir que o usuário informe novamente.${financialSnapshot}`;
-
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const orchestratorUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/agent-orchestrator`;
+    const resp = await fetch(orchestratorUrl, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
-        stream: true,
+        messages,
+        agent: "finance",
+        extraSystemPrompt: extraSystemPrompt || undefined,
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Limite de requisições atingido. Tente novamente em alguns instantes." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes. Adicione créditos ao workspace." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro no serviço de IA" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+    return new Response(resp.body, {
+      status: resp.status,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": resp.headers.get("Content-Type") || "application/json",
+      },
     });
   } catch (e) {
-    console.error("chat error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("chat proxy error:", e);
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
