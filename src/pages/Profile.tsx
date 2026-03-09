@@ -419,6 +419,35 @@ export default function Profile() {
           </CardContent>
         </Card>
 
+        {/* Currency */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Coins className="h-5 w-5" />
+              Moeda do Sistema
+            </CardTitle>
+            <CardDescription>Escolha a moeda usada no módulo financeiro</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={currency.code} onValueChange={(code) => setGlobalCurrency(code)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono font-bold w-8">{c.symbol}</span>
+                      <span>{c.name}</span>
+                      <span className="text-muted-foreground">({c.code})</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+
         {/* Notifications */}
         <Card>
           <CardHeader>
