@@ -438,6 +438,56 @@ export default function Planilha() {
               <p className="text-sm text-muted-foreground text-center py-4">Nenhuma carteira cadastrada.</p>
             )}
 
+            {/* Transfer between wallets */}
+            {wallets.length >= 2 && (
+              <div className="border-t border-border pt-3">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1 font-display" onClick={() => setTransferForm({ fromId: "", toId: "", valor: "" })}>
+                      <ArrowLeftRight className="h-4 w-4" /> Transferir entre carteiras
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle className="font-display">Transferência entre Carteiras</DialogTitle></DialogHeader>
+                    <div className="space-y-3 py-2">
+                      <div className="space-y-1">
+                        <Label>De</Label>
+                        <Select value={transferForm.fromId} onValueChange={(v) => setTransferForm({ ...transferForm, fromId: v })}>
+                          <SelectTrigger><SelectValue placeholder="Carteira de origem" /></SelectTrigger>
+                          <SelectContent>
+                            {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name} (R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Para</Label>
+                        <Select value={transferForm.toId} onValueChange={(v) => setTransferForm({ ...transferForm, toId: v })}>
+                          <SelectTrigger><SelectValue placeholder="Carteira de destino" /></SelectTrigger>
+                          <SelectContent>
+                            {wallets.filter(w => w.id !== transferForm.fromId).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Valor (R$)</Label>
+                        <Input type="number" placeholder="0.00" value={transferForm.valor} onChange={(e) => setTransferForm({ ...transferForm, valor: e.target.value })} min={0} step={0.01} />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+                      <DialogClose asChild>
+                        <Button onClick={() => {
+                          if (transferForm.fromId && transferForm.toId && transferForm.valor) {
+                            walletTransfer.mutate({ fromId: transferForm.fromId, toId: transferForm.toId, amount: parseFloat(transferForm.valor) });
+                          }
+                        }} disabled={!transferForm.fromId || !transferForm.toId || !transferForm.valor}>Transferir</Button>
+                      </DialogClose>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
+
             <div className="flex items-end gap-3 pt-2 border-t border-border">
               <div className="space-y-1 flex-1">
                 <Label className="text-xs">Nome</Label>
