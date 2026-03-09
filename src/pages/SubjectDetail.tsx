@@ -932,7 +932,12 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ content: content.trim(), subjectName, type, instructions: instructions.trim() }),
+        body: JSON.stringify({
+          content: content.trim(), subjectName, type, instructions: instructions.trim(),
+          pdfBase64: pdfBase64 || undefined,
+          imageBase64: imageBase64 || undefined,
+          fileName: fileName || undefined,
+        }),
       });
 
       if (resp.status === 429) { toast.error("Limite atingido. Tente novamente em instantes."); setLoading(false); return; }
