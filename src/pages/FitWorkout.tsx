@@ -450,20 +450,82 @@ export default function FitWorkout() {
               ) : activePlan.plan_data?.days ? (
                 <div className="space-y-4">
                   {activePlan.plan_data.days.map((day: WorkoutDay, i: number) => (
-                    <div key={i} className="rounded-lg border p-3 space-y-2">
+                    <div key={i} className={`rounded-lg border p-3 space-y-2 transition-all ${activeChecklist?.dayIndex === i ? "border-primary bg-primary/5" : ""}`}>
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">{day.name}</p>
-                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => openCheckin(day)}>
-                          <CheckCircle2 className="h-3 w-3" /> Check-in
-                        </Button>
+                        {activeChecklist?.dayIndex === i ? (
+                          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-destructive" onClick={() => setActiveChecklist(null)}>
+                            <Square className="h-3 w-3" /> Cancelar
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => startChecklist(i, day)} disabled={!!activeChecklist}>
+                            <Play className="h-3 w-3" /> Treinar
+                          </Button>
+                        )}
                       </div>
-                      {day.exercises?.map((ex, j) => (
-                        <div key={j} className="flex justify-between text-sm pl-3">
-                          <span className="text-muted-foreground">{ex.name}</span>
-                          <span>{ex.sets}x{ex.reps} {ex.weight && `· ${ex.weight}`}</span>
+
+                      {activeChecklist?.dayIndex === i ? (
+                        /* ── CHECKLIST MODE ── */
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                            <span>{checkedCount}/{totalExercises} concluídos</span>
+                            <span>{Math.round((Date.now() - activeChecklist.startTime) / 60000)}min</span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-1.5">
+                            <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${totalExercises > 0 ? (checkedCount / totalExercises) * 100 : 0}%` }} />
+                          </div>
+
+                          {day.exercises?.map((ex, j) => {
+                            const key = `${j}-${ex.name}`;
+                            const isChecked = activeChecklist.checked[key];
+                            return (
+                              <div key={j} className={`flex items-center gap-3 rounded-md px-2 py-2 transition-all ${isChecked ? "bg-primary/10 opacity-70" : "hover:bg-muted/50"}`}>
+                                <Checkbox checked={isChecked} onCheckedChange={() => toggleExercise(key)} className="h-5 w-5" />
+                                <div className={`flex-1 text-sm ${isChecked ? "line-through text-muted-foreground" : ""}`}>
+                                  {ex.name}
+                                  <span className="text-xs text-muted-foreground ml-2">{ex.sets}×{ex.reps}</span>
+                                </div>
+                                <Input value={activeChecklist.weights[key]} onChange={e => updateChecklistWeight(key, e.target.value)} className="h-7 text-xs w-16" placeholder="Carga" />
+                                <span className="text-xs text-muted-foreground">×</span>
+                                <Input value={activeChecklist.reps[key]} onChange={e => updateChecklistReps(key, e.target.value)} className="h-7 text-xs w-14" placeholder="Reps" />
+                              </div>
+                            );
+                          })}
+
+                          <div className="border-t pt-3 space-y-3 mt-2">
+                            <div className="flex gap-2 items-center">
+                              <Label className="text-xs shrink-0">Humor:</Label>
+                              <div className="flex gap-1">
+                                {[
+                                  { val: "otimo", emoji: "😁" },
+                                  { val: "bom", emoji: "🙂" },
+                                  { val: "normal", emoji: "😐" },
+                                  { val: "ruim", emoji: "😓" },
+                                ].map(m => (
+                                  <button key={m.val} onClick={() => setChecklistMood(m.val)}
+                                    className={`text-lg px-1.5 py-0.5 rounded transition-all ${checklistMood === m.val ? "bg-primary/20 scale-110" : "opacity-50 hover:opacity-80"}`}>
+                                    {m.emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <Input value={checklistNotes} onChange={e => setChecklistNotes(e.target.value)} placeholder="Observações rápidas..." className="h-8 text-xs" />
+                            <Button onClick={finishChecklist} className="w-full gap-2">
+                              <CheckCircle2 className="h-4 w-4" /> Finalizar treino ({checkedCount}/{totalExercises})
+                            </Button>
+                          </div>
                         </div>
-                      ))}
+                      ) : (
+                        /* ── NORMAL VIEW ── */
+                        day.exercises?.map((ex, j) => (
+                          <div key={j} className="flex justify-between text-sm pl-3">
+                            <span className="text-muted-foreground">{ex.name}</span>
+                            <span>{ex.sets}x{ex.reps} {ex.weight && `· ${ex.weight}`}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
+                  ))}
                   ))}
                 </div>
               ) : (
