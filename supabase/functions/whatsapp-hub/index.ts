@@ -72,8 +72,12 @@ function workoutMatchesWeekday(workout: any, weekday: string): boolean {
 function formatWorkoutMessage(planTitle: string, workout: any): string {
   const label = safeString(workout?.day) || safeString(workout?.name) || "Treino";
   let msg = `🏋️ *${planTitle}*\n\n📌 *${label}*\n`;
-  (workout?.exercises || []).slice(0, 8).forEach((ex: any) => {
-    msg += `\n• ${safeString(ex?.name)}${ex?.sets ? ` ${ex.sets}x${ex.reps || ""}` : ""}`;
+  const exercises = workout?.exercises || [];
+  exercises.forEach((ex: any) => {
+    msg += `\n• ${safeString(ex?.name)}`;
+    if (ex?.sets) msg += ` — ${ex.sets}x${ex.reps || ""}`;
+    if (ex?.rest) msg += ` (descanso: ${ex.rest})`;
+    if (ex?.weight && ex.weight !== "—" && ex.weight !== "") msg += ` | ${ex.weight}`;
   });
   return msg;
 }
@@ -898,14 +902,72 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         const requestedWeekday = normalizeText(params.day || params.weekday || params.dia) || getRequestedWeekdayFromText(originalText, now);
 
         if (requestedWeekday) {
-          const workout = workouts.find((w: any) => workoutMatchesWeekday(w, requestedWeekday));
+          // 1. Try direct name/day match first
+          let workout = workouts.find((w: any) => workoutMatchesWeekday(w, requestedWeekday));
+
+          // 2. If no match, map workouts to user's weekly_availability days
+          if (!workout && workouts.length > 0) {
+            const { data: fitProfile } = await supabase.from("fit_profiles")
+              .select("weekly_availability").eq("user_id", userId).maybeSingle();
+            
+            const availability = (fitProfile?.weekly_availability || []) as string[];
+            // Normalize availability days to WEEKDAY_KEYS format
+            const availableDays: string[] = [];
+            for (const rawDay of availability) {
+              const dayKey = getRequestedWeekdayFromText(rawDay, now);
+              if (dayKey && !availableDays.includes(dayKey)) availableDays.push(dayKey);
+            }
+            // Sort by weekday order (segunda=1 ... sabado=6, domingo=0)
+            availableDays.sort((a, b) => {
+              const order = { domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6 } as Record<string, number>;
+              return (order[a] ?? 99) - (order[b] ?? 99);
+            });
+
+            // Map workout index to available day
+            const dayIndex = availableDays.indexOf(requestedWeekday);
+            if (dayIndex >= 0 && dayIndex < workouts.length) {
+              workout = workouts[dayIndex];
+            }
+          }
+
+          if (!workout) {
+            // Check if there's ANY workout today by cycling through workouts
+            // based on the day of the week (fallback for plans without availability)
+            const todayDayNum = now.getDay(); // 0=dom, 1=seg...
+            // Exclude sunday (rest) and map mon-sat = indices 0-5
+            if (todayDayNum >= 1 && todayDayNum <= 6 && workouts.length > 0) {
+              const idx = (todayDayNum - 1) % workouts.length;
+              // Only use this fallback if the requested day matches today
+              if (requestedWeekday === WEEKDAY_KEYS[todayDayNum]) {
+                workout = workouts[idx];
+              }
+            }
+          }
+
           if (!workout) return `❌ Não encontrei treino para *${WEEKDAY_LABELS[requestedWeekday] || requestedWeekday}* no seu plano atual.`;
-          return formatWorkoutMessage(plan.title, workout);
+          
+          const dayLabel = WEEKDAY_LABELS[requestedWeekday] || requestedWeekday;
+          return `📅 *${dayLabel}*\n\n` + formatWorkoutMessage(plan.title, workout);
         }
 
         let msg = `🏋️ *${plan.title}*\n\n`;
-        workouts.slice(0, 7).forEach((w: any) => {
-          msg += `📌 *${w.name || w.day}*\n`;
+        // Try to show day mapping if available
+        let availableDays: string[] = [];
+        const { data: fitProfile2 } = await supabase.from("fit_profiles")
+          .select("weekly_availability").eq("user_id", userId).maybeSingle();
+        const avail2 = (fitProfile2?.weekly_availability || []) as string[];
+        for (const rawDay of avail2) {
+          const dk = getRequestedWeekdayFromText(rawDay, now);
+          if (dk && !availableDays.includes(dk)) availableDays.push(dk);
+        }
+        availableDays.sort((a, b) => {
+          const order = { domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6 } as Record<string, number>;
+          return (order[a] ?? 99) - (order[b] ?? 99);
+        });
+
+        workouts.slice(0, 7).forEach((w: any, i: number) => {
+          const dayTag = availableDays[i] ? `${WEEKDAY_LABELS[availableDays[i]]}` : "";
+          msg += `📌 *${w.name || w.day}*${dayTag ? ` (${dayTag})` : ""}\n`;
           (w.exercises || []).slice(0, 5).forEach((ex: any) => {
             msg += `  • ${ex.name}${ex.sets ? ` ${ex.sets}x${ex.reps || ""}` : ""}\n`;
           });
