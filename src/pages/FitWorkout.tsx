@@ -56,6 +56,10 @@ export default function FitWorkout() {
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<{ title: string; days: WorkoutDay[] } | null>(null);
 
+  // Log editing
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editLogForm, setEditLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: "" });
+
   useEffect(() => { if (user) loadData(); }, [user]);
 
   const loadData = async () => {
@@ -224,6 +228,40 @@ export default function FitWorkout() {
   const removeDay = (idx: number) => {
     if (!editData) return;
     setEditData({ ...editData, days: editData.days.filter((_, i) => i !== idx) });
+  };
+
+  // === LOG EDIT/DELETE ===
+  const startEditLog = (log: any) => {
+    setEditingLogId(log.id);
+    setEditLogForm({
+      workout_name: log.workout_name,
+      duration_minutes: log.duration_minutes?.toString() || "",
+      mood: log.mood || "bom",
+      notes: log.notes || "",
+      workout_date: log.workout_date,
+    });
+  };
+
+  const saveEditLog = async () => {
+    if (!editingLogId) return;
+    const { error } = await supabase.from("fit_workout_logs" as any).update({
+      workout_name: editLogForm.workout_name,
+      workout_date: editLogForm.workout_date,
+      duration_minutes: editLogForm.duration_minutes ? parseInt(editLogForm.duration_minutes) : null,
+      mood: editLogForm.mood,
+      notes: editLogForm.notes || null,
+    } as any).eq("id", editingLogId);
+    if (error) { toast.error("Erro ao atualizar"); return; }
+    toast.success("Treino atualizado! ✅");
+    setEditingLogId(null);
+    loadData();
+  };
+
+  const deleteLog = async (logId: string) => {
+    const { error } = await supabase.from("fit_workout_logs" as any).delete().eq("id", logId);
+    if (error) { toast.error("Erro ao apagar"); return; }
+    toast.success("Treino removido");
+    loadData();
   };
 
   // === PDF EXPORT ===
@@ -430,27 +468,57 @@ export default function FitWorkout() {
             <CardContent className="space-y-2">
               {logs.map(log => (
                 <div key={log.id} className="py-2 border-b last:border-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-sm">{log.workout_name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(log.workout_date).toLocaleDateString("pt-BR")}
-                        {log.duration_minutes && ` · ${log.duration_minutes}min`}
-                      </p>
+                  {editingLogId === log.id ? (
+                    <div className="space-y-3">
+                      <Input value={editLogForm.workout_name} onChange={e => setEditLogForm(f => ({ ...f, workout_name: e.target.value }))} className="h-8 text-sm" placeholder="Nome do treino" />
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input type="date" value={editLogForm.workout_date} onChange={e => setEditLogForm(f => ({ ...f, workout_date: e.target.value }))} className="h-8 text-xs" />
+                        <Input type="number" value={editLogForm.duration_minutes} onChange={e => setEditLogForm(f => ({ ...f, duration_minutes: e.target.value }))} className="h-8 text-xs" placeholder="Min" />
+                        <Select value={editLogForm.mood} onValueChange={v => setEditLogForm(f => ({ ...f, mood: v }))}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="otimo">😁</SelectItem>
+                            <SelectItem value="bom">🙂</SelectItem>
+                            <SelectItem value="normal">😐</SelectItem>
+                            <SelectItem value="ruim">😓</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Textarea value={editLogForm.notes} onChange={e => setEditLogForm(f => ({ ...f, notes: e.target.value }))} className="text-xs min-h-[60px]" placeholder="Notas..." />
+                      <div className="flex gap-2">
+                        <Button size="sm" className="h-7 text-xs gap-1 flex-1" onClick={saveEditLog}><Save className="h-3 w-3" /> Salvar</Button>
+                        <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingLogId(null)}><X className="h-3 w-3" /></Button>
+                      </div>
                     </div>
-                    <Badge variant="outline" className="text-xs">
-                      {log.mood === "otimo" ? "😁" : log.mood === "bom" ? "🙂" : log.mood === "normal" ? "😐" : "😓"}
-                    </Badge>
-                  </div>
-                  {log.exercises?.length > 0 && (
-                    <div className="mt-2 pl-3 space-y-1">
-                      {log.exercises.map((ex: any, i: number) => (
-                        <div key={i} className="text-xs text-muted-foreground flex justify-between">
-                          <span>{ex.name}</span>
-                          <span>{ex.sets?.map((s: any) => `${s.weight || "—"}kg×${s.reps}`).join(" | ")}</span>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-sm">{log.workout_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(log.workout_date).toLocaleDateString("pt-BR")}
+                            {log.duration_minutes && ` · ${log.duration_minutes}min`}
+                          </p>
                         </div>
-                      ))}
-                    </div>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="text-xs">
+                            {log.mood === "otimo" ? "😁" : log.mood === "bom" ? "🙂" : log.mood === "normal" ? "😐" : "😓"}
+                          </Badge>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditLog(log)}><Pencil className="h-3 w-3" /></Button>
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => deleteLog(log.id)}><Trash2 className="h-3 w-3 text-destructive" /></Button>
+                        </div>
+                      </div>
+                      {log.exercises?.length > 0 && (
+                        <div className="mt-2 pl-3 space-y-1">
+                          {log.exercises.map((ex: any, i: number) => (
+                            <div key={i} className="text-xs text-muted-foreground flex justify-between">
+                              <span>{ex.name}</span>
+                              <span>{ex.sets?.map((s: any) => `${s.weight || "—"}kg×${s.reps}`).join(" | ")}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               ))}

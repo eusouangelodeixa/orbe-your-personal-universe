@@ -147,7 +147,7 @@ export default function Landing() {
             <button className="landing-btn-primary" onClick={() => navigate("/auth")}>
               Começar Agora — Grátis 3 dias
             </button>
-            <button className="landing-btn-secondary">
+            <button className="landing-btn-secondary" onClick={() => document.getElementById("modules")?.scrollIntoView({ behavior: "smooth" })}>
               <span>Ver Demo</span>
               <span>↗</span>
             </button>
@@ -656,7 +656,7 @@ export default function Landing() {
           <p className="landing-cta-sub">Junte-se a quem já controla finanças, estudos e saúde num só lugar. Comece agora e sinta a diferença em 3 dias.</p>
           <div className="landing-cta-btns">
             <button className="landing-btn-primary" onClick={() => navigate("/auth")}>Começar Agora — 3 dias grátis</button>
-            <button className="landing-btn-secondary">Ver todos os planos ↗</button>
+            <button className="landing-btn-secondary" onClick={() => document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth" })}>Ver todos os planos ↗</button>
           </div>
           <div className="landing-cta-guarantee">🔒 Sem cartão de crédito necessário · Cancele quando quiser</div>
         </div>
@@ -669,21 +669,42 @@ export default function Landing() {
             <div className="landing-footer-logo">ORBE<span>.</span></div>
             <p className="landing-footer-tagline">Seu universo pessoal — finanças, estudos e saúde — organizado num só lugar, via WhatsApp.</p>
             <div className="landing-footer-social">
-              {["𝕏", "in", "ig", "yt"].map((s) => (
-                <div key={s} className="landing-social-btn">{s}</div>
+              {[
+                { icon: "𝕏", url: "#" },
+                { icon: "in", url: "#" },
+                { icon: "ig", url: "#" },
+                { icon: "yt", url: "#" },
+              ].map((s) => (
+                <a key={s.icon} href={s.url} className="landing-social-btn" target="_blank" rel="noopener noreferrer">{s.icon}</a>
               ))}
             </div>
           </div>
           {[
-            { title: "Produto", links: ["Funcionalidades", "Módulo Financeiro", "Módulo Estudos", "Módulo Fit", "Preços"] },
-            { title: "Empresa", links: ["Sobre nós", "Blog", "Carreiras", "Contato"] },
-            { title: "Legal", links: ["Termos de Uso", "Privacidade", "Cookies", "LGPD"] },
+            { title: "Produto", links: [
+              { label: "Funcionalidades", target: "#features" },
+              { label: "Módulo Financeiro", target: "#planilha" },
+              { label: "Módulo Estudos", target: "#estudos" },
+              { label: "Módulo Fit", target: "#fit" },
+              { label: "Preços", target: "#pricing" },
+            ]},
+            { title: "Empresa", links: [
+              { label: "Sobre nós", target: "#hero" },
+              { label: "Blog", target: "#" },
+              { label: "Carreiras", target: "#" },
+              { label: "Contato", target: "#" },
+            ]},
+            { title: "Legal", links: [
+              { label: "Termos de Uso", target: "#" },
+              { label: "Privacidade", target: "#" },
+              { label: "Cookies", target: "#" },
+              { label: "LGPD", target: "#" },
+            ]},
           ].map((col) => (
             <div key={col.title} className="landing-footer-col">
               <h4>{col.title}</h4>
               <ul className="landing-footer-links">
                 {col.links.map((link) => (
-                  <li key={link}><a href="#">{link}</a></li>
+                  <li key={link.label}><a href={link.target} onClick={(e) => { if (link.target !== "#") { e.preventDefault(); document.querySelector(link.target)?.scrollIntoView({ behavior: "smooth" }); }}}>{link.label}</a></li>
                 ))}
               </ul>
             </div>
