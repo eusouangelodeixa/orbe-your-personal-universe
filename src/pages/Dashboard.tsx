@@ -90,9 +90,9 @@ export default function Dashboard() {
               <ArrowDownCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display text-destructive">R$ {totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              <p className="text-2xl font-bold font-display text-destructive">{formatMoney(totalGastos)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {gastosPendentes > 0 ? <span className="text-warning font-medium">R$ {gastosPendentes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} pendentes</span> : "Tudo pago ✓"}
+                {gastosPendentes > 0 ? <span className="text-warning font-medium">{formatMoney(gastosPendentes)} pendentes</span> : "Tudo pago ✓"}
               </p>
             </CardContent>
           </Card>
