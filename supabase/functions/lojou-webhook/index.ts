@@ -16,10 +16,11 @@ function mapLojouPlan(planName: string): string | null {
   return null;
 }
 
-function mapLojouPeriod(planType: string): string {
+function mapLojouPeriod(planType: string, planName?: string): string {
   const t = (planType || "").toLowerCase();
-  if (t.includes("year") || t.includes("anual") || t.includes("yearly")) return "anual";
-  if (t.includes("quarter") || t.includes("trimest")) return "trimestral";
+  const n = (planName || "").toLowerCase();
+  if (t.includes("year") || t.includes("anual") || t.includes("yearly") || n.includes("anual")) return "anual";
+  if (t.includes("quarter") || t.includes("trimest") || n.includes("trimestral")) return "trimestral";
   return "mensal";
 }
 
