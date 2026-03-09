@@ -526,7 +526,6 @@ export default function FitWorkout() {
                       )}
                     </div>
                   ))}
-                  ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">
