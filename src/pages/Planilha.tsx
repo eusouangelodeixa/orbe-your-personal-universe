@@ -808,10 +808,22 @@ export default function Planilha() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="font-bold font-display">
                       R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </span>
+                    <button onClick={() => {
+                      setEditExpense(e);
+                      setEditForm({
+                        nome: e.name, valor: String(e.amount),
+                        dueDate: new Date(e.due_date + "T12:00:00"),
+                        tipo: e.type, categoria: e.category_id || "",
+                        walletId: e.wallet_id || "", recurring: e.recurring || false,
+                        recurringDay: e.recurring_day ? String(e.recurring_day) : "",
+                      });
+                    }} className="text-muted-foreground hover:text-primary">
+                      <Pencil className="h-4 w-4" />
+                    </button>
                     <button onClick={() => deleteExpense.mutate(e.id)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
                     </button>
