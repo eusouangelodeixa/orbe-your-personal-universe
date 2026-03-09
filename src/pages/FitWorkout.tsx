@@ -90,35 +90,83 @@ export default function FitWorkout() {
     setGenerating(false);
   };
 
-  const openCheckin = (day: WorkoutDay) => {
-    setSelectedDay(day);
-    setLogForm(f => ({ ...f, workout_name: day.name }));
-    const initial: Record<string, { sets: { reps: string; weight: string }[] }> = {};
-    day.exercises.forEach(ex => {
-      initial[ex.name] = {
-        sets: Array.from({ length: ex.sets }, () => ({ reps: String(ex.reps).replace(/[^0-9]/g, '') || "12", weight: ex.weight || "" }))
-      };
+  // === CHECKLIST MODE ===
+  const startChecklist = (dayIndex: number, day: WorkoutDay) => {
+    const checked: Record<string, boolean> = {};
+    const weights: Record<string, string> = {};
+    const reps: Record<string, string> = {};
+    day.exercises.forEach((ex, i) => {
+      const key = `${i}-${ex.name}`;
+      checked[key] = false;
+      weights[key] = ex.weight || "";
+      reps[key] = String(ex.reps).replace(/[^0-9-]/g, '') || "12";
     });
-    setExerciseLogs(initial);
-    setLogDialogOpen(true);
+    setActiveChecklist({ dayIndex, day, checked, weights, reps, startTime: Date.now() });
+    setChecklistMood("bom");
+    setChecklistNotes("");
   };
 
-  const saveLog = async () => {
+  const toggleExercise = (key: string) => {
+    if (!activeChecklist) return;
+    setActiveChecklist({ ...activeChecklist, checked: { ...activeChecklist.checked, [key]: !activeChecklist.checked[key] } });
+  };
+
+  const updateChecklistWeight = (key: string, val: string) => {
+    if (!activeChecklist) return;
+    setActiveChecklist({ ...activeChecklist, weights: { ...activeChecklist.weights, [key]: val } });
+  };
+
+  const updateChecklistReps = (key: string, val: string) => {
+    if (!activeChecklist) return;
+    setActiveChecklist({ ...activeChecklist, reps: { ...activeChecklist.reps, [key]: val } });
+  };
+
+  const checkedCount = activeChecklist ? Object.values(activeChecklist.checked).filter(Boolean).length : 0;
+  const totalExercises = activeChecklist ? activeChecklist.day.exercises.length : 0;
+
+  const finishChecklist = async () => {
+    if (!activeChecklist || !user) return;
+    const durationMinutes = Math.round((Date.now() - activeChecklist.startTime) / 60000);
+    const exercises = activeChecklist.day.exercises.map((ex, i) => {
+      const key = `${i}-${ex.name}`;
+      return {
+        name: ex.name,
+        completed: activeChecklist.checked[key],
+        sets: Array.from({ length: ex.sets }, () => ({
+          reps: activeChecklist.reps[key] || String(ex.reps),
+          weight: activeChecklist.weights[key] || ex.weight || "",
+        })),
+      };
+    });
+    const { error } = await supabase.from("fit_workout_logs" as any).insert({
+      user_id: user.id,
+      workout_name: activeChecklist.day.name,
+      workout_date: new Date().toISOString().slice(0, 10),
+      duration_minutes: durationMinutes > 0 ? durationMinutes : null,
+      mood: checklistMood,
+      notes: checklistNotes || null,
+      exercises,
+      plan_id: plans.find(p => p.active)?.id || null,
+    } as any);
+    if (error) { toast.error("Erro ao salvar treino"); return; }
+    toast.success(`Treino finalizado! ${checkedCount}/${totalExercises} exercícios 💪`);
+    setActiveChecklist(null);
+    loadData();
+  };
+
+  // Manual check-in (no plan)
+  const saveManualLog = async () => {
     if (!logForm.workout_name) { toast.error("Informe o nome do treino"); return; }
-    const exercises = selectedDay ? Object.entries(exerciseLogs).map(([name, data]) => ({
-      name, sets: data.sets,
-    })) : [];
     const { error } = await supabase.from("fit_workout_logs" as any).insert({
       user_id: user!.id, workout_name: logForm.workout_name,
       workout_date: logForm.workout_date,
       duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
-      mood: logForm.mood, notes: logForm.notes || null, exercises,
+      mood: logForm.mood, notes: logForm.notes || null, exercises: [],
       plan_id: plans.find(p => p.active)?.id || null,
     } as any);
     if (error) { toast.error("Erro ao salvar treino"); return; }
     toast.success("Treino registrado! 💪");
     setLogDialogOpen(false);
-    setSelectedDay(null);
     setLogForm({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: new Date().toISOString().slice(0, 10) });
     loadData();
   };
