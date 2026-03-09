@@ -38,10 +38,13 @@ export default function FitWorkout() {
   const [logs, setLogs] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
 
-  // Log dialog
+  // Checklist mode
+  const [activeChecklist, setActiveChecklist] = useState<{ dayIndex: number; day: WorkoutDay; checked: Record<string, boolean>; weights: Record<string, string>; reps: Record<string, string>; startTime: number } | null>(null);
+  const [checklistMood, setChecklistMood] = useState("bom");
+  const [checklistNotes, setChecklistNotes] = useState("");
+
+  // Legacy log dialog (for manual check-in without plan)
   const [logDialogOpen, setLogDialogOpen] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<WorkoutDay | null>(null);
-  const [exerciseLogs, setExerciseLogs] = useState<Record<string, { sets: { reps: string; weight: string }[] }>>({});
   const [logForm, setLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: new Date().toISOString().slice(0, 10) });
 
   // Manual plan dialog
