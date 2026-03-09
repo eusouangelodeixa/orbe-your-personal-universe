@@ -669,8 +669,13 @@ export default function Landing() {
             <div className="landing-footer-logo">ORBE<span>.</span></div>
             <p className="landing-footer-tagline">Seu universo pessoal — finanças, estudos e saúde — organizado num só lugar, via WhatsApp.</p>
             <div className="landing-footer-social">
-              {["𝕏", "in", "ig", "yt"].map((s) => (
-                <div key={s} className="landing-social-btn">{s}</div>
+              {[
+                { icon: "𝕏", url: "#" },
+                { icon: "in", url: "#" },
+                { icon: "ig", url: "#" },
+                { icon: "yt", url: "#" },
+              ].map((s) => (
+                <a key={s.icon} href={s.url} className="landing-social-btn" target="_blank" rel="noopener noreferrer">{s.icon}</a>
               ))}
             </div>
           </div>
