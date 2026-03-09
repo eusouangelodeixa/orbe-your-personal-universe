@@ -147,7 +147,7 @@ export default function Landing() {
             <button className="landing-btn-primary" onClick={() => navigate("/auth")}>
               Começar Agora — Grátis 3 dias
             </button>
-            <button className="landing-btn-secondary">
+            <button className="landing-btn-secondary" onClick={() => document.getElementById("modules")?.scrollIntoView({ behavior: "smooth" })}>
               <span>Ver Demo</span>
               <span>↗</span>
             </button>
