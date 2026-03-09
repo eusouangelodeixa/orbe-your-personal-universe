@@ -848,9 +848,13 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
             const rawSlotDay = safeString(slot.day || slot.dia || slot.weekday || slot.diaSemana || slot.week_day);
             const slotDayKey = getRequestedWeekdayFromText(rawSlotDay, now);
             if (slotDayKey === requestedDay) {
+              // Build time string from start/end fields (format used by the app)
+              const startTime = safeString(slot.start || slot.startTime || slot.time || slot.horario || slot.hora);
+              const endTime = safeString(slot.end || slot.endTime);
+              const timeStr = startTime && endTime ? `${startTime} - ${endTime}` : startTime || "";
               classesOnDay.push({
                 name: subj.name,
-                time: slot.time || slot.horario || slot.hora || "",
+                time: timeStr,
                 teacher: subj.teacher,
               });
             }
