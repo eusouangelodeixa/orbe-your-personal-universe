@@ -24,9 +24,9 @@ import { MonthSelector } from "@/components/MonthSelector";
 import { DueDateAlerts } from "@/components/DueDateAlerts";
 import {
   useCategories, useIncomes, useExpenses, useAddIncome, useAddExpense,
-  useToggleExpensePaid, useDeleteExpense, useDeleteIncome,
+  useToggleExpensePaid, useDeleteExpense, useDeleteIncome, useUpdateExpense,
   useWallets, useAddWallet, useDeleteWallet, useAddWalletTransaction, useWalletTransactions,
-  useSavingsGoals, useUpdateSavingsGoal,
+  useSavingsGoals, useUpdateSavingsGoal, useWalletTransfer,
 } from "@/hooks/useFinance";
 import {
   createOrbeDoc, finalizeDoc, drawHeader, drawSectionTitle,
