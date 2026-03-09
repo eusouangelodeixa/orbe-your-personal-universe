@@ -93,17 +93,36 @@ export default function Landing() {
   const containerRef = useFadeUp();
   const [pricePeriod, setPricePeriod] = useState<"mensal" | "trimestral" | "anual">("mensal");
   const [openFaq, setOpenFaq] = useState(0);
+  const [isMozambique, setIsMozambique] = useState(false);
+
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      const lang = navigator.language || "";
+      if (tz === "Africa/Maputo" || lang.toLowerCase().includes("mz")) {
+        setIsMozambique(true);
+      }
+    } catch {}
+  }, []);
 
   const toggleFaq = useCallback((i: number) => {
     setOpenFaq((prev) => (prev === i ? -1 : i));
   }, []);
 
-  const prices: Record<string, { basic: number; student: number; full: number; fit: number }> = {
+  const pricesBRL: Record<string, { basic: number; student: number; full: number; fit: number }> = {
     mensal: { basic: 19, student: 29, full: 44, fit: 24 },
     trimestral: { basic: 48, student: 72, full: 111, fit: 60 },
     anual: { basic: 156, student: 228, full: 348, fit: 192 },
   };
 
+  const pricesMZN: Record<string, { basic: number; student: number; full: number; fit: number }> = {
+    mensal: { basic: 229, student: 349, full: 539, fit: 299 },
+    trimestral: { basic: 589, student: 889, full: 1389, fit: 739 },
+    anual: { basic: 1899, student: 2789, full: 4249, fit: 2349 },
+  };
+
+  const prices = isMozambique ? pricesMZN : pricesBRL;
+  const currencySymbol = isMozambique ? "MT" : "R$";
   const currentPrices = prices[pricePeriod];
 
   return (
@@ -598,10 +617,18 @@ export default function Landing() {
               const isNotMonthly = pricePeriod !== "mensal";
               const monthlyEquivalent = isNotMonthly ? Math.round(p.price / (pricePeriod === "trimestral" ? 3 : 12)) : p.price;
               const billingLabel = pricePeriod === "trimestral"
-                ? `Cobrado R$${p.price} a cada 3 meses`
+                ? `Cobrado ${currencySymbol} ${p.price} a cada 3 meses`
                 : pricePeriod === "anual"
-                  ? `Cobrado R$${p.price} por ano`
+                  ? `Cobrado ${currencySymbol} ${p.price} por ano`
                   : null;
+
+              const handleClick = () => {
+                if (isMozambique) {
+                  window.open("https://pay.lojou.app/p/iGdxz", "_blank");
+                } else {
+                  navigate(`/auth?plan=${p.planKey}&period=${pricePeriod}`);
+                }
+              };
 
               return (
                 <div key={p.plan} className={`landing-price-card ${p.featured ? "featured" : ""}`}>
@@ -609,10 +636,10 @@ export default function Landing() {
                   <div className="landing-price-plan">{p.plan}</div>
                   {isNotMonthly && (
                     <div style={{ textDecoration: "line-through", opacity: 0.5, fontSize: "14px", fontFamily: "'Syne',sans-serif", marginBottom: "4px" }}>
-                      De R$ {p.monthlyPrice}/mês
+                      De {currencySymbol} {p.monthlyPrice}/mês
                     </div>
                   )}
-                  <div className="landing-price-val"><sup>R$</sup>{monthlyEquivalent}</div>
+                  <div className="landing-price-val"><sup>{currencySymbol}</sup>{monthlyEquivalent}</div>
                   <div className="landing-price-period">/mês · {p.period}</div>
                   {billingLabel && (
                     <div style={{ fontSize: "11px", color: "var(--grey)", marginTop: "4px", fontFamily: "'Space Grotesk',sans-serif" }}>
@@ -628,7 +655,7 @@ export default function Landing() {
                   <div key={f} className="landing-pf-item disabled">{f}</div>
                 ))}
               </div>
-              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate(`/auth?plan=${p.planKey}&period=${pricePeriod}`)}>
+              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={handleClick}>
                 {p.featured ? "Começar Agora" : "Começar"}
               </button>
             </div>

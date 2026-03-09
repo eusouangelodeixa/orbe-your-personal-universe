@@ -58,6 +58,32 @@ serve(async (req) => {
     const now = new Date();
     const isInTrial = now < trialEndsAt;
 
+    // Check Lojou subscription first
+    const { data: lojouSubs } = await supabaseClient
+      .from("subscriptions")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("provider", "lojou")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const lojouSub = lojouSubs && lojouSubs.length > 0 ? lojouSubs[0] : null;
+    if (lojouSub && new Date(lojouSub.ends_at) > now) {
+      return new Response(JSON.stringify({
+        subscribed: true,
+        is_admin: false,
+        product_id: null,
+        plan: lojouSub.plan,
+        provider: "lojou",
+        subscription_end: lojouSub.ends_at,
+        trial: false,
+        trial_ends_at: trialEndsAt.toISOString(),
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Check Stripe subscription
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
