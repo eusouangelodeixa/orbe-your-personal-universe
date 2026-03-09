@@ -868,3 +868,219 @@ export default function SubjectDetail() {
     </AppLayout>
   );
 }
+
+// ─── Resolver com IA Component ───
+function ResolverIA({ subjectName }: { subjectName: string }) {
+  const [content, setContent] = useState("");
+  const [type, setType] = useState("prova");
+  const [instructions, setInstructions] = useState("");
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      if (file.type.includes("text") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
+        const text = await file.text();
+        setContent(text);
+      } else if (file.type === "application/pdf") {
+        // Use parse-pdf or just note it
+        const text = await file.text();
+        setContent(`[Arquivo PDF: ${file.name}]\n\nConteúdo extraído automaticamente não disponível para PDFs. Cole o conteúdo manualmente ou use um arquivo de texto.`);
+        toast.info("Para PDFs, cole o conteúdo das questões no campo de texto para melhor resultado.");
+      } else {
+        const text = await file.text();
+        setContent(text);
+      }
+    } catch {
+      toast.error("Erro ao ler arquivo");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const handleSolve = async () => {
+    if (!content.trim() || loading) return;
+    setLoading(true);
+    setResult("");
+
+    try {
+      const resp = await fetch(SOLVE_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: JSON.stringify({ content: content.trim(), subjectName, type, instructions: instructions.trim() }),
+      });
+
+      if (resp.status === 429) { toast.error("Limite atingido. Tente novamente em instantes."); setLoading(false); return; }
+      if (resp.status === 402) { toast.error("Créditos insuficientes."); setLoading(false); return; }
+      if (!resp.ok || !resp.body) throw new Error("Falha");
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "", accumulated = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buf.indexOf("\n")) !== -1) {
+          let line = buf.slice(0, idx); buf = buf.slice(idx + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const json = line.slice(6).trim();
+          if (json === "[DONE]") break;
+          try {
+            const c = JSON.parse(json).choices?.[0]?.delta?.content;
+            if (c) { accumulated += c; setResult(accumulated); }
+          } catch { buf = line + "\n" + buf; break; }
+        }
+      }
+    } catch (err) {
+      toast.error("Erro ao resolver material");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const exportPDF = async () => {
+    if (!result) return;
+    const { default: jsPDF } = await import("jspdf");
+    const doc = new jsPDF();
+    const lines = doc.splitTextToSize(result.replace(/[#*`]/g, ""), 180);
+    let y = 15;
+    doc.setFontSize(10);
+    for (const line of lines) {
+      if (y > 280) { doc.addPage(); y = 15; }
+      doc.text(line, 15, y);
+      y += 5;
+    }
+    doc.save(`resolucao-${subjectName.replace(/\s+/g, "-").toLowerCase()}.pdf`);
+    toast.success("PDF exportado!");
+  };
+
+  const exportDOCX = async () => {
+    if (!result) return;
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
+    const paragraphs: any[] = [];
+    const lines = result.split("\n");
+    for (const line of lines) {
+      if (line.startsWith("# ")) {
+        paragraphs.push(new Paragraph({ text: line.slice(2), heading: HeadingLevel.HEADING_1 }));
+      } else if (line.startsWith("## ")) {
+        paragraphs.push(new Paragraph({ text: line.slice(3), heading: HeadingLevel.HEADING_2 }));
+      } else if (line.startsWith("### ")) {
+        paragraphs.push(new Paragraph({ text: line.slice(4), heading: HeadingLevel.HEADING_3 }));
+      } else if (line.trim() === "") {
+        paragraphs.push(new Paragraph({ text: "" }));
+      } else {
+        paragraphs.push(new Paragraph({
+          children: [new TextRun({ text: line.replace(/\*\*/g, "").replace(/\*/g, ""), size: 24 })],
+        }));
+      }
+    }
+    const doc = new Document({ sections: [{ children: paragraphs }] });
+    const blob = await Packer.toBlob(doc);
+    const { saveAs } = await import("file-saver");
+    saveAs(blob, `resolucao-${subjectName.replace(/\s+/g, "-").toLowerCase()}.docx`);
+    toast.success("DOCX exportado!");
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-primary" />
+            Resolver Material com IA
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label>Tipo de material</Label>
+              <Select value={type} onValueChange={setType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="prova">Prova / Exame</SelectItem>
+                  <SelectItem value="trabalho">Trabalho Acadêmico</SelectItem>
+                  <SelectItem value="relatorio">Relatório</SelectItem>
+                  <SelectItem value="exercicio">Lista de Exercícios</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Upload (opcional)</Label>
+              <input ref={fileRef} type="file" accept=".txt,.md,.csv,.doc,.docx,.pdf" className="hidden" onChange={handleFileUpload} />
+              <Button variant="outline" className="w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                Enviar arquivo
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <Label>Conteúdo do material (cole as questões, enunciado, etc.)</Label>
+            <Textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Cole aqui o conteúdo da prova, trabalho ou exercício..."
+              className="min-h-[150px] font-mono text-sm"
+            />
+          </div>
+
+          <div>
+            <Label>Instruções adicionais (opcional)</Label>
+            <Input
+              value={instructions}
+              onChange={(e) => setInstructions(e.target.value)}
+              placeholder="Ex: Use normas ABNT, inclua referências, resolva apenas as questões 1-5..."
+            />
+          </div>
+
+          <Button onClick={handleSolve} disabled={loading || !content.trim()} className="w-full sm:w-auto gap-2">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {loading ? "Resolvendo..." : "Resolver com IA"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {result && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">Resolução</CardTitle>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={exportPDF} className="gap-1">
+                  <Download className="h-3.5 w-3.5" /> PDF
+                </Button>
+                <Button variant="outline" size="sm" onClick={exportDOCX} className="gap-1">
+                  <Download className="h-3.5 w-3.5" /> DOCX
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="prose prose-sm dark:prose-invert max-w-none [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-3 [&_th]:py-1.5 [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5 [&_pre]:bg-muted [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:text-xs [&_pre]:overflow-x-auto [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-3 [&_blockquote]:italic">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
+              >
+                {sanitizeLatex(result)}
+              </ReactMarkdown>
+              {loading && <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+}
