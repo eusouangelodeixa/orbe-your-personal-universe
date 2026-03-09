@@ -91,6 +91,8 @@ export default function FitWorkout() {
   };
 
   // === CHECKLIST MODE ===
+  const isNumericWeight = (w?: string) => w ? /^\d/.test(w.trim()) : false;
+
   const startChecklist = (dayIndex: number, day: WorkoutDay) => {
     const checked: Record<string, boolean> = {};
     const weights: Record<string, string> = {};
@@ -98,7 +100,7 @@ export default function FitWorkout() {
     day.exercises.forEach((ex, i) => {
       const key = `${i}-${ex.name}`;
       checked[key] = false;
-      weights[key] = ex.weight || "";
+      weights[key] = isNumericWeight(ex.weight) ? (ex.weight || "") : "";
       reps[key] = String(ex.reps).replace(/[^0-9-]/g, '') || "12";
     });
     setActiveChecklist({ dayIndex, day, checked, weights, reps, startTime: Date.now() });
