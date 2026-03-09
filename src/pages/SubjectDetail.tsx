@@ -393,9 +393,10 @@ export default function SubjectDetail() {
 
         {/* Tabs */}
         <Tabs defaultValue="notas" className="space-y-4">
-          <TabsList>
+          <TabsList className="flex-wrap">
             <TabsTrigger value="notas">📊 Notas</TabsTrigger>
             <TabsTrigger value="agenda">📅 Agenda</TabsTrigger>
+            <TabsTrigger value="resolver">✨ Resolver com IA</TabsTrigger>
             <TabsTrigger value="pomodoro">⏱️ Pomodoro</TabsTrigger>
             <TabsTrigger value="chatbot">🤖 Chatbot</TabsTrigger>
             <TabsTrigger value="ementa">📄 Ementa</TabsTrigger>
