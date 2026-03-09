@@ -206,7 +206,7 @@ export default function Planilha() {
         ["Nome", "Saldo"],
         wallets.map((w) => [
           w.name + (w.is_default ? " ★" : ""),
-          `R$ ${Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          formatMoney(Number(w.balance)),
         ])
       );
       y += 8;
