@@ -43,6 +43,7 @@ const studiesItems = [
   { title: "Dashboard", url: "/estudos", icon: LayoutDashboard },
   { title: "Disciplinas", url: "/disciplinas", icon: GraduationCap },
   { title: "Agenda", url: "/agenda", icon: Calendar },
+  { title: "Tutor Central IA", url: "/estudos/chat", icon: Bot },
 ];
 
 const fitItems = [
