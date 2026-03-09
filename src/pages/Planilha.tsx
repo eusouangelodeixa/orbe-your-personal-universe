@@ -54,6 +54,8 @@ export default function Planilha() {
   const addWallet = useAddWallet();
   const deleteWallet = useDeleteWallet();
   const addWalletTx = useAddWalletTransaction();
+  const updateExpense = useUpdateExpense();
+  const walletTransfer = useWalletTransfer();
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
