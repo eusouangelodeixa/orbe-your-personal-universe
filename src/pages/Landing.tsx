@@ -597,7 +597,7 @@ export default function Landing() {
               {p.featured && <div className="landing-price-popular">Mais Popular</div>}
               <div className="landing-price-plan">{p.plan}</div>
               <div className="landing-price-val"><sup>R$</sup>{p.price}</div>
-              <div className="landing-price-period">/mês · {p.period}</div>
+              <div className="landing-price-period">/{pricePeriod === "mensal" ? "mês" : pricePeriod === "trimestral" ? "trimestre" : "ano"} · {p.period}</div>
               <div className="landing-price-divider" />
               <div className="landing-price-features">
                 {p.features.map((f) => (
