@@ -61,6 +61,7 @@ export default function Planilha() {
 
   const [novoGasto, setNovoGasto] = useState({
     nome: "", categoria: "", valor: "", tipo: "variavel" as "fixo" | "variavel", walletId: "",
+    recurring: false, recurringDay: "",
   });
   const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "", walletId: "" });
   const [novaCarteira, setNovaCarteira] = useState({ nome: "", saldoInicial: "" });
