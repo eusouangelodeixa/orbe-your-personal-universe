@@ -39,7 +39,7 @@ export function DueDateAlerts({ expenses }: DueDateAlertsProps) {
           <AlertDescription>
             {overdue.map((e) => (
               <div key={e.id} className="text-sm">
-                <strong>{e.name}</strong> — R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (venceu em {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")})
+                <strong>{e.name}</strong> — {formatMoney(Number(e.amount))} (venceu em {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")})
               </div>
             ))}
           </AlertDescription>
