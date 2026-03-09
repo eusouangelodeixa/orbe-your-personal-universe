@@ -63,6 +63,7 @@ export default function FitWorkout() {
   // Log editing
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [editLogForm, setEditLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: "" });
+  const [editLogExercises, setEditLogExercises] = useState<{ name: string; sets: { reps: string; weight: string }[] }[]>([]);
 
   useEffect(() => { if (user) loadData(); }, [user]);
 
@@ -294,6 +295,12 @@ export default function FitWorkout() {
       notes: log.notes || "",
       workout_date: log.workout_date,
     });
+    setEditLogExercises(
+      (log.exercises || []).map((ex: any) => ({
+        name: ex.name,
+        sets: (ex.sets || []).map((s: any) => ({ reps: s.reps?.toString() || "12", weight: s.weight?.toString() || "" })),
+      }))
+    );
   };
 
   const saveEditLog = async () => {
@@ -304,6 +311,7 @@ export default function FitWorkout() {
       duration_minutes: editLogForm.duration_minutes ? parseInt(editLogForm.duration_minutes) : null,
       mood: editLogForm.mood,
       notes: editLogForm.notes || null,
+      exercises: editLogExercises,
     } as any).eq("id", editingLogId);
     if (error) { toast.error("Erro ao atualizar"); return; }
     toast.success("Treino atualizado! ✅");
@@ -598,6 +606,54 @@ export default function FitWorkout() {
                           </SelectContent>
                         </Select>
                       </div>
+                      {/* Editable exercises */}
+                      {editLogExercises.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-xs">Exercícios</Label>
+                          {editLogExercises.map((ex, ei) => (
+                            <div key={ei} className="rounded border p-2 space-y-1.5">
+                              <div className="flex items-center gap-1.5">
+                                <Input value={ex.name} onChange={e => {
+                                  const next = [...editLogExercises];
+                                  next[ei] = { ...next[ei], name: e.target.value };
+                                  setEditLogExercises(next);
+                                }} className="h-7 text-xs flex-1" placeholder="Exercício" />
+                                <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => setEditLogExercises(editLogExercises.filter((_, i) => i !== ei))}>
+                                  <X className="h-3 w-3 text-destructive" />
+                                </Button>
+                              </div>
+                              {ex.sets.map((s, si) => (
+                                <div key={si} className="flex items-center gap-1.5 pl-2">
+                                  <span className="text-[10px] text-muted-foreground w-5">S{si + 1}</span>
+                                  <Input value={s.weight} onChange={e => {
+                                    const next = [...editLogExercises];
+                                    next[ei] = { ...next[ei], sets: [...next[ei].sets] };
+                                    next[ei].sets[si] = { ...next[ei].sets[si], weight: e.target.value };
+                                    setEditLogExercises(next);
+                                  }} className="h-6 text-xs w-16" placeholder="kg" />
+                                  <span className="text-xs text-muted-foreground">×</span>
+                                  <Input value={s.reps} onChange={e => {
+                                    const next = [...editLogExercises];
+                                    next[ei] = { ...next[ei], sets: [...next[ei].sets] };
+                                    next[ei].sets[si] = { ...next[ei].sets[si], reps: e.target.value };
+                                    setEditLogExercises(next);
+                                  }} className="h-6 text-xs w-14" placeholder="reps" />
+                                  <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => {
+                                    const next = [...editLogExercises];
+                                    next[ei] = { ...next[ei], sets: next[ei].sets.filter((_, i) => i !== si) };
+                                    setEditLogExercises(next);
+                                  }}><X className="h-2.5 w-2.5" /></Button>
+                                </div>
+                              ))}
+                              <Button variant="ghost" size="sm" className="h-5 text-[10px] gap-1 w-full" onClick={() => {
+                                const next = [...editLogExercises];
+                                next[ei] = { ...next[ei], sets: [...next[ei].sets, { reps: "12", weight: "" }] };
+                                setEditLogExercises(next);
+                              }}><Plus className="h-2.5 w-2.5" /> Série</Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <Textarea value={editLogForm.notes} onChange={e => setEditLogForm(f => ({ ...f, notes: e.target.value }))} className="text-xs min-h-[60px]" placeholder="Notas..." />
                       <div className="flex gap-2">
                         <Button size="sm" className="h-7 text-xs gap-1 flex-1" onClick={saveEditLog}><Save className="h-3 w-3" /> Salvar</Button>
