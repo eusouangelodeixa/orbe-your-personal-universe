@@ -230,6 +230,40 @@ export default function FitWorkout() {
     setEditData({ ...editData, days: editData.days.filter((_, i) => i !== idx) });
   };
 
+  // === LOG EDIT/DELETE ===
+  const startEditLog = (log: any) => {
+    setEditingLogId(log.id);
+    setEditLogForm({
+      workout_name: log.workout_name,
+      duration_minutes: log.duration_minutes?.toString() || "",
+      mood: log.mood || "bom",
+      notes: log.notes || "",
+      workout_date: log.workout_date,
+    });
+  };
+
+  const saveEditLog = async () => {
+    if (!editingLogId) return;
+    const { error } = await supabase.from("fit_workout_logs" as any).update({
+      workout_name: editLogForm.workout_name,
+      workout_date: editLogForm.workout_date,
+      duration_minutes: editLogForm.duration_minutes ? parseInt(editLogForm.duration_minutes) : null,
+      mood: editLogForm.mood,
+      notes: editLogForm.notes || null,
+    } as any).eq("id", editingLogId);
+    if (error) { toast.error("Erro ao atualizar"); return; }
+    toast.success("Treino atualizado! ✅");
+    setEditingLogId(null);
+    loadData();
+  };
+
+  const deleteLog = async (logId: string) => {
+    const { error } = await supabase.from("fit_workout_logs" as any).delete().eq("id", logId);
+    if (error) { toast.error("Erro ao apagar"); return; }
+    toast.success("Treino removido");
+    loadData();
+  };
+
   // === PDF EXPORT ===
   const exportPDF = () => {
     const ap = plans.find(p => p.active);
