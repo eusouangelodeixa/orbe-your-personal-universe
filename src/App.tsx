@@ -14,6 +14,7 @@ import Cofrinho from "./pages/Cofrinho";
 import Consultor from "./pages/Consultor";
 import Disciplinas from "./pages/Disciplinas";
 import StudiesDashboard from "./pages/StudiesDashboard";
+import StudiesChat from "./pages/StudiesChat";
 import SubjectDetail from "./pages/SubjectDetail";
 import Agenda from "./pages/Agenda";
 import Profile from "./pages/Profile";
