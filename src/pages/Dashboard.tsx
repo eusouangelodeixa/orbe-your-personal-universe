@@ -23,6 +23,7 @@ export default function Dashboard() {
   const { data: expenses = [], isLoading: le } = useExpenses(month, year);
   const { data: wallets = [], isLoading: lw } = useWallets();
   const { data: transactions = [] } = useWalletTransactions();
+  const { data: history = [] } = useFinancialHistory();
 
   const renda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
