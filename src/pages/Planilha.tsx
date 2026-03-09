@@ -12,9 +12,10 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon,
-  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank,
+  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank, Repeat,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
