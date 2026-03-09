@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.agent-orchestrator]
 verify_jwt = false
+
+[functions.solve-academic]
+verify_jwt = false
