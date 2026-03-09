@@ -295,6 +295,12 @@ export default function FitWorkout() {
       notes: log.notes || "",
       workout_date: log.workout_date,
     });
+    setEditLogExercises(
+      (log.exercises || []).map((ex: any) => ({
+        name: ex.name,
+        sets: (ex.sets || []).map((s: any) => ({ reps: s.reps?.toString() || "12", weight: s.weight?.toString() || "" })),
+      }))
+    );
   };
 
   const saveEditLog = async () => {
@@ -305,6 +311,7 @@ export default function FitWorkout() {
       duration_minutes: editLogForm.duration_minutes ? parseInt(editLogForm.duration_minutes) : null,
       mood: editLogForm.mood,
       notes: editLogForm.notes || null,
+      exercises: editLogExercises,
     } as any).eq("id", editingLogId);
     if (error) { toast.error("Erro ao atualizar"); return; }
     toast.success("Treino atualizado! ✅");
