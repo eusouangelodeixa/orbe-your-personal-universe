@@ -234,7 +234,7 @@ export default function Planilha() {
         expenses.map((e: any) => [
           e.name,
           e.categories?.name || "—",
-          `R$ ${Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          formatMoney(Number(e.amount)),
           new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
           e.paid ? "Pago" : "Pendente",
           e.wallets?.name || "—",
