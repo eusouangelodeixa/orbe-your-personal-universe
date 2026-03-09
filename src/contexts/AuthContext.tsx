@@ -81,7 +81,7 @@ export const useAuth = () => useContext(AuthContext);
 function productToPlan(productId: string | null): PlanKey | null {
   if (!productId) return null;
   for (const [key, plan] of Object.entries(ORBE_PLANS)) {
-    if (plan.product_id === productId) return key as PlanKey;
+    if ((plan.product_ids as readonly string[]).includes(productId)) return key as PlanKey;
   }
   return null;
 }
