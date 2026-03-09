@@ -52,6 +52,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 };
 const TYPES_LABEL: Record<string, string> = { teorica: "Teórica", pratica: "Prática", laboratorio: "Laboratório" };
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/subject-chat`;
+const SOLVE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/solve-academic`;
 
 // ─── Chat streaming ───
 interface Message { role: "user" | "assistant"; content: string; }
