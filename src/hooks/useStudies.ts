@@ -209,3 +209,56 @@ export function useClearSubjectChat() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["subject_chat"] }); toast.success("Histórico limpo!"); },
   });
 }
+
+// ─── AI Resolutions ───
+export interface AIResolution {
+  id: string;
+  user_id: string;
+  subject_id: string | null;
+  subject_name: string;
+  type: string;
+  input_content: string | null;
+  instructions: string | null;
+  result: string;
+  file_name: string | null;
+  created_at: string;
+}
+
+export function useAIResolutions(subjectId?: string) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["ai_resolutions", subjectId],
+    enabled: !!user,
+    queryFn: async () => {
+      let q = supabase.from("ai_resolutions").select("*").eq("user_id", user!.id).order("created_at", { ascending: false });
+      if (subjectId) q = q.eq("subject_id", subjectId);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data as AIResolution[];
+    },
+  });
+}
+
+export function useSaveResolution() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { subject_id?: string; subject_name: string; type: string; input_content?: string; instructions?: string; result: string; file_name?: string }) => {
+      const { error } = await supabase.from("ai_resolutions").insert({ ...payload, user_id: user!.id });
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ai_resolutions"] }); toast.success("Resolução salva no histórico!"); },
+  });
+}
+
+export function useDeleteResolution() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("ai_resolutions").delete().eq("id", id).eq("user_id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["ai_resolutions"] }); toast.success("Resolução excluída!"); },
+  });
+}

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Loader2, FileText, ClipboardList, BookOpen, RotateCw,
-  Send, ArrowLeft, CalendarPlus, Upload, Pencil, User, GraduationCap, Clock, MessageSquare, FileUp, Timer, Sparkles, Download,
+  Send, ArrowLeft, CalendarPlus, Upload, Pencil, User, GraduationCap, Clock, MessageSquare, FileUp, Timer, Sparkles, Download, History, GitCompare, Save, Eye, X,
 } from "lucide-react";
 import { PomodoroTimer } from "@/components/PomodoroTimer";
 import { format, parseISO } from "date-fns";
@@ -33,6 +33,7 @@ import {
   useSubjects, useUpdateSubject, useDeleteSubject,
   useAcademicEvents, useAddAcademicEvent, useUpdateAcademicEvent, useDeleteAcademicEvent,
   useSubjectChatMessages, useAddSubjectChatMessage, useClearSubjectChat,
+  useAIResolutions, useSaveResolution, useDeleteResolution,
   AcademicEvent,
 } from "@/hooks/useStudies";
 import { useAddNotification } from "@/hooks/useNotifications";
@@ -742,7 +743,7 @@ export default function SubjectDetail() {
 
           {/* ─── RESOLVER COM IA TAB ─── */}
           <TabsContent value="resolver" className="space-y-4">
-            <ResolverIA subjectName={subject.name} />
+            <ResolverIA subjectName={subject.name} subjectId={subject.id} />
           </TabsContent>
 
           {/* ─── POMODORO TAB ─── */}
@@ -870,7 +871,7 @@ export default function SubjectDetail() {
 }
 
 // ─── Resolver com IA Component ───
-function ResolverIA({ subjectName }: { subjectName: string }) {
+function ResolverIA({ subjectName, subjectId }: { subjectName: string; subjectId: string }) {
   const [content, setContent] = useState("");
   const [type, setType] = useState("prova");
   const [instructions, setInstructions] = useState("");
@@ -880,17 +881,31 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
   const [imageBase64, setImageBase64] = useState<string | null>(null);
   const [fileName, setFileName] = useState("");
+  const [uploadedFiles, setUploadedFiles] = useState<{ name: string; base64: string; mime: string }[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const resultRef = useRef<HTMLDivElement>(null);
 
+  // ABNT cover fields
+  const [coverData, setCoverData] = useState({ studentName: "", university: "", course: "", city: "" });
+  const [showCover, setShowCover] = useState(false);
+
+  // History
+  const { data: resolutions = [] } = useAIResolutions(subjectId);
+  const saveResolution = useSaveResolution();
+  const deleteResolution = useDeleteResolution();
+  const [activeTab, setActiveTab] = useState<"resolver" | "historico">("resolver");
+
+  // Comparison
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const [showCompare, setShowCompare] = useState(false);
+
+  // Multi-file upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 20 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 20MB)"); return; }
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    const maxSize = 20 * 1024 * 1024;
+
     setUploading(true);
-    setPdfBase64(null);
-    setImageBase64(null);
-    setFileName(file.name);
     const toBase64 = (buf: ArrayBuffer): string => {
       const bytes = new Uint8Array(buf);
       let binary = "";
@@ -900,33 +915,70 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
       }
       return btoa(binary);
     };
+
     try {
-      if (file.type.includes("text") || file.name.endsWith(".txt") || file.name.endsWith(".md") || file.name.endsWith(".csv")) {
-        const text = await file.text();
-        setContent(text);
-        toast.success(`Arquivo "${file.name}" carregado!`);
-      } else if (file.type === "application/pdf") {
-        const buffer = await file.arrayBuffer();
-        const base64 = toBase64(buffer);
-        setPdfBase64(base64);
-        setContent(`[PDF carregado: ${file.name}]`);
-        toast.success(`PDF "${file.name}" carregado! A IA vai analisar o conteúdo visualmente.`);
-      } else if (file.type.startsWith("image/")) {
-        const buffer = await file.arrayBuffer();
-        const base64 = toBase64(buffer);
-        setImageBase64(base64);
-        setContent(`[Imagem carregada: ${file.name}]`);
-        toast.success(`Imagem "${file.name}" carregada! A IA vai extrair e resolver o conteúdo.`);
+      // If single file, use legacy behavior
+      if (files.length === 1) {
+        const file = files[0];
+        if (file.size > maxSize) { toast.error("Arquivo muito grande (máx 20MB)"); return; }
+        setPdfBase64(null);
+        setImageBase64(null);
+        setFileName(file.name);
+        setUploadedFiles([]);
+
+        if (file.type.includes("text") || file.name.endsWith(".txt") || file.name.endsWith(".md") || file.name.endsWith(".csv")) {
+          const text = await file.text();
+          setContent(text);
+          toast.success(`Arquivo "${file.name}" carregado!`);
+        } else if (file.type === "application/pdf") {
+          const buffer = await file.arrayBuffer();
+          setPdfBase64(toBase64(buffer));
+          setContent(`[PDF carregado: ${file.name}]`);
+          toast.success(`PDF "${file.name}" carregado!`);
+        } else if (file.type.startsWith("image/")) {
+          const buffer = await file.arrayBuffer();
+          setImageBase64(toBase64(buffer));
+          setContent(`[Imagem carregada: ${file.name}]`);
+          toast.success(`Imagem "${file.name}" carregada!`);
+        } else {
+          const text = await file.text();
+          setContent(text);
+          toast.success(`Arquivo "${file.name}" carregado!`);
+        }
       } else {
-        const text = await file.text();
-        setContent(text);
-        toast.success(`Arquivo "${file.name}" carregado!`);
+        // Multi-file: collect all as base64
+        setPdfBase64(null);
+        setImageBase64(null);
+        const collected: { name: string; base64: string; mime: string }[] = [];
+        for (const file of files) {
+          if (file.size > maxSize) { toast.error(`"${file.name}" muito grande, ignorado`); continue; }
+          const buffer = await file.arrayBuffer();
+          const b64 = toBase64(buffer);
+          const mime = file.type || "application/octet-stream";
+          collected.push({ name: file.name, base64: b64, mime });
+        }
+        setUploadedFiles(collected);
+        setFileName(`${collected.length} arquivos`);
+        setContent(`[${collected.length} arquivos carregados: ${collected.map(f => f.name).join(", ")}]`);
+        toast.success(`${collected.length} arquivos carregados!`);
       }
     } catch {
-      toast.error("Erro ao ler arquivo");
+      toast.error("Erro ao ler arquivo(s)");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const removeFile = (idx: number) => {
+    const next = uploadedFiles.filter((_, i) => i !== idx);
+    setUploadedFiles(next);
+    if (next.length === 0) {
+      setFileName("");
+      setContent("");
+    } else {
+      setFileName(`${next.length} arquivos`);
+      setContent(`[${next.length} arquivos: ${next.map(f => f.name).join(", ")}]`);
     }
   };
 
@@ -936,6 +988,22 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
     setResult("");
 
     try {
+      // For multi-file, send the first PDF/image; for subsequent ones, append as extra context
+      let sendPdfBase64 = pdfBase64 || undefined;
+      let sendImageBase64 = imageBase64 || undefined;
+      let sendFileName = fileName || undefined;
+
+      if (uploadedFiles.length > 0) {
+        // Use first file as primary
+        const first = uploadedFiles[0];
+        if (first.mime === "application/pdf") {
+          sendPdfBase64 = first.base64;
+        } else if (first.mime.startsWith("image/")) {
+          sendImageBase64 = first.base64;
+        }
+        sendFileName = first.name;
+      }
+
       const resp = await fetch(SOLVE_URL, {
         method: "POST",
         headers: {
@@ -944,13 +1012,17 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
         },
         body: JSON.stringify({
           content: content.trim(), subjectName, type, instructions: instructions.trim(),
-          pdfBase64: pdfBase64 || undefined,
-          imageBase64: imageBase64 || undefined,
-          fileName: fileName || undefined,
+          pdfBase64: sendPdfBase64,
+          imageBase64: sendImageBase64,
+          fileName: sendFileName,
+          // Send additional files as extra images
+          additionalFiles: uploadedFiles.length > 1
+            ? uploadedFiles.slice(1).map(f => ({ base64: f.base64, mime: f.mime, name: f.name }))
+            : undefined,
         }),
       });
 
-      if (resp.status === 429) { toast.error("Limite atingido. Tente novamente em instantes."); setLoading(false); return; }
+      if (resp.status === 429) { toast.error("Limite atingido."); setLoading(false); return; }
       if (resp.status === 402) { toast.error("Créditos insuficientes."); setLoading(false); return; }
       if (!resp.ok || !resp.body) throw new Error("Falha");
 
@@ -975,97 +1047,184 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
           } catch { buf = line + "\n" + buf; break; }
         }
       }
-    } catch (err) {
+
+      // Auto-save to history
+      if (accumulated.length > 50) {
+        saveResolution.mutate({
+          subject_id: subjectId,
+          subject_name: subjectName,
+          type,
+          input_content: content.slice(0, 1000),
+          instructions: instructions || undefined,
+          result: accumulated,
+          file_name: fileName || undefined,
+        });
+      }
+    } catch {
       toast.error("Erro ao resolver material");
     } finally {
       setLoading(false);
     }
   };
 
-  // ─── ABNT-compliant PDF export ───
+  // ─── ABNT Cover page builder ───
+  const buildCoverLines = () => {
+    const year = new Date().getFullYear();
+    const city = coverData.city || "Cidade";
+    return [
+      coverData.university || "UNIVERSIDADE",
+      coverData.course || "CURSO",
+      "",
+      "",
+      "",
+      coverData.studentName || "NOME DO ALUNO",
+      "",
+      "",
+      "",
+      subjectName.toUpperCase(),
+      "",
+      "",
+      "",
+      "",
+      "",
+      `${city}\n${year}`,
+    ];
+  };
+
+  // ─── ABNT PDF export with cover + tables ───
   const exportPDF = async () => {
     if (!result) return;
     const { default: jsPDF } = await import("jspdf");
+    const autoTable = (await import("jspdf-autotable")).default;
     const doc = new jsPDF({ unit: "mm", format: "a4" });
 
-    // ABNT margins: top 30mm, left 30mm, bottom 20mm, right 20mm
-    const marginLeft = 30;
-    const marginRight = 20;
-    const marginTop = 30;
-    const marginBottom = 20;
-    const pageWidth = 210 - marginLeft - marginRight; // 160mm usable
-    const pageHeight = 297;
-    let y = marginTop;
-    let pageNum = 1;
+    const mL = 30, mR = 20, mT = 30, mB = 20;
+    const pw = 210 - mL - mR;
+    let y = mT;
+    let pageNum = 0;
 
     const addPage = () => {
       doc.addPage();
       pageNum++;
-      y = marginTop;
-      // Page number top-right (ABNT)
+      y = mT;
       doc.setFontSize(10);
       doc.setFont("times", "normal");
-      doc.text(String(pageNum), 210 - marginRight, 15, { align: "right" });
+      doc.text(String(pageNum), 210 - mR, 15, { align: "right" });
     };
+    const checkPage = (n: number) => { if (y + n > 297 - mB) addPage(); };
 
-    const checkPage = (needed: number) => {
-      if (y + needed > pageHeight - marginBottom) addPage();
-    };
+    // ─── Cover page ───
+    if (showCover) {
+      const coverLines = buildCoverLines();
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
 
-    // First page number
-    doc.setFontSize(10);
+      // University + course at top
+      doc.text(coverLines[0].toUpperCase(), 105, 50, { align: "center" });
+      doc.setFontSize(12);
+      doc.text(coverLines[1].toUpperCase(), 105, 60, { align: "center" });
+
+      // Student name at middle
+      doc.setFontSize(14);
+      doc.text(coverLines[5].toUpperCase(), 105, 120, { align: "center" });
+
+      // Subject/title
+      doc.setFontSize(16);
+      doc.text(coverLines[9], 105, 160, { align: "center" });
+
+      // City + year at bottom
+      doc.setFontSize(12);
+      doc.setFont("times", "normal");
+      const cityYear = coverLines[15].split("\n");
+      doc.text(cityYear[0], 105, 265, { align: "center" });
+      doc.text(cityYear[1] || "", 105, 272, { align: "center" });
+
+      addPage();
+    }
+
+    // ─── Content ───
+    doc.setFontSize(12);
     doc.setFont("times", "normal");
 
     const lines = result.split("\n");
-
-    for (const rawLine of lines) {
+    let i = 0;
+    while (i < lines.length) {
+      const rawLine = lines[i];
       const line = rawLine.replace(/\*\*/g, "").replace(/\*/g, "").replace(/`/g, "");
 
-      // Heading 1: # or 1 SECTION
+      // Detect markdown table
+      if (line.includes("|") && line.trim().startsWith("|")) {
+        const tableLines: string[] = [];
+        while (i < lines.length && lines[i].trim().startsWith("|")) {
+          tableLines.push(lines[i]);
+          i++;
+        }
+        // Parse table
+        const rows = tableLines
+          .filter(l => !l.match(/^\|[\s-:|]+\|$/))
+          .map(l => l.split("|").filter(c => c.trim() !== "").map(c => c.trim()));
+        if (rows.length > 0) {
+          const head = [rows[0]];
+          const body = rows.slice(1);
+          checkPage(20);
+          autoTable(doc, {
+            startY: y,
+            head,
+            body,
+            margin: { left: mL, right: mR },
+            styles: { font: "times", fontSize: 10, cellPadding: 2 },
+            headStyles: { fillColor: [40, 40, 40], textColor: 255, fontStyle: "bold" },
+            alternateRowStyles: { fillColor: [245, 245, 245] },
+          });
+          y = (doc as any).lastAutoTable.finalY + 6;
+        }
+        continue;
+      }
+
+      // Heading 1
       if (line.match(/^#{1}\s/) || line.match(/^\d+\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,}/)) {
         checkPage(12);
         y += 6;
         doc.setFontSize(14);
         doc.setFont("times", "bold");
-        const heading = line.replace(/^#+\s*/, "").toUpperCase();
-        doc.text(heading, marginLeft, y);
+        doc.text(line.replace(/^#+\s*/, "").toUpperCase(), mL, y);
         y += 8;
         doc.setFontSize(12);
         doc.setFont("times", "normal");
       }
-      // Heading 2: ##
+      // Heading 2
       else if (line.match(/^#{2}\s/)) {
         checkPage(10);
         y += 4;
         doc.setFontSize(12);
         doc.setFont("times", "bold");
-        doc.text(line.replace(/^#+\s*/, ""), marginLeft, y);
+        doc.text(line.replace(/^#+\s*/, ""), mL, y);
         y += 7;
         doc.setFont("times", "normal");
       }
-      // Heading 3: ###
+      // Heading 3
       else if (line.match(/^#{3,}\s/)) {
         checkPage(8);
         y += 3;
         doc.setFontSize(12);
         doc.setFont("times", "italic");
-        doc.text(line.replace(/^#+\s*/, ""), marginLeft, y);
+        doc.text(line.replace(/^#+\s*/, ""), mL, y);
         y += 6;
         doc.setFont("times", "normal");
       }
-      // Empty line → paragraph spacing
+      // Empty
       else if (line.trim() === "") {
         y += 4;
       }
-      // Long citation (starts with >)
+      // Blockquote
       else if (line.startsWith(">")) {
         const citText = line.replace(/^>\s*/, "");
         doc.setFontSize(10);
-        const citLines = doc.splitTextToSize(citText, pageWidth - 40); // extra 40mm indent = recuo 4cm
+        const citLines = doc.splitTextToSize(citText, pw - 40);
         for (const cl of citLines) {
           checkPage(5);
-          doc.text(cl, marginLeft + 40, y);
-          y += 4; // single spacing for citations
+          doc.text(cl, mL + 40, y);
+          y += 4;
         }
         doc.setFontSize(12);
         y += 2;
@@ -1074,267 +1233,468 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
       else {
         doc.setFontSize(12);
         doc.setFont("times", "normal");
-        const wrapped = doc.splitTextToSize(line, pageWidth);
+        const wrapped = doc.splitTextToSize(line, pw);
         let first = true;
         for (const wl of wrapped) {
           checkPage(6);
-          // ABNT paragraph indent 1.25cm = ~12.5mm on first line
-          const indent = first ? 12.5 : 0;
-          doc.text(wl, marginLeft + indent, y);
-          y += 6; // ~1.5 line spacing at 12pt
+          doc.text(wl, mL + (first ? 12.5 : 0), y);
+          y += 6;
           first = false;
         }
         y += 1;
       }
+
+      i++;
     }
 
     doc.save(`resolucao-${subjectName.replace(/\s+/g, "-").toLowerCase()}.pdf`);
     toast.success("PDF exportado com formatação ABNT!");
   };
 
-  // ─── ABNT-compliant DOCX export ───
+  // ─── ABNT DOCX export with cover + TOC ───
   const exportDOCX = async () => {
     if (!result) return;
-    const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, convertMillimetersToTwip, PageBreak } = await import("docx");
+    const {
+      Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType,
+      convertMillimetersToTwip, PageBreak, TableOfContents, Table, TableRow, TableCell,
+      WidthType, BorderStyle,
+    } = await import("docx");
 
     const FONT = "Times New Roman";
-    const SIZE_12 = 24; // half-points
-    const SIZE_10 = 20;
-    const LINE_SPACING_1_5 = 360; // 1.5 lines in twips
-    const LINE_SPACING_SINGLE = 240;
-    const INDENT_FIRST_LINE = convertMillimetersToTwip(12.5); // 1.25cm
+    const SZ12 = 24, SZ10 = 20, SZ14 = 28, SZ16 = 32;
+    const SP15 = 360, SP1 = 240;
+    const INDENT = convertMillimetersToTwip(12.5);
 
-    const paragraphs: any[] = [];
-    const lines = result.split("\n");
-
-    // Helper to parse inline bold/italic from markdown
-    const parseInlineFormatting = (text: string, fontSize: number): any[] => {
+    const parseInline = (text: string, fontSize: number): any[] => {
       const runs: any[] = [];
-      // Match **bold**, *italic*, ***bold-italic***, and plain text
       const regex = /(\*\*\*(.+?)\*\*\*|\*\*(.+?)\*\*|\*(.+?)\*|([^*]+))/g;
       let match;
       while ((match = regex.exec(text)) !== null) {
-        if (match[2]) {
-          runs.push(new TextRun({ text: match[2], bold: true, italics: true, font: FONT, size: fontSize }));
-        } else if (match[3]) {
-          runs.push(new TextRun({ text: match[3], bold: true, font: FONT, size: fontSize }));
-        } else if (match[4]) {
-          runs.push(new TextRun({ text: match[4], italics: true, font: FONT, size: fontSize }));
-        } else if (match[5]) {
-          runs.push(new TextRun({ text: match[5].replace(/`/g, ""), font: FONT, size: fontSize }));
-        }
+        if (match[2]) runs.push(new TextRun({ text: match[2], bold: true, italics: true, font: FONT, size: fontSize }));
+        else if (match[3]) runs.push(new TextRun({ text: match[3], bold: true, font: FONT, size: fontSize }));
+        else if (match[4]) runs.push(new TextRun({ text: match[4], italics: true, font: FONT, size: fontSize }));
+        else if (match[5]) runs.push(new TextRun({ text: match[5].replace(/`/g, ""), font: FONT, size: fontSize }));
       }
       return runs.length ? runs : [new TextRun({ text: text.replace(/[*`]/g, ""), font: FONT, size: fontSize })];
     };
 
-    for (const rawLine of lines) {
-      const line = rawLine;
+    const sections: any[] = [];
+
+    // ─── Cover page section ───
+    if (showCover) {
+      const year = new Date().getFullYear();
+      sections.push({
+        properties: {
+          page: { margin: { top: convertMillimetersToTwip(30), right: convertMillimetersToTwip(20), bottom: convertMillimetersToTwip(20), left: convertMillimetersToTwip(30) } },
+        },
+        children: [
+          new Paragraph({ spacing: { before: 1200 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: (coverData.university || "UNIVERSIDADE").toUpperCase(), bold: true, font: FONT, size: SZ14 })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: (coverData.course || "CURSO").toUpperCase(), bold: true, font: FONT, size: SZ12 })] }),
+          new Paragraph({ spacing: { before: 2400 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: (coverData.studentName || "NOME DO ALUNO").toUpperCase(), bold: true, font: FONT, size: SZ14 })] }),
+          new Paragraph({ spacing: { before: 2400 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: subjectName.toUpperCase(), bold: true, font: FONT, size: SZ16 })] }),
+          new Paragraph({ spacing: { before: 4800 }, alignment: AlignmentType.CENTER, children: [new TextRun({ text: coverData.city || "Cidade", font: FONT, size: SZ12 })] }),
+          new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: String(year), font: FONT, size: SZ12 })] }),
+        ],
+      });
+    }
+
+    // ─── Content section with TOC ───
+    const paragraphs: any[] = [];
+
+    // Table of Contents
+    paragraphs.push(
+      new Paragraph({ children: [new TextRun({ text: "SUMÁRIO", bold: true, font: FONT, size: SZ14 })], heading: HeadingLevel.HEADING_1, spacing: { after: 200 } }),
+      new TableOfContents("Sumário", { hyperlink: true, headingStyleRange: "1-3" }),
+      new Paragraph({ children: [new PageBreak()] }),
+    );
+
+    const lines = result.split("\n");
+    let li = 0;
+    while (li < lines.length) {
+      const rawLine = lines[li];
+
+      // Detect markdown table
+      if (rawLine.includes("|") && rawLine.trim().startsWith("|")) {
+        const tLines: string[] = [];
+        while (li < lines.length && lines[li].trim().startsWith("|")) {
+          tLines.push(lines[li]);
+          li++;
+        }
+        const tRows = tLines
+          .filter(l => !l.match(/^\|[\s-:|]+\|$/))
+          .map(l => l.split("|").filter(c => c.trim() !== "").map(c => c.trim()));
+
+        if (tRows.length > 0) {
+          const docRows = tRows.map((row, ri) =>
+            new TableRow({
+              children: row.map(cell =>
+                new TableCell({
+                  width: { size: Math.floor(100 / row.length), type: WidthType.PERCENTAGE },
+                  children: [new Paragraph({
+                    children: [new TextRun({ text: cell, bold: ri === 0, font: FONT, size: SZ10 })],
+                    spacing: { line: SP1 },
+                  })],
+                })
+              ),
+            })
+          );
+          paragraphs.push(new Table({ rows: docRows, width: { size: 100, type: WidthType.PERCENTAGE } }));
+          paragraphs.push(new Paragraph({ text: "", spacing: { line: SP15 } }));
+        }
+        continue;
+      }
 
       // Heading 1
-      if (line.match(/^#{1}\s/) || line.match(/^\d+\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,}/)) {
-        const text = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+      if (rawLine.match(/^#{1}\s/) || rawLine.match(/^\d+\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÚÜÇ]{2,}/)) {
+        const text = rawLine.replace(/^#+\s*/, "").replace(/\*\*/g, "");
         paragraphs.push(new Paragraph({
-          children: [new TextRun({ text: text.toUpperCase(), bold: true, font: FONT, size: SIZE_12 })],
+          children: [new TextRun({ text: text.toUpperCase(), bold: true, font: FONT, size: SZ12 })],
           heading: HeadingLevel.HEADING_1,
-          spacing: { before: 240, after: 120, line: LINE_SPACING_1_5 },
+          spacing: { before: 240, after: 120, line: SP15 },
         }));
       }
       // Heading 2
-      else if (line.match(/^#{2}\s/)) {
-        const text = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+      else if (rawLine.match(/^#{2}\s/)) {
+        const text = rawLine.replace(/^#+\s*/, "").replace(/\*\*/g, "");
         paragraphs.push(new Paragraph({
-          children: [new TextRun({ text, bold: true, font: FONT, size: SIZE_12 })],
+          children: [new TextRun({ text, bold: true, font: FONT, size: SZ12 })],
           heading: HeadingLevel.HEADING_2,
-          spacing: { before: 200, after: 100, line: LINE_SPACING_1_5 },
+          spacing: { before: 200, after: 100, line: SP15 },
         }));
       }
-      // Heading 3+
-      else if (line.match(/^#{3,}\s/)) {
-        const text = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+      // Heading 3
+      else if (rawLine.match(/^#{3,}\s/)) {
+        const text = rawLine.replace(/^#+\s*/, "").replace(/\*\*/g, "");
         paragraphs.push(new Paragraph({
-          children: [new TextRun({ text, bold: true, italics: true, font: FONT, size: SIZE_12 })],
+          children: [new TextRun({ text, bold: true, italics: true, font: FONT, size: SZ12 })],
           heading: HeadingLevel.HEADING_3,
-          spacing: { before: 160, after: 80, line: LINE_SPACING_1_5 },
+          spacing: { before: 160, after: 80, line: SP15 },
         }));
       }
-      // Empty line
-      else if (line.trim() === "") {
-        paragraphs.push(new Paragraph({ text: "", spacing: { line: LINE_SPACING_1_5 } }));
+      // Empty
+      else if (rawLine.trim() === "") {
+        paragraphs.push(new Paragraph({ text: "", spacing: { line: SP15 } }));
       }
-      // Blockquote / long citation (ABNT: recuo 4cm, font 10, single spacing)
-      else if (line.startsWith(">")) {
-        const text = line.replace(/^>\s*/, "");
+      // Blockquote
+      else if (rawLine.startsWith(">")) {
+        const text = rawLine.replace(/^>\s*/, "");
         paragraphs.push(new Paragraph({
-          children: parseInlineFormatting(text, SIZE_10),
+          children: parseInline(text, SZ10),
           indent: { left: convertMillimetersToTwip(40) },
-          spacing: { line: LINE_SPACING_SINGLE },
+          spacing: { line: SP1 },
         }));
       }
-      // Bullet list
-      else if (line.match(/^[-•]\s/)) {
-        const text = line.replace(/^[-•]\s*/, "");
+      // Bullet
+      else if (rawLine.match(/^[-•]\s/)) {
+        const text = rawLine.replace(/^[-•]\s*/, "");
         paragraphs.push(new Paragraph({
-          children: parseInlineFormatting(text, SIZE_12),
+          children: parseInline(text, SZ12),
           indent: { left: convertMillimetersToTwip(12.5) },
-          spacing: { line: LINE_SPACING_1_5 },
+          spacing: { line: SP15 },
           bullet: { level: 0 },
         }));
       }
-      // Regular paragraph with ABNT first-line indent
+      // Regular paragraph
       else {
         paragraphs.push(new Paragraph({
-          children: parseInlineFormatting(line, SIZE_12),
-          indent: { firstLine: INDENT_FIRST_LINE },
-          spacing: { line: LINE_SPACING_1_5 },
+          children: parseInline(rawLine, SZ12),
+          indent: { firstLine: INDENT },
+          spacing: { line: SP15 },
           alignment: AlignmentType.JUSTIFIED,
         }));
       }
+
+      li++;
     }
 
+    sections.push({
+      properties: {
+        page: { margin: { top: convertMillimetersToTwip(30), right: convertMillimetersToTwip(20), bottom: convertMillimetersToTwip(20), left: convertMillimetersToTwip(30) } },
+      },
+      children: paragraphs,
+    });
+
     const doc = new Document({
-      sections: [{
-        properties: {
-          page: {
-            margin: {
-              top: convertMillimetersToTwip(30),
-              right: convertMillimetersToTwip(20),
-              bottom: convertMillimetersToTwip(20),
-              left: convertMillimetersToTwip(30),
-            },
-          },
-        },
-        children: paragraphs,
-      }],
+      features: { updateFields: true },
+      sections,
     });
 
     const blob = await Packer.toBlob(doc);
     const { saveAs } = await import("file-saver");
     saveAs(blob, `resolucao-${subjectName.replace(/\s+/g, "-").toLowerCase()}.docx`);
-    toast.success("DOCX exportado com formatação ABNT!");
+    toast.success("DOCX exportado com capa ABNT e sumário!");
+  };
+
+  // ─── Load resolution from history ───
+  const loadResolution = (res: typeof resolutions[0]) => {
+    setResult(res.result);
+    setContent(res.input_content || "");
+    setInstructions(res.instructions || "");
+    setType(res.type);
+    setActiveTab("resolver");
+    toast.success("Resolução carregada!");
+  };
+
+  // ─── Compare mode ───
+  const toggleCompare = (id: string) => {
+    setCompareIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id);
+      if (prev.length >= 2) return [prev[1], id];
+      return [...prev, id];
+    });
+  };
+
+  const compareResolutions = compareIds.map(id => resolutions.find(r => r.id === id)).filter(Boolean);
+
+  const TYPE_LABELS: Record<string, string> = {
+    prova: "Prova / Exame",
+    trabalho: "Trabalho Acadêmico",
+    relatorio: "Relatório",
+    exercicio: "Lista de Exercícios",
   };
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Resolver Material com IA
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <Label>Tipo de material</Label>
-              <Select value={type} onValueChange={setType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="prova">Prova / Exame</SelectItem>
-                  <SelectItem value="trabalho">Trabalho Acadêmico</SelectItem>
-                  <SelectItem value="relatorio">Relatório</SelectItem>
-                  <SelectItem value="exercicio">Lista de Exercícios</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Upload (opcional)</Label>
-              <input ref={fileRef} type="file" accept=".txt,.md,.csv,.doc,.docx,.pdf,.jpg,.jpeg,.png,.webp,.heic" className="hidden" onChange={handleFileUpload} />
-              <Button variant="outline" className="w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                {fileName ? fileName : "Enviar arquivo"}
-              </Button>
-              {(pdfBase64 || imageBase64) && (
-                <p className="text-xs text-emerald-600 mt-1">✓ Arquivo carregado — a IA vai analisar visualmente</p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <Label>Conteúdo do material (cole as questões, enunciado, etc.)</Label>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Cole aqui o conteúdo da prova, trabalho ou exercício..."
-              className="min-h-[150px] font-mono text-sm"
-            />
-          </div>
-
-          <div>
-            <Label>Instruções adicionais (opcional)</Label>
-            <Input
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              placeholder="Ex: Inclua referências, resolva apenas as questões 1-5..."
-            />
-          </div>
-
-          <Button onClick={handleSolve} disabled={loading || !content.trim()} className="w-full sm:w-auto gap-2">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {loading ? "Resolvendo..." : "Resolver com IA"}
+      {/* Tab selector: Resolver | Histórico */}
+      <div className="flex gap-2 mb-4">
+        <Button variant={activeTab === "resolver" ? "default" : "outline"} size="sm" onClick={() => setActiveTab("resolver")} className="gap-1.5">
+          <Sparkles className="h-4 w-4" /> Resolver
+        </Button>
+        <Button variant={activeTab === "historico" ? "default" : "outline"} size="sm" onClick={() => setActiveTab("historico")} className="gap-1.5">
+          <History className="h-4 w-4" /> Histórico ({resolutions.length})
+        </Button>
+        {compareIds.length === 2 && (
+          <Button variant="outline" size="sm" onClick={() => setShowCompare(true)} className="gap-1.5">
+            <GitCompare className="h-4 w-4" /> Comparar
           </Button>
-        </CardContent>
-      </Card>
+        )}
+      </div>
 
-      {result && (
+      {/* ═══ RESOLVER TAB ═══ */}
+      {activeTab === "resolver" && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                Resolver Material com IA
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label>Tipo de material</Label>
+                  <Select value={type} onValueChange={setType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="prova">Prova / Exame</SelectItem>
+                      <SelectItem value="trabalho">Trabalho Acadêmico</SelectItem>
+                      <SelectItem value="relatorio">Relatório</SelectItem>
+                      <SelectItem value="exercicio">Lista de Exercícios</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Upload (múltiplos arquivos)</Label>
+                  <input ref={fileRef} type="file" multiple accept=".txt,.md,.csv,.doc,.docx,.pdf,.jpg,.jpeg,.png,.webp,.heic" className="hidden" onChange={handleFileUpload} />
+                  <Button variant="outline" className="w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
+                    {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+                    {fileName ? fileName : "Enviar arquivo(s)"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Uploaded files list */}
+              {uploadedFiles.length > 1 && (
+                <div className="flex flex-wrap gap-2">
+                  {uploadedFiles.map((f, i) => (
+                    <Badge key={i} variant="secondary" className="gap-1 pr-1">
+                      {f.name}
+                      <button onClick={() => removeFile(i)} className="ml-1 hover:text-destructive"><X className="h-3 w-3" /></button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {(pdfBase64 || imageBase64 || uploadedFiles.length > 0) && (
+                <p className="text-xs text-emerald-600">✓ Arquivo(s) carregado(s) — a IA vai analisar visualmente</p>
+              )}
+
+              <div>
+                <Label>Conteúdo do material (cole as questões, enunciado, etc.)</Label>
+                <Textarea value={content} onChange={e => setContent(e.target.value)} placeholder="Cole aqui o conteúdo da prova, trabalho ou exercício..." className="min-h-[150px] font-mono text-sm" />
+              </div>
+
+              <div>
+                <Label>Instruções adicionais (opcional)</Label>
+                <Input value={instructions} onChange={e => setInstructions(e.target.value)} placeholder="Ex: Inclua referências, resolva apenas as questões 1-5..." />
+              </div>
+
+              {/* ABNT Cover toggle */}
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={showCover} onCheckedChange={(v) => setShowCover(!!v)} />
+                  <Label className="font-medium">Incluir capa ABNT na exportação</Label>
+                </div>
+                {showCover && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div><Label className="text-xs">Nome do aluno</Label><Input value={coverData.studentName} onChange={e => setCoverData(d => ({ ...d, studentName: e.target.value }))} placeholder="Seu nome completo" /></div>
+                    <div><Label className="text-xs">Universidade</Label><Input value={coverData.university} onChange={e => setCoverData(d => ({ ...d, university: e.target.value }))} placeholder="Nome da universidade" /></div>
+                    <div><Label className="text-xs">Curso</Label><Input value={coverData.course} onChange={e => setCoverData(d => ({ ...d, course: e.target.value }))} placeholder="Nome do curso" /></div>
+                    <div><Label className="text-xs">Cidade</Label><Input value={coverData.city} onChange={e => setCoverData(d => ({ ...d, city: e.target.value }))} placeholder="Cidade" /></div>
+                  </div>
+                )}
+              </div>
+
+              <Button onClick={handleSolve} disabled={loading || !content.trim()} className="w-full sm:w-auto gap-2">
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {loading ? "Resolvendo..." : "Resolver com IA"}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {result && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <CardTitle className="text-base">Resolução</CardTitle>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={exportPDF} className="gap-1">
+                      <Download className="h-3.5 w-3.5" /> PDF
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={exportDOCX} className="gap-1">
+                      <Download className="h-3.5 w-3.5" /> DOCX
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div
+                  ref={resultRef}
+                  className="academic-result prose prose-sm dark:prose-invert max-w-none
+                    [&_h1]:text-lg [&_h1]:font-bold [&_h1]:uppercase [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:border-b [&_h1]:border-border [&_h1]:pb-2
+                    [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2
+                    [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2
+                    [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-3 [&_p]:text-justify
+                    [&_ul]:pl-5 [&_ul]:mb-3 [&_ol]:pl-5 [&_ol]:mb-3
+                    [&_li]:text-sm [&_li]:mb-1 [&_li]:leading-relaxed
+                    [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_table]:my-4 [&_table]:rounded-md [&_table]:overflow-hidden
+                    [&_thead]:bg-muted
+                    [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:text-xs
+                    [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:text-xs
+                    [&_tr:nth-child(even)]:bg-muted/30
+                    [&_pre]:bg-muted [&_pre]:rounded-md [&_pre]:p-4 [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-3
+                    [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded
+                    [&_pre_code]:bg-transparent [&_pre_code]:p-0
+                    [&_blockquote]:border-l-4 [&_blockquote]:border-primary/60 [&_blockquote]:pl-4 [&_blockquote]:pr-2 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:bg-muted/20 [&_blockquote]:rounded-r-md [&_blockquote]:italic [&_blockquote]:text-sm
+                    [&_hr]:border-border [&_hr]:my-6
+                    [&_.katex]:text-sm [&_.katex-display]:my-4 [&_.katex-display]:overflow-x-auto
+                    [&_strong]:font-bold [&_em]:italic"
+                >
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={{
+                      code({ className, children, ...props }) {
+                        const language = /language-(\w+)/.exec(className || "")?.[1];
+                        const codeText = String(children).replace(/\n$/, "");
+                        if (language === "mermaid") return <MermaidBlock chart={codeText} />;
+                        return <code className={className} {...props}>{children}</code>;
+                      },
+                    }}
+                  >
+                    {sanitizeLatex(result)}
+                  </ReactMarkdown>
+                  {loading && <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* ═══ HISTÓRICO TAB ═══ */}
+      {activeTab === "historico" && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Resolução</CardTitle>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={exportPDF} className="gap-1">
-                  <Download className="h-3.5 w-3.5" /> PDF
+              <CardTitle className="text-base flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" /> Histórico de Resoluções
+              </CardTitle>
+              {compareIds.length === 2 && (
+                <Button size="sm" onClick={() => setShowCompare(true)} className="gap-1.5">
+                  <GitCompare className="h-4 w-4" /> Comparar selecionadas
                 </Button>
-                <Button variant="outline" size="sm" onClick={exportDOCX} className="gap-1">
-                  <Download className="h-3.5 w-3.5" /> DOCX
-                </Button>
-              </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
-            <div
-              ref={resultRef}
-              className="academic-result prose prose-sm dark:prose-invert max-w-none
-                [&_h1]:text-lg [&_h1]:font-bold [&_h1]:uppercase [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:border-b [&_h1]:border-border [&_h1]:pb-2
-                [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-5 [&_h2]:mb-2
-                [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2
-                [&_p]:text-sm [&_p]:leading-relaxed [&_p]:mb-3 [&_p]:text-justify
-                [&_ul]:pl-5 [&_ul]:mb-3 [&_ol]:pl-5 [&_ol]:mb-3
-                [&_li]:text-sm [&_li]:mb-1 [&_li]:leading-relaxed
-                [&_table]:w-full [&_table]:border-collapse [&_table]:text-xs [&_table]:my-4 [&_table]:rounded-md [&_table]:overflow-hidden
-                [&_thead]:bg-muted
-                [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:text-xs
-                [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_td]:text-xs
-                [&_tr:nth-child(even)]:bg-muted/30
-                [&_pre]:bg-muted [&_pre]:rounded-md [&_pre]:p-4 [&_pre]:text-xs [&_pre]:overflow-x-auto [&_pre]:my-3
-                [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded
-                [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:px-0 [&_pre_code]:py-0
-                [&_blockquote]:border-l-4 [&_blockquote]:border-primary/60 [&_blockquote]:pl-4 [&_blockquote]:pr-2 [&_blockquote]:py-2 [&_blockquote]:my-4 [&_blockquote]:bg-muted/20 [&_blockquote]:rounded-r-md [&_blockquote]:italic [&_blockquote]:text-sm
-                [&_hr]:border-border [&_hr]:my-6
-                [&_.katex]:text-sm
-                [&_.katex-display]:my-4 [&_.katex-display]:overflow-x-auto
-                [&_strong]:font-bold [&_em]:italic"
-            >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkMath]}
-                rehypePlugins={[rehypeKatex]}
-                components={{
-                  code({ className, children, ...props }) {
-                    const language = /language-(\w+)/.exec(className || "")?.[1];
-                    const codeText = String(children).replace(/\n$/, "");
-                    if (language === "mermaid") {
-                      return <MermaidBlock chart={codeText} />;
-                    }
-                    return <code className={className} {...props}>{children}</code>;
-                  },
-                }}
-              >
-                {sanitizeLatex(result)}
-              </ReactMarkdown>
-              {loading && <span className="inline-block w-2 h-4 bg-foreground/50 animate-pulse ml-0.5" />}
-            </div>
+            {resolutions.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nenhuma resolução salva ainda</p>
+                <p className="text-xs mt-1">Resolva um material e ele será salvo automaticamente</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {resolutions.map((res) => (
+                  <div key={res.id} className="border rounded-lg p-3 space-y-2 hover:bg-muted/20 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <Checkbox
+                          checked={compareIds.includes(res.id)}
+                          onCheckedChange={() => toggleCompare(res.id)}
+                        />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">
+                            {TYPE_LABELS[res.type] || res.type} — {format(parseISO(res.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </p>
+                          {res.file_name && <p className="text-xs text-muted-foreground truncate">📎 {res.file_name}</p>}
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => loadResolution(res)} title="Carregar">
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteResolution.mutate(res.id)} title="Excluir">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{res.result.slice(0, 200)}...</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
+
+      {/* ═══ COMPARISON DIALOG ═══ */}
+      <Dialog open={showCompare} onOpenChange={setShowCompare}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><GitCompare className="h-5 w-5" /> Comparação de Resoluções</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-4 overflow-y-auto max-h-[70vh]">
+            {compareResolutions.map((res, idx) => (
+              <div key={res!.id} className="border rounded-lg p-4 overflow-y-auto">
+                <p className="text-xs font-medium text-muted-foreground mb-3">
+                  {TYPE_LABELS[res!.type] || res!.type} — {format(parseISO(res!.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                </p>
+                <div className="prose prose-sm dark:prose-invert max-w-none text-xs">
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+                    {sanitizeLatex(res!.result)}
+                  </ReactMarkdown>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <DialogClose asChild><Button variant="outline">Fechar</Button></DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

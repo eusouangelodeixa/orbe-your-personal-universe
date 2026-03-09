@@ -109,6 +109,53 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_resolutions: {
+        Row: {
+          created_at: string
+          file_name: string | null
+          id: string
+          input_content: string | null
+          instructions: string | null
+          result: string
+          subject_id: string | null
+          subject_name: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          input_content?: string | null
+          instructions?: string | null
+          result: string
+          subject_id?: string | null
+          subject_name: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          input_content?: string | null
+          instructions?: string | null
+          result?: string
+          subject_id?: string | null
+          subject_name?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_resolutions_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           color: string | null
