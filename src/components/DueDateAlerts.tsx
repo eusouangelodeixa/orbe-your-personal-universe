@@ -15,6 +15,7 @@ interface DueDateAlertsProps {
 }
 
 export function DueDateAlerts({ expenses }: DueDateAlertsProps) {
+  const { formatMoney } = useCurrency();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
