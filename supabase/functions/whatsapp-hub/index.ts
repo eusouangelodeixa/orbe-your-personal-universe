@@ -72,8 +72,12 @@ function workoutMatchesWeekday(workout: any, weekday: string): boolean {
 function formatWorkoutMessage(planTitle: string, workout: any): string {
   const label = safeString(workout?.day) || safeString(workout?.name) || "Treino";
   let msg = `🏋️ *${planTitle}*\n\n📌 *${label}*\n`;
-  (workout?.exercises || []).slice(0, 8).forEach((ex: any) => {
-    msg += `\n• ${safeString(ex?.name)}${ex?.sets ? ` ${ex.sets}x${ex.reps || ""}` : ""}`;
+  const exercises = workout?.exercises || [];
+  exercises.forEach((ex: any) => {
+    msg += `\n• ${safeString(ex?.name)}`;
+    if (ex?.sets) msg += ` — ${ex.sets}x${ex.reps || ""}`;
+    if (ex?.rest) msg += ` (descanso: ${ex.rest})`;
+    if (ex?.weight && ex.weight !== "—" && ex.weight !== "") msg += ` | ${ex.weight}`;
   });
   return msg;
 }
