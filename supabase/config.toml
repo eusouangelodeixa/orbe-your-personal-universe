@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.extract-subjects-pdf]
 verify_jwt = false
+
+[functions.recurring-expenses]
+verify_jwt = false
