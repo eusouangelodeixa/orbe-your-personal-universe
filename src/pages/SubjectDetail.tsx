@@ -877,24 +877,40 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pdfBase64, setPdfBase64] = useState<string | null>(null);
+  const [imageBase64, setImageBase64] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { toast.error("Arquivo muito grande (máx 20MB)"); return; }
     setUploading(true);
+    setPdfBase64(null);
+    setImageBase64(null);
+    setFileName(file.name);
     try {
-      if (file.type.includes("text") || file.name.endsWith(".txt") || file.name.endsWith(".md")) {
+      if (file.type.includes("text") || file.name.endsWith(".txt") || file.name.endsWith(".md") || file.name.endsWith(".csv")) {
         const text = await file.text();
         setContent(text);
+        toast.success(`Arquivo "${file.name}" carregado!`);
       } else if (file.type === "application/pdf") {
-        // Use parse-pdf or just note it
-        const text = await file.text();
-        setContent(`[Arquivo PDF: ${file.name}]\n\nConteúdo extraído automaticamente não disponível para PDFs. Cole o conteúdo manualmente ou use um arquivo de texto.`);
-        toast.info("Para PDFs, cole o conteúdo das questões no campo de texto para melhor resultado.");
+        const buffer = await file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        setPdfBase64(base64);
+        setContent(`[PDF carregado: ${file.name}]`);
+        toast.success(`PDF "${file.name}" carregado! A IA vai analisar o conteúdo visualmente.`);
+      } else if (file.type.startsWith("image/")) {
+        const buffer = await file.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        setImageBase64(base64);
+        setContent(`[Imagem carregada: ${file.name}]`);
+        toast.success(`Imagem "${file.name}" carregada! A IA vai extrair e resolver o conteúdo.`);
       } else {
         const text = await file.text();
         setContent(text);
+        toast.success(`Arquivo "${file.name}" carregado!`);
       }
     } catch {
       toast.error("Erro ao ler arquivo");
