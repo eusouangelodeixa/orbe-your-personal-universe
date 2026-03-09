@@ -53,10 +53,10 @@ export default function Cofrinho() {
     updateGoal.mutate({ id: goal.id, current_amount: Number(goal.current_amount) - amount });
     addTransaction.mutate({
       goal_id: goal.id, amount, type: "withdrawal",
-      description: `Retirada de R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      description: `Retirada de ${formatMoney(amount)}`,
     });
     setWithdrawAmount("");
-    toast.success(`R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} retirado de ${goal.name}`);
+    toast.success(`${formatMoney(amount)} retirado de ${goal.name}`);
   };
 
   const handleDeposit = (goal: any) => {
