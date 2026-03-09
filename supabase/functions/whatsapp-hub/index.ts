@@ -947,10 +947,20 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
             }
           }
 
-          if (!workout) return `❌ Não encontrei treino para *${WEEKDAY_LABELS[requestedWeekday] || requestedWeekday}* no seu plano atual.`;
+          if (!workout) return `❌ Não encontrei treino para *${WEEKDAY_LABELS[requestedWeekday] || requestedWeekday}* no seu plano atual.\n\nHoje pode ser dia de descanso! 💤`;
           
           const dayLabel = WEEKDAY_LABELS[requestedWeekday] || requestedWeekday;
-          return `📅 *${dayLabel}*\n\n` + formatWorkoutMessage(plan.title, workout);
+          const workoutLabel = safeString(workout?.name) || safeString(workout?.day) || "Treino";
+          
+          // If user just asked "temos treino hoje?" → simple confirmation
+          // If user asked for exercises → show full detail
+          if (params.show_exercises) {
+            return `📅 *${dayLabel}*\n\n` + formatWorkoutMessage(plan.title, workout);
+          }
+          
+          // Simple, motivational confirmation
+          const exerciseCount = (workout?.exercises || []).length;
+          return `💪 Sim, campeão! Para *${dayLabel}* temos:\n\n🏋️ *${workoutLabel}*${exerciseCount ? ` (${exerciseCount} exercícios)` : ""}\n\nQuer ver os exercícios detalhados? É só me dizer! 🔥`;
         }
 
         let msg = `🏋️ *${plan.title}*\n\n`;
