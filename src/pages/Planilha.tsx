@@ -15,7 +15,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon,
-  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank, Repeat,
+  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank, Repeat, ArrowLeftRight, Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
