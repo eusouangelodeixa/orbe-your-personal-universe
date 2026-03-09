@@ -759,7 +759,7 @@ export default function Planilha() {
                             <DialogTitle className="font-display">Pagar {e.name}</DialogTitle>
                           </DialogHeader>
                           <p className="text-sm text-muted-foreground">
-                            Valor: <strong>R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong>
+                            Valor: <strong>{formatMoney(Number(e.amount))}</strong>
                           </p>
                           <div className="space-y-1">
                             <Label>Debitar de qual carteira?</Label>
