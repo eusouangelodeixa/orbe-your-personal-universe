@@ -219,7 +219,7 @@ export default function Planilha() {
         ["Descrição", "Valor", "Carteira"],
         incomes.map((i: any) => [
           i.description,
-          `R$ ${Number(i.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          formatMoney(Number(i.amount)),
           i.wallets?.name || "—",
         ])
       );
