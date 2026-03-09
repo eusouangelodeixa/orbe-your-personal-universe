@@ -408,7 +408,7 @@ export default function Planilha() {
                                   <SelectContent>
                                     {savingsGoals.map((g: any) => (
                                       <SelectItem key={g.id} value={g.id}>
-                                        {g.name} (R$ {Number(g.current_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(g.target_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                                        {g.name} ({formatMoney(Number(g.current_amount))} / {formatMoney(Number(g.target_amount))})
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
