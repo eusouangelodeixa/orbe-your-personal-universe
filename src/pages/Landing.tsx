@@ -607,7 +607,7 @@ export default function Landing() {
                   <div key={f} className="landing-pf-item disabled">{f}</div>
                 ))}
               </div>
-              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate(`/auth?plan=${p.planKey}`)}>
+              <button className={`landing-btn-price ${p.featured ? "featured-btn" : ""}`} onClick={() => navigate(`/auth?plan=${p.planKey}&period=${pricePeriod}`)}>
                 {p.featured ? "Começar Agora" : "Começar"}
               </button>
             </div>

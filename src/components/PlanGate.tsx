@@ -168,12 +168,12 @@ function UpgradeWall({ group }: { group: string }) {
 
 export function useCheckout() {
   const [loading, setLoading] = useState(false);
-  const checkout = async (planKey: PlanKey) => {
+  const checkout = async (planKey: PlanKey, period: BillingPeriod = "mensal") => {
     setLoading(true);
     try {
       const plan = ORBE_PLANS[planKey];
       const { data, error } = await supabase.functions.invoke("create-checkout", {
-        body: { priceId: plan.price_id },
+        body: { priceId: plan.prices[period].price_id },
       });
       if (error) throw error;
       if (data?.url) window.open(data.url, "_blank");
