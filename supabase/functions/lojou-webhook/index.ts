@@ -16,10 +16,11 @@ function mapLojouPlan(planName: string): string | null {
   return null;
 }
 
-function mapLojouPeriod(planType: string): string {
+function mapLojouPeriod(planType: string, planName?: string): string {
   const t = (planType || "").toLowerCase();
-  if (t.includes("year") || t.includes("anual") || t.includes("yearly")) return "anual";
-  if (t.includes("quarter") || t.includes("trimest")) return "trimestral";
+  const n = (planName || "").toLowerCase();
+  if (t.includes("year") || t.includes("anual") || t.includes("yearly") || n.includes("anual")) return "anual";
+  if (t.includes("quarter") || t.includes("trimest") || n.includes("trimestral")) return "trimestral";
   return "mensal";
 }
 
@@ -74,7 +75,7 @@ serve(async (req) => {
       planSub
     ) {
       const plan = mapLojouPlan(planSub.plan_name);
-      const period = mapLojouPeriod(planSub.plan_type);
+      const period = mapLojouPeriod(planSub.plan_type, planSub.plan_name);
 
       if (!plan) {
         console.log("[LOJOU-WEBHOOK] Could not map plan:", planSub.plan_name);
