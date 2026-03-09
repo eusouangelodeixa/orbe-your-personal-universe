@@ -9,12 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import {
   Plus, Trash2, Loader2, FileText, ClipboardList, BookOpen, RotateCw,
-  Send, ArrowLeft, CalendarPlus, Upload, Pencil, User, GraduationCap, Clock, MessageSquare, FileUp, Timer,
+  Send, ArrowLeft, CalendarPlus, Upload, Pencil, User, GraduationCap, Clock, MessageSquare, FileUp, Timer, Sparkles, Download,
 } from "lucide-react";
 import { PomodoroTimer } from "@/components/PomodoroTimer";
 import { format, parseISO } from "date-fns";
