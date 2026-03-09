@@ -589,6 +589,31 @@ export default function Planilha() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-3 col-span-full border-t border-border pt-4">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={novoGasto.recurring}
+                      onCheckedChange={(v) => setNovoGasto({ ...novoGasto, recurring: v, recurringDay: v && dueDate ? String(dueDate.getDate()) : "" })}
+                    />
+                    <div>
+                      <Label className="cursor-pointer">Gasto recorrente</Label>
+                      <p className="text-xs text-muted-foreground">Será criado automaticamente todo mês</p>
+                    </div>
+                  </div>
+                  {novoGasto.recurring && (
+                    <div className="space-y-1 w-48">
+                      <Label>Dia do vencimento mensal</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={31}
+                        placeholder="Ex: 10"
+                        value={novoGasto.recurringDay}
+                        onChange={(e) => setNovoGasto({ ...novoGasto, recurringDay: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
               <Button onClick={handleAddExpense} disabled={addExpense.isPending} className="mt-4 font-display">
                 {addExpense.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
