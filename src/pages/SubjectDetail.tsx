@@ -33,6 +33,7 @@ import {
   useSubjects, useUpdateSubject, useDeleteSubject,
   useAcademicEvents, useAddAcademicEvent, useUpdateAcademicEvent, useDeleteAcademicEvent,
   useSubjectChatMessages, useAddSubjectChatMessage, useClearSubjectChat,
+  useAIResolutions, useSaveResolution, useDeleteResolution,
   AcademicEvent,
 } from "@/hooks/useStudies";
 import { useAddNotification } from "@/hooks/useNotifications";
