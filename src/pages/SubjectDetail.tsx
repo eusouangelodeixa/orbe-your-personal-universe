@@ -274,6 +274,7 @@ export default function SubjectDetail() {
       due_date: eventForm.event_date, content_topics: eventForm.content_topics || null,
       weight: eventForm.weight ? Number(eventForm.weight) : null, is_group: eventForm.is_group,
       status: eventForm.status, reminder_config: [],
+      grade: eventForm.grade ? Number(eventForm.grade) : null,
     };
     if (editingEventId) {
       updateEvent.mutate({ id: editingEventId, ...payload }, { onSuccess: () => setEventOpen(false) });

@@ -31,6 +31,7 @@ export interface AcademicEvent {
   due_date: string | null;
   content_topics: string | null;
   weight: number | null;
+  grade: number | null;
   is_group: boolean;
   status: string; // pendente, em_andamento, entregue, realizado
   reminder_config: any[];
