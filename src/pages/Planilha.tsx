@@ -188,10 +188,10 @@ export default function Planilha() {
     const cardW = 42;
     const gap = 4;
     const startX = 14;
-    drawStatCard(doc, startX, y, cardW, "Renda", `R$ ${totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.green);
-    drawStatCard(doc, startX + cardW + gap, y, cardW, "Gastos", `R$ ${totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.red);
-    drawStatCard(doc, startX + (cardW + gap) * 2, y, cardW, "Saldo", `R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, saldo >= 0 ? PDF_COLORS.green : PDF_COLORS.red);
-    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, "Patrimônio", `R$ ${totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.amber);
+    drawStatCard(doc, startX, y, cardW, "Renda", formatMoney(totalRenda), PDF_COLORS.green);
+    drawStatCard(doc, startX + cardW + gap, y, cardW, "Gastos", formatMoney(totalGastos), PDF_COLORS.red);
+    drawStatCard(doc, startX + (cardW + gap) * 2, y, cardW, "Saldo", formatMoney(saldo), saldo >= 0 ? PDF_COLORS.green : PDF_COLORS.red);
+    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, "Patrimônio", formatMoney(totalCarteiras), PDF_COLORS.amber);
     y += 36;
 
     // Comprometimento bar
