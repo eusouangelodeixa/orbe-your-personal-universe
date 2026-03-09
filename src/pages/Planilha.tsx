@@ -707,7 +707,7 @@ export default function Planilha() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-bold font-display text-primary">
-                      R$ {Number(inc.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {formatMoney(Number(inc.amount))}
                     </span>
                     <button onClick={() => deleteIncome.mutate(inc.id)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
