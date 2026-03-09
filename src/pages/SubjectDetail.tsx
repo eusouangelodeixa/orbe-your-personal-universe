@@ -343,6 +343,22 @@ export default function SubjectDetail() {
   const pendingEvents = events.filter(e => e.status === "pendente" || e.status === "em_andamento");
   const completedEvents = events.filter(e => e.status === "entregue" || e.status === "realizado");
 
+  // Calculate weighted average
+  const gradedEvents = events.filter(e => e.grade != null);
+  const weightedEvents = gradedEvents.filter(e => e.weight != null && e.weight > 0);
+  const unweightedEvents = gradedEvents.filter(e => !e.weight || e.weight <= 0);
+  let averageGrade: number | null = null;
+  if (gradedEvents.length > 0) {
+    if (weightedEvents.length > 0) {
+      const totalWeight = weightedEvents.reduce((a, e) => a + (e.weight || 0), 0) + (unweightedEvents.length > 0 ? 1 : 0);
+      const weightedSum = weightedEvents.reduce((a, e) => a + (e.grade! * (e.weight || 1)), 0);
+      const unweightedAvg = unweightedEvents.length > 0 ? unweightedEvents.reduce((a, e) => a + e.grade!, 0) / unweightedEvents.length : 0;
+      averageGrade = (weightedSum + (unweightedEvents.length > 0 ? unweightedAvg : 0)) / totalWeight;
+    } else {
+      averageGrade = gradedEvents.reduce((a, e) => a + e.grade!, 0) / gradedEvents.length;
+    }
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
