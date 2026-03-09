@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Dumbbell, Plus, Loader2, Sparkles, CheckCircle2, Calendar, Upload, PenLine, Trash2, FileDown, Pencil, Save, X } from "lucide-react";
+import { Dumbbell, Plus, Loader2, Sparkles, CheckCircle2, Calendar, Upload, PenLine, Trash2, FileDown, Pencil, Save, X, Play, Square } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -37,10 +38,13 @@ export default function FitWorkout() {
   const [logs, setLogs] = useState<any[]>([]);
   const [generating, setGenerating] = useState(false);
 
-  // Log dialog
+  // Checklist mode
+  const [activeChecklist, setActiveChecklist] = useState<{ dayIndex: number; day: WorkoutDay; checked: Record<string, boolean>; weights: Record<string, string>; reps: Record<string, string>; startTime: number } | null>(null);
+  const [checklistMood, setChecklistMood] = useState("bom");
+  const [checklistNotes, setChecklistNotes] = useState("");
+
+  // Legacy log dialog (for manual check-in without plan)
   const [logDialogOpen, setLogDialogOpen] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<WorkoutDay | null>(null);
-  const [exerciseLogs, setExerciseLogs] = useState<Record<string, { sets: { reps: string; weight: string }[] }>>({});
   const [logForm, setLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: new Date().toISOString().slice(0, 10) });
 
   // Manual plan dialog
@@ -86,35 +90,83 @@ export default function FitWorkout() {
     setGenerating(false);
   };
 
-  const openCheckin = (day: WorkoutDay) => {
-    setSelectedDay(day);
-    setLogForm(f => ({ ...f, workout_name: day.name }));
-    const initial: Record<string, { sets: { reps: string; weight: string }[] }> = {};
-    day.exercises.forEach(ex => {
-      initial[ex.name] = {
-        sets: Array.from({ length: ex.sets }, () => ({ reps: String(ex.reps).replace(/[^0-9]/g, '') || "12", weight: ex.weight || "" }))
-      };
+  // === CHECKLIST MODE ===
+  const startChecklist = (dayIndex: number, day: WorkoutDay) => {
+    const checked: Record<string, boolean> = {};
+    const weights: Record<string, string> = {};
+    const reps: Record<string, string> = {};
+    day.exercises.forEach((ex, i) => {
+      const key = `${i}-${ex.name}`;
+      checked[key] = false;
+      weights[key] = ex.weight || "";
+      reps[key] = String(ex.reps).replace(/[^0-9-]/g, '') || "12";
     });
-    setExerciseLogs(initial);
-    setLogDialogOpen(true);
+    setActiveChecklist({ dayIndex, day, checked, weights, reps, startTime: Date.now() });
+    setChecklistMood("bom");
+    setChecklistNotes("");
   };
 
-  const saveLog = async () => {
+  const toggleExercise = (key: string) => {
+    if (!activeChecklist) return;
+    setActiveChecklist({ ...activeChecklist, checked: { ...activeChecklist.checked, [key]: !activeChecklist.checked[key] } });
+  };
+
+  const updateChecklistWeight = (key: string, val: string) => {
+    if (!activeChecklist) return;
+    setActiveChecklist({ ...activeChecklist, weights: { ...activeChecklist.weights, [key]: val } });
+  };
+
+  const updateChecklistReps = (key: string, val: string) => {
+    if (!activeChecklist) return;
+    setActiveChecklist({ ...activeChecklist, reps: { ...activeChecklist.reps, [key]: val } });
+  };
+
+  const checkedCount = activeChecklist ? Object.values(activeChecklist.checked).filter(Boolean).length : 0;
+  const totalExercises = activeChecklist ? activeChecklist.day.exercises.length : 0;
+
+  const finishChecklist = async () => {
+    if (!activeChecklist || !user) return;
+    const durationMinutes = Math.round((Date.now() - activeChecklist.startTime) / 60000);
+    const exercises = activeChecklist.day.exercises.map((ex, i) => {
+      const key = `${i}-${ex.name}`;
+      return {
+        name: ex.name,
+        completed: activeChecklist.checked[key],
+        sets: Array.from({ length: ex.sets }, () => ({
+          reps: activeChecklist.reps[key] || String(ex.reps),
+          weight: activeChecklist.weights[key] || ex.weight || "",
+        })),
+      };
+    });
+    const { error } = await supabase.from("fit_workout_logs" as any).insert({
+      user_id: user.id,
+      workout_name: activeChecklist.day.name,
+      workout_date: new Date().toISOString().slice(0, 10),
+      duration_minutes: durationMinutes > 0 ? durationMinutes : null,
+      mood: checklistMood,
+      notes: checklistNotes || null,
+      exercises,
+      plan_id: plans.find(p => p.active)?.id || null,
+    } as any);
+    if (error) { toast.error("Erro ao salvar treino"); return; }
+    toast.success(`Treino finalizado! ${checkedCount}/${totalExercises} exercícios 💪`);
+    setActiveChecklist(null);
+    loadData();
+  };
+
+  // Manual check-in (no plan)
+  const saveManualLog = async () => {
     if (!logForm.workout_name) { toast.error("Informe o nome do treino"); return; }
-    const exercises = selectedDay ? Object.entries(exerciseLogs).map(([name, data]) => ({
-      name, sets: data.sets,
-    })) : [];
     const { error } = await supabase.from("fit_workout_logs" as any).insert({
       user_id: user!.id, workout_name: logForm.workout_name,
       workout_date: logForm.workout_date,
       duration_minutes: logForm.duration_minutes ? parseInt(logForm.duration_minutes) : null,
-      mood: logForm.mood, notes: logForm.notes || null, exercises,
+      mood: logForm.mood, notes: logForm.notes || null, exercises: [],
       plan_id: plans.find(p => p.active)?.id || null,
     } as any);
     if (error) { toast.error("Erro ao salvar treino"); return; }
     toast.success("Treino registrado! 💪");
     setLogDialogOpen(false);
-    setSelectedDay(null);
     setLogForm({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: new Date().toISOString().slice(0, 10) });
     loadData();
   };
@@ -311,13 +363,9 @@ export default function FitWorkout() {
             <p className="text-muted-foreground text-sm">Gerado por IA, importado ou manual</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Dialog open={logDialogOpen && !selectedDay} onOpenChange={(o) => { if (!o) { setLogDialogOpen(false); setSelectedDay(null); } }}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setSelectedDay(null); setLogDialogOpen(true); }}>
-                  <CheckCircle2 className="h-4 w-4" /> Check-in
-                </Button>
-              </DialogTrigger>
-            </Dialog>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setLogDialogOpen(true)}>
+              <CheckCircle2 className="h-4 w-4" /> Check-in manual
+            </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setManualOpen(true)}>
               <PenLine className="h-4 w-4" /> Manual
             </Button>
@@ -402,19 +450,80 @@ export default function FitWorkout() {
               ) : activePlan.plan_data?.days ? (
                 <div className="space-y-4">
                   {activePlan.plan_data.days.map((day: WorkoutDay, i: number) => (
-                    <div key={i} className="rounded-lg border p-3 space-y-2">
+                    <div key={i} className={`rounded-lg border p-3 space-y-2 transition-all ${activeChecklist?.dayIndex === i ? "border-primary bg-primary/5" : ""}`}>
                       <div className="flex items-center justify-between">
                         <p className="font-medium text-sm">{day.name}</p>
-                        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => openCheckin(day)}>
-                          <CheckCircle2 className="h-3 w-3" /> Check-in
-                        </Button>
+                        {activeChecklist?.dayIndex === i ? (
+                          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 text-destructive" onClick={() => setActiveChecklist(null)}>
+                            <Square className="h-3 w-3" /> Cancelar
+                          </Button>
+                        ) : (
+                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => startChecklist(i, day)} disabled={!!activeChecklist}>
+                            <Play className="h-3 w-3" /> Treinar
+                          </Button>
+                        )}
                       </div>
-                      {day.exercises?.map((ex, j) => (
-                        <div key={j} className="flex justify-between text-sm pl-3">
-                          <span className="text-muted-foreground">{ex.name}</span>
-                          <span>{ex.sets}x{ex.reps} {ex.weight && `· ${ex.weight}`}</span>
+
+                      {activeChecklist?.dayIndex === i ? (
+                        /* ── CHECKLIST MODE ── */
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                            <span>{checkedCount}/{totalExercises} concluídos</span>
+                            <span>{Math.round((Date.now() - activeChecklist.startTime) / 60000)}min</span>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-1.5">
+                            <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${totalExercises > 0 ? (checkedCount / totalExercises) * 100 : 0}%` }} />
+                          </div>
+
+                          {day.exercises?.map((ex, j) => {
+                            const key = `${j}-${ex.name}`;
+                            const isChecked = activeChecklist.checked[key];
+                            return (
+                              <div key={j} className={`flex items-center gap-3 rounded-md px-2 py-2 transition-all ${isChecked ? "bg-primary/10 opacity-70" : "hover:bg-muted/50"}`}>
+                                <Checkbox checked={isChecked} onCheckedChange={() => toggleExercise(key)} className="h-5 w-5" />
+                                <div className={`flex-1 text-sm ${isChecked ? "line-through text-muted-foreground" : ""}`}>
+                                  {ex.name}
+                                  <span className="text-xs text-muted-foreground ml-2">{ex.sets}×{ex.reps}</span>
+                                </div>
+                                <Input value={activeChecklist.weights[key]} onChange={e => updateChecklistWeight(key, e.target.value)} className="h-7 text-xs w-16" placeholder="Carga" />
+                                <span className="text-xs text-muted-foreground">×</span>
+                                <Input value={activeChecklist.reps[key]} onChange={e => updateChecklistReps(key, e.target.value)} className="h-7 text-xs w-14" placeholder="Reps" />
+                              </div>
+                            );
+                          })}
+
+                          <div className="border-t pt-3 space-y-3 mt-2">
+                            <div className="flex gap-2 items-center">
+                              <Label className="text-xs shrink-0">Humor:</Label>
+                              <div className="flex gap-1">
+                                {[
+                                  { val: "otimo", emoji: "😁" },
+                                  { val: "bom", emoji: "🙂" },
+                                  { val: "normal", emoji: "😐" },
+                                  { val: "ruim", emoji: "😓" },
+                                ].map(m => (
+                                  <button key={m.val} onClick={() => setChecklistMood(m.val)}
+                                    className={`text-lg px-1.5 py-0.5 rounded transition-all ${checklistMood === m.val ? "bg-primary/20 scale-110" : "opacity-50 hover:opacity-80"}`}>
+                                    {m.emoji}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <Input value={checklistNotes} onChange={e => setChecklistNotes(e.target.value)} placeholder="Observações rápidas..." className="h-8 text-xs" />
+                            <Button onClick={finishChecklist} className="w-full gap-2">
+                              <CheckCircle2 className="h-4 w-4" /> Finalizar treino ({checkedCount}/{totalExercises})
+                            </Button>
+                          </div>
                         </div>
-                      ))}
+                      ) : (
+                        /* ── NORMAL VIEW ── */
+                        day.exercises?.map((ex, j) => (
+                          <div key={j} className="flex justify-between text-sm pl-3">
+                            <span className="text-muted-foreground">{ex.name}</span>
+                            <span>{ex.sets}x{ex.reps} {ex.weight && `· ${ex.weight}`}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
                   ))}
                 </div>
@@ -527,34 +636,15 @@ export default function FitWorkout() {
         )}
       </div>
 
-      {/* Check-in dialog */}
-      <Dialog open={logDialogOpen} onOpenChange={(o) => { if (!o) { setLogDialogOpen(false); setSelectedDay(null); } }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Registrar treino{selectedDay ? ` — ${selectedDay.name}` : ""}</DialogTitle></DialogHeader>
+      {/* Manual check-in dialog (without plan) */}
+      <Dialog open={logDialogOpen} onOpenChange={setLogDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Registrar treino avulso</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            {!selectedDay && (
-              <div className="space-y-2">
-                <Label>Nome do treino</Label>
-                <Input value={logForm.workout_name} onChange={e => setLogForm(f => ({ ...f, workout_name: e.target.value }))} placeholder="Ex: Treino A - Peito e Tríceps" />
-              </div>
-            )}
-            {selectedDay && selectedDay.exercises.map((ex, i) => (
-              <div key={i} className="rounded-lg border p-3 space-y-2">
-                <p className="font-medium text-sm">{ex.name}</p>
-                <div className="space-y-1">
-                  {exerciseLogs[ex.name]?.sets.map((s, si) => (
-                    <div key={si} className="flex gap-2 items-center">
-                      <span className="text-xs text-muted-foreground w-8">S{si + 1}</span>
-                      <Input type="number" placeholder="kg" className="h-8 text-xs w-20" value={s.weight}
-                        onChange={e => { const next = { ...exerciseLogs }; next[ex.name].sets[si].weight = e.target.value; setExerciseLogs(next); }} />
-                      <span className="text-xs text-muted-foreground">×</span>
-                      <Input type="number" placeholder="reps" className="h-8 text-xs w-20" value={s.reps}
-                        onChange={e => { const next = { ...exerciseLogs }; next[ex.name].sets[si].reps = e.target.value; setExerciseLogs(next); }} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <div className="space-y-2">
+              <Label>Nome do treino</Label>
+              <Input value={logForm.workout_name} onChange={e => setLogForm(f => ({ ...f, workout_name: e.target.value }))} placeholder="Ex: Treino A - Peito e Tríceps" />
+            </div>
             <div className="space-y-2">
               <Label>Data do treino</Label>
               <Input type="date" value={logForm.workout_date} onChange={e => setLogForm(f => ({ ...f, workout_date: e.target.value }))} />
@@ -581,7 +671,7 @@ export default function FitWorkout() {
               <Label>Observações</Label>
               <Textarea value={logForm.notes} onChange={e => setLogForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notas sobre o treino..." />
             </div>
-            <Button onClick={saveLog} className="w-full">Salvar treino</Button>
+            <Button onClick={saveManualLog} className="w-full">Salvar treino</Button>
           </div>
         </DialogContent>
       </Dialog>
