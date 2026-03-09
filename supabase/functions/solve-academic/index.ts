@@ -9,7 +9,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { content, subjectName, type, instructions, pdfBase64, imageBase64, fileName } = await req.json();
+    const { content, subjectName, type, instructions, pdfBase64, imageBase64, fileName, additionalFiles } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
