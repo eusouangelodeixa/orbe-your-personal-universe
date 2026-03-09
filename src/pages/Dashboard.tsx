@@ -170,7 +170,7 @@ export default function Dashboard() {
                       {w.is_default && <Badge variant="outline" className="text-[10px]">Principal</Badge>}
                     </div>
                     <span className={`font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
-                      R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {formatMoney(Number(w.balance))}
                     </span>
                   </div>
                 ))}
