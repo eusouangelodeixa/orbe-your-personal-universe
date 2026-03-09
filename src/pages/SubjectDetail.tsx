@@ -294,7 +294,7 @@ export default function SubjectDetail() {
     addEvent.mutate({
       subject_id: subject.id, type: "revisao", title: `Revisão - ${subject.name}`,
       description: "Sessão de revisão sugerida pela IA", event_date: tomorrow.toISOString(),
-      due_date: tomorrow.toISOString(), content_topics: null, weight: null, is_group: false, status: "pendente", reminder_config: [],
+      due_date: tomorrow.toISOString(), content_topics: null, weight: null, is_group: false, status: "pendente", reminder_config: [], grade: null,
     }, {
       onSuccess: () => {
         addNotification.mutate({ title: "📚 Revisão agendada", message: `Revisão de ${subject.name} para amanhã às 14h`, type: "revisao" });
