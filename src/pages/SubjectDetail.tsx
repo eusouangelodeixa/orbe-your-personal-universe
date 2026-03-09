@@ -390,13 +390,227 @@ export default function SubjectDetail() {
         )}
 
         {/* Tabs */}
-        <Tabs defaultValue="agenda" className="space-y-4">
+        <Tabs defaultValue="notas" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="notas">📊 Notas</TabsTrigger>
             <TabsTrigger value="agenda">📅 Agenda</TabsTrigger>
             <TabsTrigger value="pomodoro">⏱️ Pomodoro</TabsTrigger>
             <TabsTrigger value="chatbot">🤖 Chatbot</TabsTrigger>
             <TabsTrigger value="ementa">📄 Ementa</TabsTrigger>
           </TabsList>
+
+          {/* ─── NOTAS TAB ─── */}
+          <TabsContent value="notas" className="space-y-4">
+            {(() => {
+              const evaluativeEvents = events.filter(
+                e => e.type === "prova" || e.type === "trabalho" || e.type === "atividade"
+              );
+              const eventsWithGrade = evaluativeEvents.filter(e => e.grade != null);
+              const eventsWithoutGrade = evaluativeEvents.filter(e => e.grade == null);
+
+              // Approval logic
+              const approvalThreshold = 6;
+              const isApproved = averageGrade !== null && averageGrade >= approvalThreshold;
+              const allEvaluated = evaluativeEvents.length > 0 && eventsWithoutGrade.length === 0;
+
+              return (
+                <>
+                  {/* Status Card */}
+                  <Card className={`border-l-4 ${
+                    averageGrade === null
+                      ? "border-l-muted-foreground"
+                      : isApproved
+                        ? "border-l-emerald-500"
+                        : "border-l-red-500"
+                  }`}>
+                    <CardContent className="py-5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm text-muted-foreground font-medium">Média Ponderada</p>
+                          <p className={`text-4xl font-bold font-display ${
+                            averageGrade === null
+                              ? "text-muted-foreground"
+                              : averageGrade >= 6
+                                ? "text-emerald-500"
+                                : "text-red-500"
+                          }`}>
+                            {averageGrade !== null ? averageGrade.toFixed(1) : "—"}
+                          </p>
+                        </div>
+                        <div className="text-right space-y-1">
+                          {averageGrade !== null && (
+                            <Badge
+                              variant={isApproved ? "default" : "destructive"}
+                              className={`text-sm px-3 py-1 ${isApproved ? "bg-emerald-500 hover:bg-emerald-600" : ""}`}
+                            >
+                              {allEvaluated
+                                ? (isApproved ? "✅ Aprovado" : "❌ Reprovado")
+                                : (isApproved ? "📈 Aprovando" : "⚠️ Reprovando")
+                              }
+                            </Badge>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            {eventsWithGrade.length}/{evaluativeEvents.length} avaliações com nota
+                          </p>
+                          {averageGrade !== null && !isApproved && eventsWithoutGrade.length > 0 && (
+                            <p className="text-xs text-amber-500 font-medium">
+                              Precisa de ≥ {(() => {
+                                // Calculate minimum grade needed on remaining
+                                const currentWeightedSum = eventsWithGrade.reduce(
+                                  (a, e) => a + (e.grade! * (e.weight || 1)), 0
+                                );
+                                const currentTotalWeight = eventsWithGrade.reduce(
+                                  (a, e) => a + (e.weight || 1), 0
+                                );
+                                const remainingWeight = eventsWithoutGrade.reduce(
+                                  (a, e) => a + (e.weight || 1), 0
+                                );
+                                const needed = ((approvalThreshold * (currentTotalWeight + remainingWeight)) - currentWeightedSum) / remainingWeight;
+                                return Math.max(0, Math.min(10, needed)).toFixed(1);
+                              })()} nas próximas
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Progress bar */}
+                      {averageGrade !== null && (
+                        <div className="mt-4">
+                          <div className="h-2 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${averageGrade >= 6 ? "bg-emerald-500" : "bg-red-500"}`}
+                              style={{ width: `${Math.min(100, (averageGrade / 10) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between mt-1">
+                            <span className="text-xs text-muted-foreground">0</span>
+                            <span className="text-xs text-muted-foreground font-medium">Mín: 6.0</span>
+                            <span className="text-xs text-muted-foreground">10</span>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Evaluative events list with inline grade input */}
+                  <Card>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base">Avaliações</CardTitle>
+                        <Button size="sm" variant="outline" onClick={openCreateEvent}>
+                          <Plus className="h-4 w-4 mr-1" /> Nova avaliação
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {evaluativeEvents.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">Nenhuma avaliação cadastrada</p>
+                          <p className="text-xs mt-1">Adicione provas, trabalhos ou atividades na aba Agenda</p>
+                        </div>
+                      ) : (
+                        evaluativeEvents
+                          .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
+                          .map(ev => {
+                            const meta = EVENT_TYPES[ev.type];
+                            const Icon = meta?.icon || FileText;
+                            const isPast = new Date(ev.event_date) < new Date();
+                            const hasGrade = ev.grade != null;
+
+                            return (
+                              <div
+                                key={ev.id}
+                                className={`flex items-center gap-3 p-3 rounded-lg border ${
+                                  hasGrade ? "border-border" : isPast ? "border-amber-500/30 bg-amber-500/5" : "border-border"
+                                }`}
+                              >
+                                <Icon className={`h-4 w-4 shrink-0 ${meta?.color}`} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium text-sm">{ev.title}</span>
+                                    <Badge variant="outline" className={`text-xs ${meta?.color}`}>
+                                      {meta?.label}
+                                    </Badge>
+                                    {ev.weight && (
+                                      <span className="text-xs text-muted-foreground">Peso: {ev.weight}</span>
+                                    )}
+                                    {ev.is_group && (
+                                      <Badge variant="secondary" className="text-xs">Grupo</Badge>
+                                    )}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                    {format(parseISO(ev.event_date), "dd/MM/yyyy", { locale: ptBR })}
+                                    {ev.content_topics && ` • ${ev.content_topics}`}
+                                  </div>
+                                </div>
+
+                                {/* Grade input / display */}
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {hasGrade ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className={`text-lg font-bold ${ev.grade! >= 6 ? "text-emerald-500" : "text-red-500"}`}>
+                                        {ev.grade!.toFixed(1)}
+                                      </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={() => openEditEvent(ev)}
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        step="0.1"
+                                        min="0"
+                                        max="10"
+                                        placeholder="Nota"
+                                        className="w-20 h-8 text-sm text-center"
+                                        onKeyDown={e => {
+                                          if (e.key === "Enter") {
+                                            const val = parseFloat((e.target as HTMLInputElement).value);
+                                            if (!isNaN(val) && val >= 0 && val <= 10) {
+                                              updateEvent.mutate({
+                                                id: ev.id,
+                                                grade: val,
+                                                status: ev.status === "pendente" ? "realizado" : ev.status,
+                                              });
+                                              (e.target as HTMLInputElement).value = "";
+                                            }
+                                          }
+                                        }}
+                                        onBlur={e => {
+                                          const val = parseFloat(e.target.value);
+                                          if (!isNaN(val) && val >= 0 && val <= 10) {
+                                            updateEvent.mutate({
+                                              id: ev.id,
+                                              grade: val,
+                                              status: ev.status === "pendente" ? "realizado" : ev.status,
+                                            });
+                                            e.target.value = "";
+                                          }
+                                        }}
+                                      />
+                                      {isPast && !hasGrade && (
+                                        <span className="text-xs text-amber-500">⏳</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })
+                      )}
+                    </CardContent>
+                  </Card>
+                </>
+              );
+            })()}
+          </TabsContent>
 
           {/* ─── AGENDA TAB ─── */}
           <TabsContent value="agenda" className="space-y-4">
@@ -454,10 +668,15 @@ export default function SubjectDetail() {
                   const meta = EVENT_TYPES[ev.type];
                   const Icon = meta?.icon || FileText;
                   return (
-                    <Card key={ev.id} className="group opacity-60">
+                    <Card key={ev.id} className="group opacity-70">
                       <CardContent className="flex items-center gap-3 py-2 px-4">
                         <Icon className={`h-4 w-4 shrink-0 ${meta?.color}`} />
-                        <span className="flex-1 text-sm line-through">{ev.title}</span>
+                        <span className="flex-1 text-sm">{ev.title}</span>
+                        {ev.grade != null && (
+                          <span className={`text-sm font-bold ${ev.grade >= 6 ? "text-emerald-500" : "text-red-500"}`}>
+                            {ev.grade.toFixed(1)}
+                          </span>
+                        )}
                         <Badge variant="secondary" className="text-xs">{STATUS_MAP[ev.status]?.label}</Badge>
                       </CardContent>
                     </Card>
