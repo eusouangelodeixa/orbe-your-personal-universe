@@ -14,6 +14,7 @@ import Cofrinho from "./pages/Cofrinho";
 import Consultor from "./pages/Consultor";
 import Disciplinas from "./pages/Disciplinas";
 import StudiesDashboard from "./pages/StudiesDashboard";
+import StudiesChat from "./pages/StudiesChat";
 import SubjectDetail from "./pages/SubjectDetail";
 import Agenda from "./pages/Agenda";
 import Profile from "./pages/Profile";
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/consultor" element={<ProtectedRoute><PlanGate group="finance"><Consultor /></PlanGate></ProtectedRoute>} />
             {/* Studies routes — student & full */}
             <Route path="/estudos" element={<ProtectedRoute><PlanGate group="studies"><StudiesDashboard /></PlanGate></ProtectedRoute>} />
+            <Route path="/estudos/chat" element={<ProtectedRoute><PlanGate group="studies"><StudiesChat /></PlanGate></ProtectedRoute>} />
             <Route path="/disciplinas" element={<ProtectedRoute><PlanGate group="studies"><Disciplinas /></PlanGate></ProtectedRoute>} />
             <Route path="/disciplina/:subjectId" element={<ProtectedRoute><PlanGate group="studies"><SubjectDetail /></PlanGate></ProtectedRoute>} />
             {/* Fit routes — fit & full */}
