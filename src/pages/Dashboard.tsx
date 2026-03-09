@@ -7,11 +7,12 @@ import {
   TrendingUp, TrendingDown, Wallet as WalletIcon, AlertTriangle, Loader2,
   CreditCard, ArrowUpCircle, ArrowDownCircle,
 } from "lucide-react";
-import { useIncomes, useExpenses, useWallets, useWalletTransactions } from "@/hooks/useFinance";
+import { useIncomes, useExpenses, useWallets, useWalletTransactions, useFinancialHistory } from "@/hooks/useFinance";
 import { MonthSelector } from "@/components/MonthSelector";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 
 const COLORS = ["#4CAF50", "#FF9800", "#2196F3", "#9C27B0", "#F44336", "#3F51B5", "#E91E63", "#607D8B"];
+const MONTH_NAMES = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function Dashboard() {
   const now = new Date();
