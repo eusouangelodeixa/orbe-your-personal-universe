@@ -393,13 +393,11 @@ export function useDeleteIncome() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Delete related transactions first (trigger reverses balance)
       await supabase
         .from("wallet_transactions")
         .delete()
         .eq("reference_type", "income")
         .eq("reference_id", id);
-
       const { error } = await supabase.from("incomes").delete().eq("id", id);
       if (error) throw error;
     },
@@ -410,6 +408,93 @@ export function useDeleteIncome() {
       toast.success("Renda removida");
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ========== UPDATE EXPENSE ==========
+
+export function useUpdateExpense() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; name?: string; amount?: number; due_date?: string; type?: string; category_id?: string | null; wallet_id?: string | null; recurring?: boolean; recurring_day?: number | null }) => {
+      const { error } = await supabase.from("expenses").update(data).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["expenses"] });
+      toast.success("Gasto atualizado");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ========== WALLET TRANSFER ==========
+
+export function useWalletTransfer() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async ({ fromId, toId, amount, description }: { fromId: string; toId: string; amount: number; description?: string }) => {
+      // Check source balance
+      const { data: from, error: fErr } = await supabase.from("wallets").select("balance, name").eq("id", fromId).single();
+      if (fErr) throw fErr;
+      if (Number(from.balance) < amount) throw new Error(`Saldo insuficiente em "${from.name}". Disponível: R$ ${Number(from.balance).toFixed(2)}`);
+
+      const { data: to } = await supabase.from("wallets").select("name").eq("id", toId).single();
+      const desc = description || `Transferência para ${to?.name || "outra carteira"}`;
+
+      // Debit from source
+      const { error: e1 } = await supabase.from("wallet_transactions").insert({
+        wallet_id: fromId, user_id: user!.id, amount, type: "debit",
+        description: `Transferência → ${to?.name}`, reference_type: "transfer",
+      });
+      if (e1) throw e1;
+
+      // Credit to destination
+      const { error: e2 } = await supabase.from("wallet_transactions").insert({
+        wallet_id: toId, user_id: user!.id, amount, type: "credit",
+        description: `Transferência ← ${from.name}`, reference_type: "transfer",
+      });
+      if (e2) throw e2;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
+      toast.success("Transferência realizada");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ========== FINANCIAL HISTORY (for charts) ==========
+
+export function useFinancialHistory() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["financial_history", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const now = new Date();
+      const months: { month: number; year: number; income: number; expense: number }[] = [];
+      
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const m = d.getMonth() + 1;
+        const y = d.getFullYear();
+
+        const [{ data: inc }, { data: exp }] = await Promise.all([
+          supabase.from("incomes").select("amount").eq("user_id", user!.id).eq("month", m).eq("year", y),
+          supabase.from("expenses").select("amount").eq("user_id", user!.id).eq("month", m).eq("year", y),
+        ]);
+
+        months.push({
+          month: m, year: y,
+          income: (inc || []).reduce((a, r) => a + Number(r.amount), 0),
+          expense: (exp || []).reduce((a, r) => a + Number(r.amount), 0),
+        });
+      }
+      return months;
+    },
   });
 }
 

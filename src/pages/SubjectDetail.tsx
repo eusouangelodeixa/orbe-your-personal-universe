@@ -178,7 +178,7 @@ export default function SubjectDetail() {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventForm, setEventForm] = useState({
     type: "prova", title: "", description: "", event_date: "",
-    content_topics: "", weight: "", is_group: false, status: "pendente",
+    content_topics: "", weight: "", is_group: false, status: "pendente", grade: "",
   });
 
   // Ementa upload
@@ -253,7 +253,7 @@ export default function SubjectDetail() {
   // ─── Events ───
   const openCreateEvent = () => {
     setEditingEventId(null);
-    setEventForm({ type: "prova", title: "", description: "", event_date: "", content_topics: "", weight: "", is_group: false, status: "pendente" });
+    setEventForm({ type: "prova", title: "", description: "", event_date: "", content_topics: "", weight: "", is_group: false, status: "pendente", grade: "" });
     setEventOpen(true);
   };
   const openEditEvent = (ev: AcademicEvent) => {
@@ -262,6 +262,7 @@ export default function SubjectDetail() {
       type: ev.type, title: ev.title, description: ev.description || "",
       event_date: ev.event_date.slice(0, 16), content_topics: ev.content_topics || "",
       weight: ev.weight?.toString() || "", is_group: ev.is_group, status: ev.status,
+      grade: ev.grade?.toString() || "",
     });
     setEventOpen(true);
   };
@@ -273,6 +274,7 @@ export default function SubjectDetail() {
       due_date: eventForm.event_date, content_topics: eventForm.content_topics || null,
       weight: eventForm.weight ? Number(eventForm.weight) : null, is_group: eventForm.is_group,
       status: eventForm.status, reminder_config: [],
+      grade: eventForm.grade ? Number(eventForm.grade) : null,
     };
     if (editingEventId) {
       updateEvent.mutate({ id: editingEventId, ...payload }, { onSuccess: () => setEventOpen(false) });
@@ -292,7 +294,7 @@ export default function SubjectDetail() {
     addEvent.mutate({
       subject_id: subject.id, type: "revisao", title: `Revisão - ${subject.name}`,
       description: "Sessão de revisão sugerida pela IA", event_date: tomorrow.toISOString(),
-      due_date: tomorrow.toISOString(), content_topics: null, weight: null, is_group: false, status: "pendente", reminder_config: [],
+      due_date: tomorrow.toISOString(), content_topics: null, weight: null, is_group: false, status: "pendente", reminder_config: [], grade: null,
     }, {
       onSuccess: () => {
         addNotification.mutate({ title: "📚 Revisão agendada", message: `Revisão de ${subject.name} para amanhã às 14h`, type: "revisao" });
@@ -341,6 +343,22 @@ export default function SubjectDetail() {
   const pendingEvents = events.filter(e => e.status === "pendente" || e.status === "em_andamento");
   const completedEvents = events.filter(e => e.status === "entregue" || e.status === "realizado");
 
+  // Calculate weighted average
+  const gradedEvents = events.filter(e => e.grade != null);
+  const weightedEvents = gradedEvents.filter(e => e.weight != null && e.weight > 0);
+  const unweightedEvents = gradedEvents.filter(e => !e.weight || e.weight <= 0);
+  let averageGrade: number | null = null;
+  if (gradedEvents.length > 0) {
+    if (weightedEvents.length > 0) {
+      const totalWeight = weightedEvents.reduce((a, e) => a + (e.weight || 0), 0) + (unweightedEvents.length > 0 ? 1 : 0);
+      const weightedSum = weightedEvents.reduce((a, e) => a + (e.grade! * (e.weight || 1)), 0);
+      const unweightedAvg = unweightedEvents.length > 0 ? unweightedEvents.reduce((a, e) => a + e.grade!, 0) / unweightedEvents.length : 0;
+      averageGrade = (weightedSum + (unweightedEvents.length > 0 ? unweightedAvg : 0)) / totalWeight;
+    } else {
+      averageGrade = gradedEvents.reduce((a, e) => a + e.grade!, 0) / gradedEvents.length;
+    }
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -384,7 +402,14 @@ export default function SubjectDetail() {
           <TabsContent value="agenda" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold">Eventos ({events.length})</h2>
-              <Button size="sm" onClick={openCreateEvent}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
+              <div className="flex items-center gap-3">
+                {averageGrade !== null && (
+                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold ${averageGrade >= 6 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
+                    📊 Média: {averageGrade.toFixed(1)}
+                  </div>
+                )}
+                <Button size="sm" onClick={openCreateEvent}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
+              </div>
             </div>
 
             {pendingEvents.length > 0 && (
@@ -403,6 +428,7 @@ export default function SubjectDetail() {
                             {format(parseISO(ev.event_date), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                             {ev.content_topics && ` • ${ev.content_topics}`}
                             {ev.weight && ` • Peso: ${ev.weight}`}
+                            {ev.grade != null && ` • Nota: ${ev.grade}`}
                           </div>
                         </div>
                         <Badge variant={STATUS_MAP[ev.status]?.variant} className="cursor-pointer text-xs" onClick={() => cycleStatus(ev)}>
@@ -469,7 +495,12 @@ export default function SubjectDetail() {
                   <div><Label>Data/Hora *</Label><Input type="datetime-local" value={eventForm.event_date} onChange={e => setEventForm(f => ({ ...f, event_date: e.target.value }))} /></div>
                   <div><Label>Conteúdo/Tópicos</Label><Input value={eventForm.content_topics} onChange={e => setEventForm(f => ({ ...f, content_topics: e.target.value }))} /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    {eventForm.type === "prova" && <div><Label>Peso</Label><Input type="number" value={eventForm.weight} onChange={e => setEventForm(f => ({ ...f, weight: e.target.value }))} /></div>}
+                    {(eventForm.type === "prova" || eventForm.type === "trabalho" || eventForm.type === "atividade") && (
+                      <div><Label>Peso</Label><Input type="number" step="0.1" value={eventForm.weight} onChange={e => setEventForm(f => ({ ...f, weight: e.target.value }))} placeholder="Ex: 2.0" /></div>
+                    )}
+                    {(eventForm.type === "prova" || eventForm.type === "trabalho" || eventForm.type === "atividade") && (
+                      <div><Label>Nota</Label><Input type="number" step="0.1" min="0" max="10" value={eventForm.grade} onChange={e => setEventForm(f => ({ ...f, grade: e.target.value }))} placeholder="0-10" /></div>
+                    )}
                     {eventForm.type === "trabalho" && (
                       <div className="flex items-center gap-2 pt-6">
                         <Checkbox checked={eventForm.is_group} onCheckedChange={v => setEventForm(f => ({ ...f, is_group: !!v }))} />

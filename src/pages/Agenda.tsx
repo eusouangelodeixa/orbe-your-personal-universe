@@ -76,7 +76,7 @@ export default function Agenda() {
       description: form.description || null, event_date: form.event_date,
       due_date: form.event_date, content_topics: form.content_topics || null,
       weight: form.weight ? Number(form.weight) : null, is_group: form.is_group,
-      status: form.status, reminder_config: [],
+      status: form.status, reminder_config: [], grade: null,
     };
     if (editingId) {
       updateEvent.mutate({ id: editingId, ...payload }, { onSuccess: () => setOpen(false) });

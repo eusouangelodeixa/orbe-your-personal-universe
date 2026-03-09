@@ -15,7 +15,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import {
   Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon,
-  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank, Repeat,
+  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank, Repeat, ArrowLeftRight, Pencil,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,9 +24,9 @@ import { MonthSelector } from "@/components/MonthSelector";
 import { DueDateAlerts } from "@/components/DueDateAlerts";
 import {
   useCategories, useIncomes, useExpenses, useAddIncome, useAddExpense,
-  useToggleExpensePaid, useDeleteExpense, useDeleteIncome,
+  useToggleExpensePaid, useDeleteExpense, useDeleteIncome, useUpdateExpense,
   useWallets, useAddWallet, useDeleteWallet, useAddWalletTransaction, useWalletTransactions,
-  useSavingsGoals, useUpdateSavingsGoal,
+  useSavingsGoals, useUpdateSavingsGoal, useWalletTransfer,
 } from "@/hooks/useFinance";
 import {
   createOrbeDoc, finalizeDoc, drawHeader, drawSectionTitle,
@@ -54,6 +54,8 @@ export default function Planilha() {
   const addWallet = useAddWallet();
   const deleteWallet = useDeleteWallet();
   const addWalletTx = useAddWalletTransaction();
+  const updateExpense = useUpdateExpense();
+  const walletTransfer = useWalletTransfer();
 
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [showIncomeForm, setShowIncomeForm] = useState(false);
@@ -69,6 +71,9 @@ export default function Planilha() {
   // For marking expense as paid with wallet
   const [payWalletId, setPayWalletId] = useState("");
   const [cofrinhoForm, setCofrinhoForm] = useState({ goalId: "", valor: "" });
+  const [transferForm, setTransferForm] = useState({ fromId: "", toId: "", valor: "" });
+  const [editExpense, setEditExpense] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ nome: "", valor: "", dueDate: undefined as Date | undefined, tipo: "variavel" as string, categoria: "", walletId: "", recurring: false, recurringDay: "" });
 
   const totalRenda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
@@ -433,6 +438,56 @@ export default function Planilha() {
               <p className="text-sm text-muted-foreground text-center py-4">Nenhuma carteira cadastrada.</p>
             )}
 
+            {/* Transfer between wallets */}
+            {wallets.length >= 2 && (
+              <div className="border-t border-border pt-3">
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1 font-display" onClick={() => setTransferForm({ fromId: "", toId: "", valor: "" })}>
+                      <ArrowLeftRight className="h-4 w-4" /> Transferir entre carteiras
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle className="font-display">Transferência entre Carteiras</DialogTitle></DialogHeader>
+                    <div className="space-y-3 py-2">
+                      <div className="space-y-1">
+                        <Label>De</Label>
+                        <Select value={transferForm.fromId} onValueChange={(v) => setTransferForm({ ...transferForm, fromId: v })}>
+                          <SelectTrigger><SelectValue placeholder="Carteira de origem" /></SelectTrigger>
+                          <SelectContent>
+                            {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name} (R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Para</Label>
+                        <Select value={transferForm.toId} onValueChange={(v) => setTransferForm({ ...transferForm, toId: v })}>
+                          <SelectTrigger><SelectValue placeholder="Carteira de destino" /></SelectTrigger>
+                          <SelectContent>
+                            {wallets.filter(w => w.id !== transferForm.fromId).map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label>Valor (R$)</Label>
+                        <Input type="number" placeholder="0.00" value={transferForm.valor} onChange={(e) => setTransferForm({ ...transferForm, valor: e.target.value })} min={0} step={0.01} />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
+                      <DialogClose asChild>
+                        <Button onClick={() => {
+                          if (transferForm.fromId && transferForm.toId && transferForm.valor) {
+                            walletTransfer.mutate({ fromId: transferForm.fromId, toId: transferForm.toId, amount: parseFloat(transferForm.valor) });
+                          }
+                        }} disabled={!transferForm.fromId || !transferForm.toId || !transferForm.valor}>Transferir</Button>
+                      </DialogClose>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
+
             <div className="flex items-end gap-3 pt-2 border-t border-border">
               <div className="space-y-1 flex-1">
                 <Label className="text-xs">Nome</Label>
@@ -753,10 +808,22 @@ export default function Planilha() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="font-bold font-display">
                       R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </span>
+                    <button onClick={() => {
+                      setEditExpense(e);
+                      setEditForm({
+                        nome: e.name, valor: String(e.amount),
+                        dueDate: new Date(e.due_date + "T12:00:00"),
+                        tipo: e.type, categoria: e.category_id || "",
+                        walletId: e.wallet_id || "", recurring: e.recurring || false,
+                        recurringDay: e.recurring_day ? String(e.recurring_day) : "",
+                      });
+                    }} className="text-muted-foreground hover:text-primary">
+                      <Pencil className="h-4 w-4" />
+                    </button>
                     <button onClick={() => deleteExpense.mutate(e.id)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -838,6 +905,93 @@ export default function Planilha() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Edit Expense Dialog */}
+        <Dialog open={!!editExpense} onOpenChange={(open) => { if (!open) setEditExpense(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader><DialogTitle className="font-display">Editar Gasto</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+              <div className="space-y-1">
+                <Label>Nome</Label>
+                <Input value={editForm.nome} onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })} maxLength={100} />
+              </div>
+              <div className="space-y-1">
+                <Label>Valor (R$)</Label>
+                <Input type="number" value={editForm.valor} onChange={(e) => setEditForm({ ...editForm, valor: e.target.value })} min={0} step={0.01} />
+              </div>
+              <div className="space-y-1">
+                <Label>Categoria</Label>
+                <Select value={editForm.categoria} onValueChange={(v) => setEditForm({ ...editForm, categoria: v })}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Tipo</Label>
+                <Select value={editForm.tipo} onValueChange={(v) => setEditForm({ ...editForm, tipo: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fixo">Fixo</SelectItem>
+                    <SelectItem value="variavel">Variável</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label>Vencimento</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editForm.dueDate && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {editForm.dueDate ? format(editForm.dueDate, "dd/MM/yyyy") : "Selecione"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={editForm.dueDate} onSelect={(d) => setEditForm({ ...editForm, dueDate: d })} initialFocus className="p-3 pointer-events-auto" locale={ptBR} />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-1">
+                <Label>Carteira</Label>
+                <Select value={editForm.walletId} onValueChange={(v) => setEditForm({ ...editForm, walletId: v })}>
+                  <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Nenhuma</SelectItem>
+                    {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-full flex items-center gap-3">
+                <Switch checked={editForm.recurring} onCheckedChange={(v) => setEditForm({ ...editForm, recurring: v })} />
+                <Label>Recorrente</Label>
+                {editForm.recurring && (
+                  <Input type="number" min={1} max={31} placeholder="Dia" className="w-20" value={editForm.recurringDay} onChange={(e) => setEditForm({ ...editForm, recurringDay: e.target.value })} />
+                )}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setEditExpense(null)}>Cancelar</Button>
+              <Button onClick={() => {
+                if (!editExpense || !editForm.nome.trim() || !editForm.valor) return;
+                updateExpense.mutate({
+                  id: editExpense.id,
+                  name: editForm.nome.trim(),
+                  amount: parseFloat(editForm.valor),
+                  due_date: editForm.dueDate ? format(editForm.dueDate, "yyyy-MM-dd") : editExpense.due_date,
+                  type: editForm.tipo,
+                  category_id: editForm.categoria || null,
+                  wallet_id: editForm.walletId && editForm.walletId !== "none" ? editForm.walletId : null,
+                  recurring: editForm.recurring,
+                  recurring_day: editForm.recurring && editForm.recurringDay ? parseInt(editForm.recurringDay) : null,
+                }, { onSuccess: () => setEditExpense(null) });
+              }} disabled={updateExpense.isPending}>
+                {updateExpense.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   );

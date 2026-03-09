@@ -7,11 +7,12 @@ import {
   TrendingUp, TrendingDown, Wallet as WalletIcon, AlertTriangle, Loader2,
   CreditCard, ArrowUpCircle, ArrowDownCircle,
 } from "lucide-react";
-import { useIncomes, useExpenses, useWallets, useWalletTransactions } from "@/hooks/useFinance";
+import { useIncomes, useExpenses, useWallets, useWalletTransactions, useFinancialHistory } from "@/hooks/useFinance";
 import { MonthSelector } from "@/components/MonthSelector";
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 
 const COLORS = ["#4CAF50", "#FF9800", "#2196F3", "#9C27B0", "#F44336", "#3F51B5", "#E91E63", "#607D8B"];
+const MONTH_NAMES = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function Dashboard() {
   const now = new Date();
@@ -22,6 +23,7 @@ export default function Dashboard() {
   const { data: expenses = [], isLoading: le } = useExpenses(month, year);
   const { data: wallets = [], isLoading: lw } = useWallets();
   const { data: transactions = [] } = useWalletTransactions();
+  const { data: history = [] } = useFinancialHistory();
 
   const renda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
@@ -40,6 +42,12 @@ export default function Dashboard() {
   }, {});
   const pieData = Object.values(byCat);
   const recentTx = transactions.slice(0, 10);
+  const chartData = history.map(h => ({
+    label: `${MONTH_NAMES[h.month]}/${String(h.year).slice(2)}`,
+    Renda: h.income,
+    Gastos: h.expense,
+    Saldo: h.income - h.expense,
+  }));
 
   if (li || le || lw) {
     return (
@@ -208,6 +216,27 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Evolution Chart */}
+        {chartData.length > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="font-display">Evolução Financeira (últimos 6 meses)</CardTitle></CardHeader>
+            <CardContent className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(1)}k`} />
+                  <Tooltip formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                  <Legend />
+                  <Line type="monotone" dataKey="Renda" stroke="#4CAF50" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="Gastos" stroke="#F44336" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="Saldo" stroke="#FF9800" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Recent Transactions */}
         {recentTx.length > 0 && (
