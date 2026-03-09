@@ -56,6 +56,10 @@ export default function FitWorkout() {
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState<{ title: string; days: WorkoutDay[] } | null>(null);
 
+  // Log editing
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editLogForm, setEditLogForm] = useState({ workout_name: "", duration_minutes: "", mood: "bom", notes: "", workout_date: "" });
+
   useEffect(() => { if (user) loadData(); }, [user]);
 
   const loadData = async () => {
