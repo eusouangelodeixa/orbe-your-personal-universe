@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.whatsapp-hub]
 verify_jwt = false
+
+[functions.extract-subjects-pdf]
+verify_jwt = false
