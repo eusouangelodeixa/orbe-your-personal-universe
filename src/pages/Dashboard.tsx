@@ -228,8 +228,8 @@ export default function Dashboard() {
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(1)}k`} />
-                  <Tooltip formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${currency.symbol}${(v / 1000).toFixed(1)}k`} />
+                  <Tooltip formatter={(v: number) => formatMoney(v)} />
                   <Legend />
                   <Line type="monotone" dataKey="Renda" stroke="#4CAF50" strokeWidth={2} dot={{ r: 4 }} />
                   <Line type="monotone" dataKey="Gastos" stroke="#F44336" strokeWidth={2} dot={{ r: 4 }} />
