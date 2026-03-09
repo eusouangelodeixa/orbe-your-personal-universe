@@ -137,6 +137,8 @@ export type Database = {
           month: number
           name: string
           paid: boolean
+          recurring: boolean
+          recurring_day: number | null
           type: string
           updated_at: string
           user_id: string
@@ -152,6 +154,8 @@ export type Database = {
           month: number
           name: string
           paid?: boolean
+          recurring?: boolean
+          recurring_day?: number | null
           type: string
           updated_at?: string
           user_id: string
@@ -167,6 +171,8 @@ export type Database = {
           month?: number
           name?: string
           paid?: boolean
+          recurring?: boolean
+          recurring_day?: number | null
           type?: string
           updated_at?: string
           user_id?: string

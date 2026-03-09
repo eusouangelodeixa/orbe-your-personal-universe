@@ -12,9 +12,10 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   Plus, Check, Clock, Trash2, Loader2, DollarSign, FileDown, CalendarIcon,
-  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank,
+  Wallet, ArrowUpCircle, ArrowDownCircle, CreditCard, PiggyBank, Repeat,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -60,6 +61,7 @@ export default function Planilha() {
 
   const [novoGasto, setNovoGasto] = useState({
     nome: "", categoria: "", valor: "", tipo: "variavel" as "fixo" | "variavel", walletId: "",
+    recurring: false, recurringDay: "",
   });
   const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "", walletId: "" });
   const [novaCarteira, setNovaCarteira] = useState({ nome: "", saldoInicial: "" });
@@ -88,10 +90,12 @@ export default function Planilha() {
         wallet_id: novoGasto.walletId || null,
         month,
         year,
+        recurring: novoGasto.recurring,
+        recurring_day: novoGasto.recurring && novoGasto.recurringDay ? parseInt(novoGasto.recurringDay) : null,
       },
       {
         onSuccess: () => {
-          setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel", walletId: "" });
+          setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel", walletId: "", recurring: false, recurringDay: "" });
           setDueDate(undefined);
           setShowExpenseForm(false);
         },
@@ -585,6 +589,31 @@ export default function Planilha() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-3 col-span-full border-t border-border pt-4">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={novoGasto.recurring}
+                      onCheckedChange={(v) => setNovoGasto({ ...novoGasto, recurring: v, recurringDay: v && dueDate ? String(dueDate.getDate()) : "" })}
+                    />
+                    <div>
+                      <Label className="cursor-pointer">Gasto recorrente</Label>
+                      <p className="text-xs text-muted-foreground">Será criado automaticamente todo mês</p>
+                    </div>
+                  </div>
+                  {novoGasto.recurring && (
+                    <div className="space-y-1 w-48">
+                      <Label>Dia do vencimento mensal</Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={31}
+                        placeholder="Ex: 10"
+                        value={novoGasto.recurringDay}
+                        onChange={(e) => setNovoGasto({ ...novoGasto, recurringDay: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
               <Button onClick={handleAddExpense} disabled={addExpense.isPending} className="mt-4 font-display">
                 {addExpense.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -711,6 +740,11 @@ export default function Planilha() {
                           Vence: {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")}
                         </span>
                         <Badge variant="outline" className="text-[10px]">{e.type === "fixo" ? "Fixo" : "Variável"}</Badge>
+                        {e.recurring && (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Repeat className="h-2.5 w-2.5" /> Recorrente
+                          </Badge>
+                        )}
                         {e.wallets?.name && (
                           <Badge variant="secondary" className="text-[10px] gap-1">
                             <Wallet className="h-2.5 w-2.5" />{e.wallets.name}
