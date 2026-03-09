@@ -515,7 +515,7 @@ export default function Planilha() {
             </CardHeader>
             <CardContent>
               <p className="text-xl font-bold font-display text-primary">
-                R$ {totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalRenda)}
               </p>
             </CardContent>
           </Card>
