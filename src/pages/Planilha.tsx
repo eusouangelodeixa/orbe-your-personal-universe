@@ -687,7 +687,7 @@ export default function Planilha() {
               <div className="flex items-center justify-between">
                 <CardTitle className="font-display text-lg">Rendas</CardTitle>
                 <span className="text-sm text-muted-foreground font-display">
-                  R$ {totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  {formatMoney(totalRenda)}
                 </span>
               </div>
             </CardHeader>
