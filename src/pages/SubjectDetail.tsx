@@ -1040,7 +1040,7 @@ function ResolverIA({ subjectName }: { subjectName: string }) {
             </div>
             <div>
               <Label>Upload (opcional)</Label>
-              <input ref={fileRef} type="file" accept=".txt,.md,.csv,.doc,.docx,.pdf" className="hidden" onChange={handleFileUpload} />
+              <input ref={fileRef} type="file" accept=".txt,.md,.csv,.doc,.docx,.pdf,.jpg,.jpeg,.png,.webp,.heic" className="hidden" onChange={handleFileUpload} />
               <Button variant="outline" className="w-full" onClick={() => fileRef.current?.click()} disabled={uploading}>
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
                 Enviar arquivo
