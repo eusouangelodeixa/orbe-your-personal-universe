@@ -398,7 +398,7 @@ export default function Planilha() {
                               </DialogTitle>
                             </DialogHeader>
                             <p className="text-sm text-muted-foreground">
-                              Debitar de <strong>{w.name}</strong> (R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                              Debitar de <strong>{w.name}</strong> ({formatMoney(Number(w.balance))})
                             </p>
                             <div className="space-y-3 py-2">
                               <div className="space-y-1">
