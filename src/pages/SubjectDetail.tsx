@@ -253,7 +253,7 @@ export default function SubjectDetail() {
   // ─── Events ───
   const openCreateEvent = () => {
     setEditingEventId(null);
-    setEventForm({ type: "prova", title: "", description: "", event_date: "", content_topics: "", weight: "", is_group: false, status: "pendente" });
+    setEventForm({ type: "prova", title: "", description: "", event_date: "", content_topics: "", weight: "", is_group: false, status: "pendente", grade: "" });
     setEventOpen(true);
   };
   const openEditEvent = (ev: AcademicEvent) => {
