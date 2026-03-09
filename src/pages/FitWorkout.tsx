@@ -637,34 +637,15 @@ export default function FitWorkout() {
         )}
       </div>
 
-      {/* Check-in dialog */}
-      <Dialog open={logDialogOpen} onOpenChange={(o) => { if (!o) { setLogDialogOpen(false); setSelectedDay(null); } }}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Registrar treino{selectedDay ? ` — ${selectedDay.name}` : ""}</DialogTitle></DialogHeader>
+      {/* Manual check-in dialog (without plan) */}
+      <Dialog open={logDialogOpen} onOpenChange={setLogDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Registrar treino avulso</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            {!selectedDay && (
-              <div className="space-y-2">
-                <Label>Nome do treino</Label>
-                <Input value={logForm.workout_name} onChange={e => setLogForm(f => ({ ...f, workout_name: e.target.value }))} placeholder="Ex: Treino A - Peito e Tríceps" />
-              </div>
-            )}
-            {selectedDay && selectedDay.exercises.map((ex, i) => (
-              <div key={i} className="rounded-lg border p-3 space-y-2">
-                <p className="font-medium text-sm">{ex.name}</p>
-                <div className="space-y-1">
-                  {exerciseLogs[ex.name]?.sets.map((s, si) => (
-                    <div key={si} className="flex gap-2 items-center">
-                      <span className="text-xs text-muted-foreground w-8">S{si + 1}</span>
-                      <Input type="number" placeholder="kg" className="h-8 text-xs w-20" value={s.weight}
-                        onChange={e => { const next = { ...exerciseLogs }; next[ex.name].sets[si].weight = e.target.value; setExerciseLogs(next); }} />
-                      <span className="text-xs text-muted-foreground">×</span>
-                      <Input type="number" placeholder="reps" className="h-8 text-xs w-20" value={s.reps}
-                        onChange={e => { const next = { ...exerciseLogs }; next[ex.name].sets[si].reps = e.target.value; setExerciseLogs(next); }} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <div className="space-y-2">
+              <Label>Nome do treino</Label>
+              <Input value={logForm.workout_name} onChange={e => setLogForm(f => ({ ...f, workout_name: e.target.value }))} placeholder="Ex: Treino A - Peito e Tríceps" />
+            </div>
             <div className="space-y-2">
               <Label>Data do treino</Label>
               <Input type="date" value={logForm.workout_date} onChange={e => setLogForm(f => ({ ...f, workout_date: e.target.value }))} />
@@ -691,7 +672,7 @@ export default function FitWorkout() {
               <Label>Observações</Label>
               <Textarea value={logForm.notes} onChange={e => setLogForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notas sobre o treino..." />
             </div>
-            <Button onClick={saveLog} className="w-full">Salvar treino</Button>
+            <Button onClick={saveManualLog} className="w-full">Salvar treino</Button>
           </div>
         </DialogContent>
       </Dialog>
