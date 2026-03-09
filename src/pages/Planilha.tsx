@@ -90,10 +90,12 @@ export default function Planilha() {
         wallet_id: novoGasto.walletId || null,
         month,
         year,
+        recurring: novoGasto.recurring,
+        recurring_day: novoGasto.recurring && novoGasto.recurringDay ? parseInt(novoGasto.recurringDay) : null,
       },
       {
         onSuccess: () => {
-          setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel", walletId: "" });
+          setNovoGasto({ nome: "", categoria: "", valor: "", tipo: "variavel", walletId: "", recurring: false, recurringDay: "" });
           setDueDate(undefined);
           setShowExpenseForm(false);
         },
