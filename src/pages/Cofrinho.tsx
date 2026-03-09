@@ -261,7 +261,7 @@ export default function Cofrinho() {
                           <DialogContent>
                             <DialogHeader><DialogTitle className="font-display">Retirar de {goal.name}</DialogTitle></DialogHeader>
                             <p className="text-sm text-muted-foreground">
-                              Saldo atual: <strong className="text-primary">R$ {Number(goal.current_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong>
+                              Saldo atual: <strong className="text-primary">{formatMoney(Number(goal.current_amount))}</strong>
                             </p>
                             <div className="space-y-1">
                               <Label>Valor a retirar (R$)</Label>
