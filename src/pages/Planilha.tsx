@@ -310,7 +310,7 @@ export default function Planilha() {
                       </button>
                     </div>
                     <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
-                      R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {formatMoney(Number(w.balance))}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       <Dialog>
