@@ -199,7 +199,7 @@ export default function StudiesChat() {
                 >
                   {msg.content ? (
                     msg.role === "assistant" ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2">
+                      <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2 [&>table]:w-full [&>table]:border-collapse [&>table]:my-3 [&>table]:text-xs [&_th]:border [&_th]:border-border [&_th]:bg-muted/70 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5 [&_tr:nth-child(even)]:bg-muted/30 overflow-x-auto">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
                           {sanitizeLatex(msg.content)}
                         </ReactMarkdown>
