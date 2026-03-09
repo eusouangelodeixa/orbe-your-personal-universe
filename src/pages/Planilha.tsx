@@ -531,7 +531,7 @@ export default function Planilha() {
               </CardHeader>
               <CardContent>
                 <p className={`text-xl font-bold font-display ${item.color}`}>
-                  R$ {item.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  {formatMoney(item.value)}
                 </p>
               </CardContent>
             </Card>
