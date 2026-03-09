@@ -900,7 +900,7 @@ export default function Planilha() {
                 const projecaoPatrimonial = totalCarteiras - gastosPendentes;
                 return (
                   <p className={`text-2xl font-bold font-display ${projecaoPatrimonial < 0 ? "text-destructive" : "text-primary"}`}>
-                    R$ {projecaoPatrimonial.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {formatMoney(projecaoPatrimonial)}
                   </p>
                 );
               })()}
