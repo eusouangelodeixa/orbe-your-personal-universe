@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ import {
 } from "@/lib/pdfTemplate";
 
 export default function Planilha() {
+  const { formatMoney, currency } = useCurrency();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -186,10 +188,10 @@ export default function Planilha() {
     const cardW = 42;
     const gap = 4;
     const startX = 14;
-    drawStatCard(doc, startX, y, cardW, "Renda", `R$ ${totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.green);
-    drawStatCard(doc, startX + cardW + gap, y, cardW, "Gastos", `R$ ${totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.red);
-    drawStatCard(doc, startX + (cardW + gap) * 2, y, cardW, "Saldo", `R$ ${saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, saldo >= 0 ? PDF_COLORS.green : PDF_COLORS.red);
-    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, "Patrimônio", `R$ ${totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`, PDF_COLORS.amber);
+    drawStatCard(doc, startX, y, cardW, "Renda", formatMoney(totalRenda), PDF_COLORS.green);
+    drawStatCard(doc, startX + cardW + gap, y, cardW, "Gastos", formatMoney(totalGastos), PDF_COLORS.red);
+    drawStatCard(doc, startX + (cardW + gap) * 2, y, cardW, "Saldo", formatMoney(saldo), saldo >= 0 ? PDF_COLORS.green : PDF_COLORS.red);
+    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, "Patrimônio", formatMoney(totalCarteiras), PDF_COLORS.amber);
     y += 36;
 
     // Comprometimento bar
@@ -204,7 +206,7 @@ export default function Planilha() {
         ["Nome", "Saldo"],
         wallets.map((w) => [
           w.name + (w.is_default ? " ★" : ""),
-          `R$ ${Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          formatMoney(Number(w.balance)),
         ])
       );
       y += 8;
@@ -217,7 +219,7 @@ export default function Planilha() {
         ["Descrição", "Valor", "Carteira"],
         incomes.map((i: any) => [
           i.description,
-          `R$ ${Number(i.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          formatMoney(Number(i.amount)),
           i.wallets?.name || "—",
         ])
       );
@@ -232,7 +234,7 @@ export default function Planilha() {
         expenses.map((e: any) => [
           e.name,
           e.categories?.name || "—",
-          `R$ ${Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          formatMoney(Number(e.amount)),
           new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
           e.paid ? "Pago" : "Pendente",
           e.wallets?.name || "—",
@@ -288,7 +290,7 @@ export default function Planilha() {
                 <CardTitle className="font-display text-lg">Carteiras & Bancos</CardTitle>
               </div>
               <span className="text-sm font-display font-bold text-primary">
-                Total: R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                Total: {formatMoney(totalCarteiras)}
               </span>
             </div>
           </CardHeader>
@@ -308,7 +310,7 @@ export default function Planilha() {
                       </button>
                     </div>
                     <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
-                      R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {formatMoney(Number(w.balance))}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       <Dialog>
@@ -396,7 +398,7 @@ export default function Planilha() {
                               </DialogTitle>
                             </DialogHeader>
                             <p className="text-sm text-muted-foreground">
-                              Debitar de <strong>{w.name}</strong> (R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                              Debitar de <strong>{w.name}</strong> ({formatMoney(Number(w.balance))})
                             </p>
                             <div className="space-y-3 py-2">
                               <div className="space-y-1">
@@ -406,7 +408,7 @@ export default function Planilha() {
                                   <SelectContent>
                                     {savingsGoals.map((g: any) => (
                                       <SelectItem key={g.id} value={g.id}>
-                                        {g.name} (R$ {Number(g.current_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} / R$ {Number(g.target_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                                        {g.name} ({formatMoney(Number(g.current_amount))} / {formatMoney(Number(g.target_amount))})
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -455,7 +457,7 @@ export default function Planilha() {
                         <Select value={transferForm.fromId} onValueChange={(v) => setTransferForm({ ...transferForm, fromId: v })}>
                           <SelectTrigger><SelectValue placeholder="Carteira de origem" /></SelectTrigger>
                           <SelectContent>
-                            {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name} (R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})</SelectItem>)}
+                            {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name} ({formatMoney(Number(w.balance))})</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -513,7 +515,7 @@ export default function Planilha() {
             </CardHeader>
             <CardContent>
               <p className="text-xl font-bold font-display text-primary">
-                R$ {totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalRenda)}
               </p>
             </CardContent>
           </Card>
@@ -529,7 +531,7 @@ export default function Planilha() {
               </CardHeader>
               <CardContent>
                 <p className={`text-xl font-bold font-display ${item.color}`}>
-                  R$ {item.value.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  {formatMoney(item.value)}
                 </p>
               </CardContent>
             </Card>
@@ -685,7 +687,7 @@ export default function Planilha() {
               <div className="flex items-center justify-between">
                 <CardTitle className="font-display text-lg">Rendas</CardTitle>
                 <span className="text-sm text-muted-foreground font-display">
-                  R$ {totalRenda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  {formatMoney(totalRenda)}
                 </span>
               </div>
             </CardHeader>
@@ -705,7 +707,7 @@ export default function Planilha() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="font-bold font-display text-primary">
-                      R$ {Number(inc.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {formatMoney(Number(inc.amount))}
                     </span>
                     <button onClick={() => deleteIncome.mutate(inc.id)} className="text-muted-foreground hover:text-destructive">
                       <Trash2 className="h-4 w-4" />
@@ -724,7 +726,7 @@ export default function Planilha() {
               <div className="flex items-center justify-between">
                 <CardTitle className="font-display text-lg">{cat}</CardTitle>
                 <span className="text-sm text-muted-foreground font-display">
-                  R$ {items.reduce((a, e) => a + Number(e.amount), 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  {formatMoney(items.reduce((a, e) => a + Number(e.amount), 0))}
                 </span>
               </div>
             </CardHeader>
@@ -757,7 +759,7 @@ export default function Planilha() {
                             <DialogTitle className="font-display">Pagar {e.name}</DialogTitle>
                           </DialogHeader>
                           <p className="text-sm text-muted-foreground">
-                            Valor: <strong>R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong>
+                            Valor: <strong>{formatMoney(Number(e.amount))}</strong>
                           </p>
                           <div className="space-y-1">
                             <Label>Debitar de qual carteira?</Label>
@@ -767,7 +769,7 @@ export default function Planilha() {
                                 <SelectItem value="none">Nenhuma</SelectItem>
                                 {wallets.map((w) => (
                                   <SelectItem key={w.id} value={w.id}>
-                                    {w.name} (R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })})
+                                    {w.name} ({formatMoney(Number(w.balance))})
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -810,7 +812,7 @@ export default function Planilha() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold font-display">
-                      R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {formatMoney(Number(e.amount))}
                     </span>
                     <button onClick={() => {
                       setEditExpense(e);
@@ -869,7 +871,7 @@ export default function Planilha() {
                     </div>
                   </div>
                   <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
-                    {tx.type === "credit" ? "+" : "-"} R$ {Number(tx.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {tx.type === "credit" ? "+" : "-"} {formatMoney(Number(tx.amount))}
                   </span>
                 </div>
               ))}
@@ -886,7 +888,7 @@ export default function Planilha() {
                 <p className="text-xs text-muted-foreground">Renda − Gastos do mês</p>
               </div>
               <p className={`text-2xl font-bold font-display ${saldo < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {saldo.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(saldo)}
               </p>
             </div>
             <div className="border-t border-border pt-4 flex justify-between items-center">
@@ -898,7 +900,7 @@ export default function Planilha() {
                 const projecaoPatrimonial = totalCarteiras - gastosPendentes;
                 return (
                   <p className={`text-2xl font-bold font-display ${projecaoPatrimonial < 0 ? "text-destructive" : "text-primary"}`}>
-                    R$ {projecaoPatrimonial.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {formatMoney(projecaoPatrimonial)}
                   </p>
                 );
               })()}

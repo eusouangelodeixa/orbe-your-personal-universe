@@ -1,5 +1,6 @@
 import { AlertTriangle, Bell } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 interface Expense {
   id: string;
@@ -14,6 +15,7 @@ interface DueDateAlertsProps {
 }
 
 export function DueDateAlerts({ expenses }: DueDateAlertsProps) {
+  const { formatMoney } = useCurrency();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -37,7 +39,7 @@ export function DueDateAlerts({ expenses }: DueDateAlertsProps) {
           <AlertDescription>
             {overdue.map((e) => (
               <div key={e.id} className="text-sm">
-                <strong>{e.name}</strong> — R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (venceu em {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")})
+                <strong>{e.name}</strong> — {formatMoney(Number(e.amount))} (venceu em {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")})
               </div>
             ))}
           </AlertDescription>
@@ -50,7 +52,7 @@ export function DueDateAlerts({ expenses }: DueDateAlertsProps) {
           <AlertDescription>
             {dueSoon.map((e) => (
               <div key={e.id} className="text-sm">
-                <strong>{e.name}</strong> — R$ {Number(e.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} (vence em {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")})
+                <strong>{e.name}</strong> — {formatMoney(Number(e.amount))} (vence em {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")})
               </div>
             ))}
           </AlertDescription>

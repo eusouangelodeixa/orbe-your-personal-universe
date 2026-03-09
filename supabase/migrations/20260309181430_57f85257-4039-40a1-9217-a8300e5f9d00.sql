@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN currency text NOT NULL DEFAULT 'BRL';

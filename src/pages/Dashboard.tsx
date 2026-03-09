@@ -9,12 +9,14 @@ import {
 } from "lucide-react";
 import { useIncomes, useExpenses, useWallets, useWalletTransactions, useFinancialHistory } from "@/hooks/useFinance";
 import { MonthSelector } from "@/components/MonthSelector";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 
 const COLORS = ["#4CAF50", "#FF9800", "#2196F3", "#9C27B0", "#F44336", "#3F51B5", "#E91E63", "#607D8B"];
 const MONTH_NAMES = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function Dashboard() {
+  const { formatMoney, currency } = useCurrency();
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
@@ -78,7 +80,7 @@ export default function Dashboard() {
               <ArrowUpCircle className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display text-primary">R$ {renda.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              <p className="text-2xl font-bold font-display text-primary">{formatMoney(renda)}</p>
               <p className="text-xs text-muted-foreground mt-1">Total recebido no mês</p>
             </CardContent>
           </Card>
@@ -88,9 +90,9 @@ export default function Dashboard() {
               <ArrowDownCircle className="h-4 w-4 text-destructive" />
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-bold font-display text-destructive">R$ {totalGastos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              <p className="text-2xl font-bold font-display text-destructive">{formatMoney(totalGastos)}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {gastosPendentes > 0 ? <span className="text-warning font-medium">R$ {gastosPendentes.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} pendentes</span> : "Tudo pago ✓"}
+                {gastosPendentes > 0 ? <span className="text-warning font-medium">{formatMoney(gastosPendentes)} pendentes</span> : "Tudo pago ✓"}
               </p>
             </CardContent>
           </Card>
@@ -101,7 +103,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className={`text-2xl font-bold font-display ${fluxoMensal >= 0 ? "text-primary" : "text-destructive"}`}>
-                {fluxoMensal >= 0 ? "+" : ""}R$ {fluxoMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {fluxoMensal >= 0 ? "+" : ""}{formatMoney(fluxoMensal)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">Renda − Gastos</p>
             </CardContent>
@@ -130,7 +132,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className={`text-3xl font-bold font-display ${totalCarteiras < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {totalCarteiras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalCarteiras)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">Saldo total de todas as carteiras</p>
             </CardContent>
@@ -142,7 +144,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className={`text-3xl font-bold font-display ${(totalCarteiras - gastosPendentes) < 0 ? "text-destructive" : "text-primary"}`}>
-                R$ {(totalCarteiras - gastosPendentes).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalCarteiras - gastosPendentes)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">Patrimônio − Gastos pendentes</p>
             </CardContent>
@@ -168,7 +170,7 @@ export default function Dashboard() {
                       {w.is_default && <Badge variant="outline" className="text-[10px]">Principal</Badge>}
                     </div>
                     <span className={`font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
-                      R$ {Number(w.balance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                      {formatMoney(Number(w.balance))}
                     </span>
                   </div>
                 ))}
@@ -188,7 +190,7 @@ export default function Dashboard() {
                     <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={90} dataKey="value" stroke="none" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color || COLORS[i % COLORS.length]} />)}
                     </Pie>
-                    <Tooltip formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                    <Tooltip formatter={(v: number) => formatMoney(v)} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -197,14 +199,14 @@ export default function Dashboard() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="font-display">Gastos por Categoria (R$)</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="font-display">Gastos por Categoria ({currency.symbol})</CardTitle></CardHeader>
             <CardContent className="h-64">
               {pieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={pieData} layout="vertical">
                     <XAxis type="number" tick={{ fontSize: 12 }} />
                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                    <Tooltip formatter={(v: number) => formatMoney(v)} />
                     <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color || COLORS[i % COLORS.length]} />)}
                     </Bar>
@@ -226,8 +228,8 @@ export default function Dashboard() {
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(1)}k`} />
-                  <Tooltip formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${currency.symbol}${(v / 1000).toFixed(1)}k`} />
+                  <Tooltip formatter={(v: number) => formatMoney(v)} />
                   <Legend />
                   <Line type="monotone" dataKey="Renda" stroke="#4CAF50" strokeWidth={2} dot={{ r: 4 }} />
                   <Line type="monotone" dataKey="Gastos" stroke="#F44336" strokeWidth={2} dot={{ r: 4 }} />
@@ -260,7 +262,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
-                    {tx.type === "credit" ? "+" : "-"} R$ {Number(tx.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                    {tx.type === "credit" ? "+" : "-"} {formatMoney(Number(tx.amount))}
                   </span>
                 </div>
               ))}

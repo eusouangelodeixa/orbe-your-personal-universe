@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import { useSavingsGoals, useAddSavingsGoal, useUpdateSavingsGoal, useDeleteSavi
 import { toast } from "sonner";
 
 export default function Cofrinho() {
+  const { formatMoney } = useCurrency();
   const { data: goals = [], isLoading } = useSavingsGoals();
   const addGoal = useAddSavingsGoal();
   const updateGoal = useUpdateSavingsGoal();
@@ -51,10 +53,10 @@ export default function Cofrinho() {
     updateGoal.mutate({ id: goal.id, current_amount: Number(goal.current_amount) - amount });
     addTransaction.mutate({
       goal_id: goal.id, amount, type: "withdrawal",
-      description: `Retirada de R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      description: `Retirada de ${formatMoney(amount)}`,
     });
     setWithdrawAmount("");
-    toast.success(`R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} retirado de ${goal.name}`);
+    toast.success(`${formatMoney(amount)} retirado de ${goal.name}`);
   };
 
   const handleDeposit = (goal: any) => {
@@ -63,10 +65,10 @@ export default function Cofrinho() {
     updateGoal.mutate({ id: goal.id, current_amount: Number(goal.current_amount) + amount });
     addTransaction.mutate({
       goal_id: goal.id, amount, type: "deposit",
-      description: `Depósito de R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+      description: `Depósito de ${formatMoney(amount)}`,
     });
     setDepositAmount("");
-    toast.success(`R$ ${amount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} adicionado a ${goal.name}`);
+    toast.success(`${formatMoney(amount)} adicionado a ${goal.name}`);
   };
 
   const handleEditGoal = () => {
@@ -110,7 +112,7 @@ export default function Cofrinho() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold font-display text-primary">
-                R$ {totalSaved.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalSaved)}
               </p>
             </CardContent>
           </Card>
@@ -120,7 +122,7 @@ export default function Cofrinho() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold font-display">
-                R$ {totalTarget.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalTarget)}
               </p>
             </CardContent>
           </Card>
@@ -212,10 +214,10 @@ export default function Cofrinho() {
                         </div>
                         <div className="flex items-center gap-2 mb-2">
                           <span className="text-2xl font-bold font-display text-primary">
-                            R$ {Number(goal.current_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            {formatMoney(Number(goal.current_amount))}
                           </span>
                           <span className="text-muted-foreground">
-                            / R$ {Number(goal.target_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            / {formatMoney(Number(goal.target_amount))}
                           </span>
                         </div>
                         <div className="flex items-center gap-3">
@@ -259,7 +261,7 @@ export default function Cofrinho() {
                           <DialogContent>
                             <DialogHeader><DialogTitle className="font-display">Retirar de {goal.name}</DialogTitle></DialogHeader>
                             <p className="text-sm text-muted-foreground">
-                              Saldo atual: <strong className="text-primary">R$ {Number(goal.current_amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</strong>
+                              Saldo atual: <strong className="text-primary">{formatMoney(Number(goal.current_amount))}</strong>
                             </p>
                             <div className="space-y-1">
                               <Label>Valor a retirar (R$)</Label>

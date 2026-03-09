@@ -10,8 +10,10 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { User, Bell, Phone, Mail, Loader2, Check, Camera, ShieldCheck, Pencil, Send } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { User, Bell, Phone, Mail, Loader2, Check, Camera, ShieldCheck, Pencil, Send, Coins } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency, SUPPORTED_CURRENCIES } from "@/contexts/CurrencyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -34,6 +36,7 @@ interface ProfileData {
 
 export default function Profile() {
   const { user } = useAuth();
+  const { currency, setCurrency: setGlobalCurrency } = useCurrency();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [profile, setProfile] = useState<ProfileData | null>(null);
@@ -414,6 +417,35 @@ export default function Profile() {
                 Usado para receber lembretes via WhatsApp (provas, contas a vencer, etc.)
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Currency */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Coins className="h-5 w-5" />
+              Moeda do Sistema
+            </CardTitle>
+            <CardDescription>Escolha a moeda usada no módulo financeiro</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Select value={currency.code} onValueChange={(code) => setGlobalCurrency(code)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SUPPORTED_CURRENCIES.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    <span className="flex items-center gap-2">
+                      <span className="font-mono font-bold w-8">{c.symbol}</span>
+                      <span>{c.name}</span>
+                      <span className="text-muted-foreground">({c.code})</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </CardContent>
         </Card>
 
