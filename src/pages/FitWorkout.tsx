@@ -363,13 +363,9 @@ export default function FitWorkout() {
             <p className="text-muted-foreground text-sm">Gerado por IA, importado ou manual</p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Dialog open={logDialogOpen && !selectedDay} onOpenChange={(o) => { if (!o) { setLogDialogOpen(false); setSelectedDay(null); } }}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => { setSelectedDay(null); setLogDialogOpen(true); }}>
-                  <CheckCircle2 className="h-4 w-4" /> Check-in
-                </Button>
-              </DialogTrigger>
-            </Dialog>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setLogDialogOpen(true)}>
+              <CheckCircle2 className="h-4 w-4" /> Check-in manual
+            </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setManualOpen(true)}>
               <PenLine className="h-4 w-4" /> Manual
             </Button>
