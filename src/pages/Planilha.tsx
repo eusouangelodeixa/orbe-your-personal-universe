@@ -740,6 +740,11 @@ export default function Planilha() {
                           Vence: {new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR")}
                         </span>
                         <Badge variant="outline" className="text-[10px]">{e.type === "fixo" ? "Fixo" : "Variável"}</Badge>
+                        {e.recurring && (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Repeat className="h-2.5 w-2.5" /> Recorrente
+                          </Badge>
+                        )}
                         {e.wallets?.name && (
                           <Badge variant="secondary" className="text-[10px] gap-1">
                             <Wallet className="h-2.5 w-2.5" />{e.wallets.name}
