@@ -217,6 +217,27 @@ export default function Dashboard() {
           </Card>
         </div>
 
+        {/* Evolution Chart */}
+        {chartData.length > 0 && (
+          <Card>
+            <CardHeader><CardTitle className="font-display">Evolução Financeira (últimos 6 meses)</CardTitle></CardHeader>
+            <CardContent className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(1)}k`} />
+                  <Tooltip formatter={(v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`} />
+                  <Legend />
+                  <Line type="monotone" dataKey="Renda" stroke="#4CAF50" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="Gastos" stroke="#F44336" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line type="monotone" dataKey="Saldo" stroke="#FF9800" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Recent Transactions */}
         {recentTx.length > 0 && (
           <Card>
