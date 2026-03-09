@@ -112,7 +112,7 @@ export default function Cofrinho() {
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold font-display text-primary">
-                R$ {totalSaved.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {formatMoney(totalSaved)}
               </p>
             </CardContent>
           </Card>
