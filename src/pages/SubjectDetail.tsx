@@ -668,10 +668,15 @@ export default function SubjectDetail() {
                   const meta = EVENT_TYPES[ev.type];
                   const Icon = meta?.icon || FileText;
                   return (
-                    <Card key={ev.id} className="group opacity-60">
+                    <Card key={ev.id} className="group opacity-70">
                       <CardContent className="flex items-center gap-3 py-2 px-4">
                         <Icon className={`h-4 w-4 shrink-0 ${meta?.color}`} />
-                        <span className="flex-1 text-sm line-through">{ev.title}</span>
+                        <span className="flex-1 text-sm">{ev.title}</span>
+                        {ev.grade != null && (
+                          <span className={`text-sm font-bold ${ev.grade >= 6 ? "text-emerald-500" : "text-red-500"}`}>
+                            {ev.grade.toFixed(1)}
+                          </span>
+                        )}
                         <Badge variant="secondary" className="text-xs">{STATUS_MAP[ev.status]?.label}</Badge>
                       </CardContent>
                     </Card>
