@@ -402,7 +402,14 @@ export default function SubjectDetail() {
           <TabsContent value="agenda" className="space-y-4">
             <div className="flex justify-between items-center">
               <h2 className="font-semibold">Eventos ({events.length})</h2>
-              <Button size="sm" onClick={openCreateEvent}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
+              <div className="flex items-center gap-3">
+                {averageGrade !== null && (
+                  <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-bold ${averageGrade >= 6 ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"}`}>
+                    📊 Média: {averageGrade.toFixed(1)}
+                  </div>
+                )}
+                <Button size="sm" onClick={openCreateEvent}><Plus className="h-4 w-4 mr-1" /> Novo</Button>
+              </div>
             </div>
 
             {pendingEvents.length > 0 && (
