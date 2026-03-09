@@ -42,6 +42,12 @@ export default function Dashboard() {
   }, {});
   const pieData = Object.values(byCat);
   const recentTx = transactions.slice(0, 10);
+  const chartData = history.map(h => ({
+    label: `${MONTH_NAMES[h.month]}/${String(h.year).slice(2)}`,
+    Renda: h.income,
+    Gastos: h.expense,
+    Saldo: h.income - h.expense,
+  }));
 
   if (li || le || lw) {
     return (
