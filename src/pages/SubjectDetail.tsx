@@ -740,6 +740,11 @@ export default function SubjectDetail() {
             </Dialog>
           </TabsContent>
 
+          {/* ─── RESOLVER COM IA TAB ─── */}
+          <TabsContent value="resolver" className="space-y-4">
+            <ResolverIA subjectName={subject.name} />
+          </TabsContent>
+
           {/* ─── POMODORO TAB ─── */}
           <TabsContent value="pomodoro">
             <PomodoroTimer subjectName={subject.name} subjectId={subject.id} />
