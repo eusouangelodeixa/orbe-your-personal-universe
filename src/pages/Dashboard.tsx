@@ -103,7 +103,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <p className={`text-2xl font-bold font-display ${fluxoMensal >= 0 ? "text-primary" : "text-destructive"}`}>
-                {fluxoMensal >= 0 ? "+" : ""}R$ {fluxoMensal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                {fluxoMensal >= 0 ? "+" : ""}{formatMoney(fluxoMensal)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">Renda − Gastos</p>
             </CardContent>
