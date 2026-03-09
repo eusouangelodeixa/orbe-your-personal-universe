@@ -1,0 +1,1 @@
+ALTER TABLE public.academic_events ADD COLUMN IF NOT EXISTS grade numeric DEFAULT NULL;

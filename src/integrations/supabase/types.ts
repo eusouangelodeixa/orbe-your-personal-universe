@@ -21,6 +21,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           event_date: string
+          grade: number | null
           id: string
           is_group: boolean | null
           reminder_config: Json | null
@@ -38,6 +39,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           event_date: string
+          grade?: number | null
           id?: string
           is_group?: boolean | null
           reminder_config?: Json | null
@@ -55,6 +57,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           event_date?: string
+          grade?: number | null
           id?: string
           is_group?: boolean | null
           reminder_config?: Json | null
