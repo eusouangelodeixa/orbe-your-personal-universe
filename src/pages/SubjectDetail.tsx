@@ -178,7 +178,7 @@ export default function SubjectDetail() {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [eventForm, setEventForm] = useState({
     type: "prova", title: "", description: "", event_date: "",
-    content_topics: "", weight: "", is_group: false, status: "pendente",
+    content_topics: "", weight: "", is_group: false, status: "pendente", grade: "",
   });
 
   // Ementa upload
