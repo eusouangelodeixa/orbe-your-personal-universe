@@ -6,7 +6,26 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Map Lojou plan names to ORBE plan keys
+async function sendWhatsApp(phone: string, message: string) {
+  const UAZAPI_URL = Deno.env.get("UAZAPI_URL");
+  const UAZAPI_TOKEN = Deno.env.get("UAZAPI_TOKEN");
+  if (!UAZAPI_URL || !UAZAPI_TOKEN) {
+    console.log("[LOJOU-WEBHOOK] WhatsApp not configured, skipping");
+    return;
+  }
+  try {
+    const res = await fetch(`${UAZAPI_URL}/send/text`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "token": UAZAPI_TOKEN },
+      body: JSON.stringify({ number: phone, text: message }),
+    });
+    const data = await res.json();
+    console.log("[LOJOU-WEBHOOK] WhatsApp sent:", res.status, JSON.stringify(data));
+  } catch (e) {
+    console.error("[LOJOU-WEBHOOK] WhatsApp send error:", e);
+  }
+}
+
 function mapLojouPlan(planName: string): string | null {
   const n = (planName || "").toLowerCase().trim();
   if (n.includes("basic")) return "basic";
@@ -42,7 +61,10 @@ serve(async (req) => {
     const orderType = payload.order_type;
     const status = payload.status;
     const customerEmail = payload.customer?.email?.toLowerCase()?.trim();
+    const customerName = payload.customer?.name || "";
+    const customerPhone = payload.customer?.mobile_number || "";
     const planSub = payload.plan_subscriber;
+    const planDisplayName = planSub?.plan_name || "";
 
     if (!customerEmail) {
       console.log("[LOJOU-WEBHOOK] No customer email");
@@ -59,6 +81,30 @@ serve(async (req) => {
       (u: any) => u.email?.toLowerCase() === customerEmail
     );
 
+    // For cancelled/abandoned orders, send WhatsApp even if user not in system
+    if (orderType === "order_cancelled" || status === "cancelled") {
+      if (customerPhone) {
+        const firstName = customerName.split(" ")[0] || "Olá";
+        const msg = `Olá ${firstName}! 👋\n\nVimos que você tentou assinar o plano "${planDisplayName}" do *Orbe* mas infelizmente não chegou a concluir o pagamento.\n\nTente mais uma vez pelo link: https://pay.lojou.app/p/iGdxz\n\nQualquer dúvida estamos por aqui! 💜`;
+        await sendWhatsApp(customerPhone, msg);
+        console.log("[LOJOU-WEBHOOK] Abandonment WhatsApp sent to:", customerPhone);
+      }
+
+      // Also cancel subscription if user exists
+      if (user) {
+        await supabase
+          .from("subscriptions")
+          .update({ status: "canceled" })
+          .eq("user_id", user.id)
+          .eq("provider", "lojou")
+          .eq("status", "active");
+      }
+
+      return new Response(JSON.stringify({ ok: true, action: "order_cancelled_notified" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (!user) {
       console.log("[LOJOU-WEBHOOK] User not found for email:", customerEmail);
       return new Response(JSON.stringify({ ok: true, skipped: "user_not_found" }), {
@@ -68,7 +114,7 @@ serve(async (req) => {
 
     const userId = user.id;
 
-    // Handle approved orders and subscription events
+    // Handle approved orders
     if (
       (orderType === "order_approved" || orderType === "subscription_active") &&
       status === "approved" &&
@@ -92,7 +138,7 @@ serve(async (req) => {
         ? new Date(planSub.start_date).toISOString()
         : new Date().toISOString();
 
-      // Upsert subscription — deactivate old ones first
+      // Deactivate old subs
       await supabase
         .from("subscriptions")
         .update({ status: "inactive" })
@@ -120,11 +166,19 @@ serve(async (req) => {
         throw new Error(insertErr.message);
       }
 
-      // Set user currency to MZN
+      // Set currency to MZN
       await supabase
         .from("profiles")
         .update({ currency: "MZN" })
         .eq("user_id", userId);
+
+      // Send congratulations WhatsApp
+      if (customerPhone) {
+        const firstName = customerName.split(" ")[0] || "Olá";
+        const msg = `Parabéns ${firstName}! 🎉🚀\n\nSua assinatura do plano *${planDisplayName}* do *Orbe* foi ativada com sucesso!\n\nAgora você tem acesso completo a todas as funcionalidades do seu plano. Aproveite ao máximo! 💜\n\nAcesse: https://orbe.lovable.app`;
+        await sendWhatsApp(customerPhone, msg);
+        console.log("[LOJOU-WEBHOOK] Congratulations WhatsApp sent to:", customerPhone);
+      }
 
       console.log("[LOJOU-WEBHOOK] Subscription activated:", { userId, plan, period, endsAt });
 
@@ -133,7 +187,7 @@ serve(async (req) => {
       });
     }
 
-    // Handle cancellation
+    // Handle subscription cancellation
     if (
       orderType === "subscription_canceled" ||
       (planSub && planSub.cancelled_at)
