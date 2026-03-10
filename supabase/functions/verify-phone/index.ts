@@ -6,51 +6,66 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Não autorizado" }, 401);
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("[verify-phone] Missing SUPABASE_URL or SUPABASE_ANON_KEY");
+      return jsonResponse({ error: "Erro de configuração do servidor" }, 500);
+    }
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: claims, error: claimsErr } = await supabase.auth.getClaims(
-      authHeader.replace("Bearer ", "")
-    );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claims, error: claimsErr } = await supabase.auth.getClaims(token);
     if (claimsErr || !claims?.claims) {
-      return new Response(JSON.stringify({ error: "Token inválido" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("[verify-phone] Auth error:", claimsErr?.message);
+      return jsonResponse({ error: "Token inválido" }, 401);
     }
     const userId = claims.claims.sub as string;
 
-    const { action, phone, code } = await req.json();
+    let body: { action?: string; phone?: string; code?: string };
+    try {
+      body = await req.json();
+    } catch {
+      return jsonResponse({ error: "Body JSON inválido" }, 400);
+    }
 
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const { action, phone, code } = body;
+    console.log(`[verify-phone] action=${action}, phone=${phone ? phone.substring(0, 5) + "***" : "none"}, userId=${userId}`);
+
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!serviceKey) {
+      console.error("[verify-phone] Missing SUPABASE_SERVICE_ROLE_KEY");
+      return jsonResponse({ error: "Erro de configuração do servidor" }, 500);
+    }
     const adminClient = createClient(supabaseUrl, serviceKey);
 
     if (action === "send") {
-      // Generate 6-digit code
       if (!phone) {
-        return new Response(JSON.stringify({ error: "Telefone é obrigatório" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Telefone é obrigatório" }, 400);
       }
 
       const verificationCode = String(Math.floor(100000 + Math.random() * 900000));
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 min
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
       // Invalidate previous codes for this user
       await adminClient
@@ -70,8 +85,8 @@ serve(async (req) => {
         });
 
       if (insertErr) {
-        console.error("Insert error:", insertErr);
-        throw new Error("Erro ao gerar código de verificação");
+        console.error("[verify-phone] Insert error:", JSON.stringify(insertErr));
+        return jsonResponse({ error: "Erro ao gerar código de verificação" }, 500);
       }
 
       // Send code via WhatsApp
@@ -79,43 +94,47 @@ serve(async (req) => {
       const UAZAPI_TOKEN = Deno.env.get("UAZAPI_TOKEN");
 
       if (!UAZAPI_URL || !UAZAPI_TOKEN) {
-        throw new Error("Configuração do WhatsApp não encontrada");
+        console.error("[verify-phone] Missing UAZAPI_URL or UAZAPI_TOKEN");
+        return jsonResponse({ error: "Configuração do WhatsApp não encontrada" }, 500);
       }
 
-      const phoneNumber = phone.replace("+", "");
-      const whatsappRes = await fetch(`${UAZAPI_URL}/send/text`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "token": UAZAPI_TOKEN,
-        },
-        body: JSON.stringify({
-          number: phoneNumber,
-          text: `🔐 *ORBE - Verificação de Telefone*\n\nSeu código de verificação é: *${verificationCode}*\n\nEste código expira em 10 minutos.\n\n⚠️ Não compartilhe este código com ninguém.`,
-        }),
-      });
+      // Clean the phone number: remove +, spaces, dashes
+      const phoneNumber = phone.replace(/[^0-9]/g, "");
+      console.log(`[verify-phone] Sending WhatsApp to: ${phoneNumber}`);
 
-      const whatsappData = await whatsappRes.json();
-      if (!whatsappRes.ok) {
-        console.error("WhatsApp send error:", whatsappRes.status, JSON.stringify(whatsappData));
-        throw new Error("Erro ao enviar código via WhatsApp");
+      try {
+        const whatsappRes = await fetch(`${UAZAPI_URL}/send/text`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "token": UAZAPI_TOKEN,
+          },
+          body: JSON.stringify({
+            number: phoneNumber,
+            text: `🔐 *ORBE - Verificação de Telefone*\n\nSeu código de verificação é: *${verificationCode}*\n\nEste código expira em 10 minutos.\n\n⚠️ Não compartilhe este código com ninguém.`,
+          }),
+        });
+
+        const whatsappText = await whatsappRes.text();
+        console.log(`[verify-phone] WhatsApp API response status: ${whatsappRes.status}, body: ${whatsappText.substring(0, 500)}`);
+
+        if (!whatsappRes.ok) {
+          console.error(`[verify-phone] WhatsApp API error: ${whatsappRes.status} - ${whatsappText}`);
+          return jsonResponse({ error: "Erro ao enviar código via WhatsApp. Verifique se o número está correto e tem WhatsApp." }, 500);
+        }
+      } catch (fetchErr) {
+        console.error("[verify-phone] WhatsApp fetch error:", fetchErr instanceof Error ? fetchErr.message : String(fetchErr));
+        return jsonResponse({ error: "Erro de conexão ao enviar WhatsApp. Tente novamente." }, 500);
       }
 
-      return new Response(JSON.stringify({ success: true, message: "Código enviado via WhatsApp" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true, message: "Código enviado via WhatsApp" });
     }
 
     if (action === "verify") {
       if (!code || !phone) {
-        return new Response(JSON.stringify({ error: "Código e telefone são obrigatórios" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Código e telefone são obrigatórios" }, 400);
       }
 
-      // Check code
       const { data: verification, error: fetchErr } = await adminClient
         .from("phone_verifications")
         .select("*")
@@ -129,10 +148,8 @@ serve(async (req) => {
         .maybeSingle();
 
       if (fetchErr || !verification) {
-        return new Response(JSON.stringify({ error: "Código inválido ou expirado" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.log("[verify-phone] Verification failed:", fetchErr?.message || "Code not found/expired");
+        return jsonResponse({ error: "Código inválido ou expirado" }, 400);
       }
 
       // Mark as verified
@@ -141,27 +158,18 @@ serve(async (req) => {
         .update({ verified: true })
         .eq("id", verification.id);
 
-      // Update profile: set phone and phone_verified
+      // Update profile
       await adminClient
         .from("profiles")
         .update({ phone, phone_verified: true, updated_at: new Date().toISOString() })
         .eq("user_id", userId);
 
-      return new Response(JSON.stringify({ success: true, message: "Telefone verificado com sucesso!" }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true, message: "Telefone verificado com sucesso!" });
     }
 
-    return new Response(JSON.stringify({ error: "Ação inválida. Use 'send' ou 'verify'" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: "Ação inválida. Use 'send' ou 'verify'" }, 400);
   } catch (e) {
-    console.error("verify-phone error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro desconhecido" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("[verify-phone] Unhandled error:", e instanceof Error ? e.stack || e.message : String(e));
+    return jsonResponse({ error: e instanceof Error ? e.message : "Erro desconhecido" }, 500);
   }
 });
