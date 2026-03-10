@@ -194,7 +194,7 @@ export default function Profile() {
       setVerificationStep("idle");
       setOtpCode("");
       // Update profile state immediately so WhatsApp toggle unlocks
-      setProfile(prev => prev ? { ...prev, phone, phone_verified: true } : prev);
+      setProfile(prev => prev ? { ...prev, phone: form.phone, phone_verified: true } : prev);
       toast.success("Telefone verificado com sucesso! ✅");
       // Reload in background to sync any other fields
       setTimeout(() => loadProfile(), 500);
