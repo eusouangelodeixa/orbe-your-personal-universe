@@ -53,6 +53,24 @@ interface FinancialData {
   recentPayments: Array<{ id: string; email: string; amount: number; date: string; description: string }>;
 }
 
+interface LojouFinancialData {
+  activeSubscribers: number;
+  totalSubscriptions: number;
+  canceledCount: number;
+  approvedCount: number;
+  conversionRate: number;
+  mrr: number;
+  totalRevenue: number;
+  monthlyRevenue: number;
+  planBreakdown: Array<{ name: string; count: number; revenue: number }>;
+  subscriberList: Array<{
+    id: string; user_id: string; name: string; email: string; phone: string;
+    plan: string; plan_period: string; status: string; starts_at: string; ends_at: string;
+    order_number: string | null; created_at: string;
+  }>;
+  monthlyHistory: Array<{ month: number; year: number; revenue: number }>;
+}
+
 const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function Admin() {
