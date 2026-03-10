@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigate } from "react-router-dom";
 import {
@@ -75,6 +76,7 @@ const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Se
 
 export default function Admin() {
   const { user, loading: authLoading } = useAuth();
+  const { isAdmin, isLoading: roleLoading } = useUserRole();
   const [data, setData] = useState<AdminData | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [settings, setSettings] = useState<AdminSetting[]>([]);
@@ -184,10 +186,10 @@ export default function Admin() {
   const openEditCat = (cat: Category) => { setEditingCat(cat); setCatName(cat.name); setCatColor(cat.color || "#E87C1E"); setCatIcon(cat.icon || ""); setShowCatDialog(true); };
   const openNewCat = () => { setEditingCat(null); setCatName(""); setCatColor("#E87C1E"); setCatIcon(""); setShowCatDialog(true); };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || roleLoading) {
     return <AppLayout><div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
-  if (forbidden) return <Navigate to="/dashboard" replace />;
+  if (forbidden || !isAdmin) return <Navigate to="/dashboard" replace />;
 
   const userMap = new Map(data?.users.map((u) => [u.id, u]) || []);
   const getUserEmail = (userId: string) => userMap.get(userId)?.email || userId.slice(0, 8);

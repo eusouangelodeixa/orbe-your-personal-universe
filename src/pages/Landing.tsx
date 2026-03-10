@@ -272,7 +272,7 @@ export default function Landing() {
         <div className="landing-marquee-track">
           {[...Array(2)].map((_, rep) => (
             <span key={rep} style={{ display: "contents" }}>
-              {["Finanças Domésticas", "Planilha Inteligente", "IA Especialista por Matéria", "Plano Alimentar Personalizado", "Lembretes de Provas", "Nutricionista IA", "100% WhatsApp", "Alertas de Orçamento", "Metas de Poupança", "Treinos Personalizados", "Controle de IMC", "Agenda Acadêmica"].map((item) => (
+              {["Finanças Domésticas", "Planilha Inteligente", "IA Especialista por Matéria", "Plano Alimentar Personalizado", "Lembretes de Provas", "Nutricionista IA", "100% WhatsApp", "Alertas de Orçamento", "Metas de Poupança", "Treinos Personalizados", "Controle de IMC", "Agenda Acadêmica", "Pomodoro Timer", "Carteiras Digitais", "Cofrinho de Metas", "Consultor IA 24h", "Multi-Moeda", "Relatórios PDF"].map((item) => (
                 <span key={`${rep}-${item}`} className="landing-marquee-item">
                   <span className="dot" />
                   {item}
@@ -297,10 +297,10 @@ export default function Landing() {
 
         <div className="landing-modules-grid">
           {[
-            { num: "01", emoji: "💰", name: "Financeiro", desc: "Planilha doméstica inteligente que desconta gastos do salário em tempo real. Registro via WhatsApp, leitura de recibos por IA, alertas de limite e metas de poupança.", features: ["Planilha doméstica com saldo em tempo real", "Registro por texto, áudio ou foto", "Alertas de vencimento e limite", "Dashboard com gráficos e histórico", "Consultor financeiro IA 24h"] },
-            { num: "02", emoji: "📚", name: "Estudos", desc: "Agenda acadêmica completa com lembretes de provas, trabalhos e aulas. Cada disciplina tem seu próprio chatbot IA especialista na área.", features: ["Calendário por disciplina e horários", "Lembretes de provas, trabalhos e atividades", "IA especialista por matéria", "Simulados e correção automática", "Upload de materiais para a IA analisar"] },
-            { num: "03", emoji: "💪", name: "Fit", desc: "Plano de treino e alimentação 100% personalizado combinando seu objetivo, IMC, orçamento e estilo alimentar. Nutricionista IA disponível 24h.", features: ["Plano alimentar por orçamento e objetivo", "Suporte a veganos, vegetarianos e mais", "Lembretes de treino e refeições", "Acompanhamento de IMC e evolução", "Nutricionista pessoal IA"] },
-            { num: "04", emoji: "✅", name: "Tarefas", desc: "Criação de tarefas por texto ou voz via WhatsApp. Lembretes automáticos. Integrado com agenda de estudos, finanças e treinos.", features: ["Criação por voz, texto ou foto", "Lembretes automáticos configuráveis", "Integração com todos os módulos", "Prioridade e categorização automática"] },
+            { num: "01", emoji: "💰", name: "Financeiro", desc: "Planilha doméstica inteligente com carteiras digitais, cofrinho de metas, consultor IA e relatórios PDF. Registro via WhatsApp, leitura de recibos por IA, alertas de limite e suporte multi-moeda (BRL e MZN).", features: ["Planilha doméstica com saldo em tempo real", "Carteiras digitais com transações", "Cofrinho de metas de poupança", "Consultor financeiro IA 24h", "Relatórios e exportação em PDF", "Suporte multi-moeda (BRL/MZN)"] },
+            { num: "02", emoji: "📚", name: "Estudos", desc: "Agenda acadêmica completa com Pomodoro Timer integrado, lembretes de provas e trabalhos, e chatbot IA especialista por disciplina. Upload de ementas e geração automática de simulados.", features: ["Calendário por disciplina e horários", "Pomodoro Timer com estatísticas", "IA especialista por matéria", "Upload e análise de ementas (PDF)", "Simulados e correção automática", "Resolução de provas com IA"] },
+            { num: "03", emoji: "💪", name: "Fit", desc: "Plano de treino e alimentação 100% personalizado combinando seu objetivo, IMC, orçamento e estilo alimentar. Nutricionista IA disponível 24h. Acompanhamento de progresso com fotos.", features: ["Plano alimentar por orçamento e objetivo", "Lista de compras gerada automaticamente", "Registro de treinos com histórico", "Acompanhamento de IMC e evolução", "Fotos de progresso e medições", "Nutricionista pessoal IA"] },
+            { num: "04", emoji: "✅", name: "Tarefas", desc: "Criação de tarefas por texto ou voz via WhatsApp. Lembretes automáticos. Integrado com agenda de estudos, finanças e treinos. Priorização e categorização inteligente.", features: ["Criação por voz, texto ou foto", "Lembretes automáticos configuráveis", "Integração com todos os módulos", "Prioridade e categorização automática", "Notificações via WhatsApp"] },
           ].map((m, i) => (
             <div key={m.num} className={`landing-module-card fade-up ${i > 0 ? `fade-up-delay-${i}` : ""}`}>
               <div className="landing-module-num">{m.num}</div>
@@ -544,7 +544,11 @@ export default function Landing() {
             { emoji: "🧠", name: "IA Especialista", desc: "Cada módulo tem sua IA especializada: financeiro, professor, nutricionista e personal trainer." },
             { emoji: "📊", name: "Gráficos Completos", desc: "Dashboard com evolução financeira, progresso físico e desempenho acadêmico em um só lugar." },
             { emoji: "🎯", name: "Metas & Progresso", desc: "Defina metas financeiras, físicas e acadêmicas. O ORBE acompanha e te motiva automaticamente." },
-            { emoji: "🌿", name: "Dietas Especiais", desc: "Vegetariano, vegano, pescetariano, flexitariano. Plano alimentar adaptado ao seu estilo de vida." },
+            { emoji: "🍅", name: "Pomodoro Timer", desc: "Timer de foco integrado às disciplinas com estatísticas de estudo. Acompanhe suas horas de dedicação." },
+            { emoji: "💳", name: "Carteiras Digitais", desc: "Gerencie múltiplas contas e carteiras com saldo em tempo real. Transferências e controle total." },
+            { emoji: "🐷", name: "Cofrinho de Metas", desc: "Crie metas de poupança, deposite via WhatsApp e acompanhe o progresso até alcançar seu objetivo." },
+            { emoji: "🌍", name: "Multi-Moeda", desc: "Suporte a BRL e MZN. Detecção automática de localização para exibir preços e valores na sua moeda." },
+            { emoji: "📄", name: "Relatórios PDF", desc: "Exporte relatórios financeiros, planos de treino e dieta em PDF profissional para guardar ou compartilhar." },
             { emoji: "🔒", name: "Dados Seguros", desc: "Encriptação de ponta a ponta. Seus dados financeiros, acadêmicos e de saúde protegidos." },
           ].map((f, i) => (
             <div key={f.name} className={`landing-feat-card fade-up ${i > 0 ? `fade-up-delay-${(i % 4)}` : ""}`}>
@@ -678,10 +682,11 @@ export default function Landing() {
           </div>
           <div className="landing-faq-list fade-up fade-up-delay-1">
             {[
-              { q: "O que é o ORBE?", a: "ORBE é um super-assistente pessoal que organiza finanças domésticas, estudos e saúde numa única plataforma. Opera 100% via WhatsApp e tem um dashboard web. Com IA especializada em cada módulo, você controla tudo sem precisar de múltiplos apps." },
-              { q: "Como funciona a planilha doméstica?", a: "Você cadastra seu salário e seus gastos fixos e variáveis. O ORBE desconta automaticamente cada despesa conforme são lançadas e mostra o saldo restante em tempo real. Você recebe alertas de vencimento e projeções do mês." },
-              { q: "O chatbot de estudos funciona para qualquer matéria?", a: "Sim! Você cadastra suas disciplinas e o ORBE cria um assistente especialista para cada uma. Medicina, Direito, Engenharia, Matemática, História — a IA se adapta ao conteúdo e age como especialista da área." },
-              { q: "O plano alimentar respeita restrições como veganismo?", a: "Completamente. O ORBE pergunta sobre seu grupo alimentar (vegano, vegetariano, pescetariano, flexitariano), alergias, intolerâncias e condições médicas. O plano gerado respeita todos esses critérios e ainda se adapta ao seu orçamento." },
+              { q: "O que é o ORBE?", a: "ORBE é um super-assistente pessoal que organiza finanças domésticas, estudos e saúde numa única plataforma. Opera 100% via WhatsApp e tem um dashboard web completo com carteiras digitais, Pomodoro Timer, cofrinho de metas e muito mais. Com IA especializada em cada módulo." },
+              { q: "Como funciona a planilha doméstica?", a: "Você cadastra seu salário e seus gastos fixos e variáveis. O ORBE desconta automaticamente cada despesa e mostra o saldo restante em tempo real. Também pode usar carteiras digitais para separar contas, e o cofrinho para poupar dinheiro com metas específicas." },
+              { q: "O chatbot de estudos funciona para qualquer matéria?", a: "Sim! Você cadastra suas disciplinas e o ORBE cria um assistente especialista para cada uma. Medicina, Direito, Engenharia, Matemática — a IA se adapta. Ainda inclui Pomodoro Timer integrado e resolução de provas com IA." },
+              { q: "O plano alimentar respeita restrições como veganismo?", a: "Completamente. O ORBE pergunta sobre seu grupo alimentar, alergias, intolerâncias e condições médicas. O plano gerado respeita todos esses critérios, gera lista de compras automática e ainda se adapta ao seu orçamento." },
+              { q: "Funciona para quem está em Moçambique?", a: "Sim! O ORBE detecta automaticamente sua localização e exibe preços em Meticais (MZN). Aceitamos pagamentos via Lojou para o mercado moçambicano, com planos especiais em MT." },
               { q: "Posso cancelar quando quiser?", a: "Sim, sem multas ou burocracia. E se não gostar nos primeiros 3 dias, devolvemos 100% do valor pago. Sem perguntas." },
               { q: "Meus dados financeiros e de saúde estão seguros?", a: "Sim. O ORBE usa encriptação de ponta a ponta para todos os dados. Informações financeiras, acadêmicas e de saúde são tratadas com os mais altos padrões de segurança e privacidade." },
             ].map((item, i) => (
