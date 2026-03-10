@@ -402,6 +402,140 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Lojou/Mozambique financial metrics
+    if (action === "lojou-financial") {
+      // All Lojou subscriptions
+      const { data: allSubs } = await adminClient
+        .from("subscriptions")
+        .select("*")
+        .eq("provider", "lojou")
+        .order("created_at", { ascending: false });
+
+      const subs = allSubs || [];
+      const now = new Date();
+
+      // Active subscriptions
+      const activeSubs = subs.filter(s => s.status === "active" && new Date(s.ends_at) > now);
+      const canceledSubs = subs.filter(s => s.status === "canceled" || s.status === "inactive");
+      const allApproved = subs.filter(s => s.status === "active" || s.status === "inactive");
+      const allCancelled = subs.filter(s => s.status === "canceled");
+
+      // Price map for MRR calculation (monthly equivalent in MT)
+      const priceMap: Record<string, Record<string, number>> = {
+        basic:   { mensal: 229, trimestral: 589, anual: 1899 },
+        student: { mensal: 349, trimestral: 889, anual: 2789 },
+        full:    { mensal: 539, trimestral: 1389, anual: 4249 },
+        fit:     { mensal: 299, trimestral: 739, anual: 2349 },
+      };
+
+      let totalRevenue = 0;
+      let mrr = 0;
+      const planCounts: Record<string, { count: number; revenue: number }> = {};
+
+      for (const sub of activeSubs) {
+        const plan = sub.plan || "basic";
+        const period = sub.plan_period || "mensal";
+        const price = priceMap[plan]?.[period] || 0;
+        
+        // Monthly equivalent for MRR
+        const monthlyEquiv = period === "anual" ? price / 12 : period === "trimestral" ? price / 3 : price;
+        mrr += monthlyEquiv;
+        totalRevenue += price;
+
+        const key = `${plan} ${period}`;
+        if (!planCounts[key]) planCounts[key] = { count: 0, revenue: 0 };
+        planCounts[key].count += 1;
+        planCounts[key].revenue += monthlyEquiv;
+      }
+
+      // Build plan breakdown
+      const planBreakdown = Object.entries(planCounts).map(([name, data]) => ({
+        name: name.charAt(0).toUpperCase() + name.slice(1),
+        count: data.count,
+        revenue: data.revenue,
+      }));
+
+      // Subscriber list with details
+      const userIds = [...new Set(subs.map(s => s.user_id))];
+      const { data: profiles } = await adminClient
+        .from("profiles")
+        .select("user_id, display_name, phone")
+        .in("user_id", userIds.length > 0 ? userIds : ["none"]);
+
+      const { data: authUsers } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+      const emailMap: Record<string, string> = {};
+      authUsers?.users?.forEach(u => { emailMap[u.id] = u.email || ""; });
+
+      const subscriberList = subs.map(sub => {
+        const profile = profiles?.find(p => p.user_id === sub.user_id);
+        return {
+          id: sub.id,
+          user_id: sub.user_id,
+          name: profile?.display_name || "—",
+          email: emailMap[sub.user_id] || "—",
+          phone: profile?.phone || "—",
+          plan: sub.plan,
+          plan_period: sub.plan_period,
+          status: sub.status,
+          starts_at: sub.starts_at,
+          ends_at: sub.ends_at,
+          order_number: sub.order_number,
+          created_at: sub.created_at,
+        };
+      });
+
+      // Conversion rate: approved vs total (approved + cancelled)
+      const totalAttempts = allApproved.length + allCancelled.length;
+      const conversionRate = totalAttempts > 0 ? (allApproved.length / totalAttempts) * 100 : 0;
+
+      // Monthly revenue history from raw_payload amounts
+      const monthlyHistory: Array<{ month: number; year: number; revenue: number }> = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const nextD = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        const monthSubs = subs.filter(s => {
+          const created = new Date(s.created_at);
+          return (s.status === "active" || s.status === "inactive") && created >= d && created < nextD;
+        });
+        let rev = 0;
+        for (const s of monthSubs) {
+          const plan = s.plan || "basic";
+          const period = s.plan_period || "mensal";
+          rev += priceMap[plan]?.[period] || 0;
+        }
+        monthlyHistory.push({ month: d.getMonth() + 1, year: d.getFullYear(), revenue: rev });
+      }
+
+      // Current month revenue
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const currentMonthSubs = subs.filter(s => {
+        const created = new Date(s.created_at);
+        return (s.status === "active" || s.status === "inactive") && created >= startOfMonth;
+      });
+      let monthlyRevenue = 0;
+      for (const s of currentMonthSubs) {
+        const plan = s.plan || "basic";
+        const period = s.plan_period || "mensal";
+        monthlyRevenue += priceMap[plan]?.[period] || 0;
+      }
+
+      return new Response(JSON.stringify({
+        activeSubscribers: activeSubs.length,
+        totalSubscriptions: subs.length,
+        canceledCount: allCancelled.length,
+        approvedCount: allApproved.length,
+        conversionRate,
+        mrr,
+        totalRevenue,
+        monthlyRevenue,
+        planBreakdown,
+        subscriberList,
+        monthlyHistory,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
