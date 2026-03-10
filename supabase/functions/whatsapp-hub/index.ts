@@ -100,9 +100,13 @@ function normalizePhone(value: string | null | undefined) {
   return safeString(value).replace(/\D/g, "");
 }
 
-function stripCountryCodeBR(value: string) {
+function stripCountryCode(value: string) {
   const digits = normalizePhone(value);
-  return digits.startsWith("55") && digits.length > 11 ? digits.slice(2) : digits;
+  // Strip common country codes: Brazil (55), Mozambique (258), Portugal (351)
+  if (digits.startsWith("55") && digits.length > 11) return digits.slice(2);
+  if (digits.startsWith("258") && digits.length > 9) return digits.slice(3);
+  if (digits.startsWith("351") && digits.length > 9) return digits.slice(3);
+  return digits;
 }
 
 function uint8ToBase64(bytes: Uint8Array) {

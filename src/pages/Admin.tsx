@@ -186,10 +186,10 @@ export default function Admin() {
   const openEditCat = (cat: Category) => { setEditingCat(cat); setCatName(cat.name); setCatColor(cat.color || "#E87C1E"); setCatIcon(cat.icon || ""); setShowCatDialog(true); };
   const openNewCat = () => { setEditingCat(null); setCatName(""); setCatColor("#E87C1E"); setCatIcon(""); setShowCatDialog(true); };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || roleLoading) {
     return <AppLayout><div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
-  if (forbidden) return <Navigate to="/dashboard" replace />;
+  if (forbidden || !isAdmin) return <Navigate to="/dashboard" replace />;
 
   const userMap = new Map(data?.users.map((u) => [u.id, u]) || []);
   const getUserEmail = (userId: string) => userMap.get(userId)?.email || userId.slice(0, 8);
