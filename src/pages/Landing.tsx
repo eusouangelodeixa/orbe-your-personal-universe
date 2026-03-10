@@ -272,7 +272,7 @@ export default function Landing() {
         <div className="landing-marquee-track">
           {[...Array(2)].map((_, rep) => (
             <span key={rep} style={{ display: "contents" }}>
-              {["Finanças Domésticas", "Planilha Inteligente", "IA Especialista por Matéria", "Plano Alimentar Personalizado", "Lembretes de Provas", "Nutricionista IA", "100% WhatsApp", "Alertas de Orçamento", "Metas de Poupança", "Treinos Personalizados", "Controle de IMC", "Agenda Acadêmica"].map((item) => (
+              {["Finanças Domésticas", "Planilha Inteligente", "IA Especialista por Matéria", "Plano Alimentar Personalizado", "Lembretes de Provas", "Nutricionista IA", "100% WhatsApp", "Alertas de Orçamento", "Metas de Poupança", "Treinos Personalizados", "Controle de IMC", "Agenda Acadêmica", "Pomodoro Timer", "Carteiras Digitais", "Cofrinho de Metas", "Consultor IA 24h", "Multi-Moeda", "Relatórios PDF"].map((item) => (
                 <span key={`${rep}-${item}`} className="landing-marquee-item">
                   <span className="dot" />
                   {item}
