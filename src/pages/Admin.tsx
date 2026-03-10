@@ -80,6 +80,7 @@ export default function Admin() {
   const [settings, setSettings] = useState<AdminSetting[]>([]);
   const [connections, setConnections] = useState<Array<{key: string; connected: boolean; label: string; description: string}>>([]);
   const [financial, setFinancial] = useState<FinancialData | null>(null);
+  const [lojouFinancial, setLojouFinancial] = useState<LojouFinancialData | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [catName, setCatName] = useState("");
