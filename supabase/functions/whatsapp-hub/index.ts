@@ -1357,7 +1357,7 @@ serve(async (req) => {
 
     // Find user by phone (normalized match)
     const incomingPhone = normalizePhone(phone);
-    const incomingPhoneNoCc = stripCountryCodeBR(incomingPhone);
+    const incomingPhoneNoCc = stripCountryCode(incomingPhone);
 
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
