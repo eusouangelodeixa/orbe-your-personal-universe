@@ -153,16 +153,27 @@ serve(async (req) => {
       }
 
       // Mark as verified
-      await adminClient
+      const { error: markErr } = await adminClient
         .from("phone_verifications")
         .update({ verified: true })
         .eq("id", verification.id);
+      
+      if (markErr) {
+        console.error("[verify-phone] Error marking verification:", JSON.stringify(markErr));
+      }
 
-      // Update profile
-      await adminClient
+      // Update profile: set phone and phone_verified
+      const { error: profileErr, count } = await adminClient
         .from("profiles")
         .update({ phone, phone_verified: true, updated_at: new Date().toISOString() })
         .eq("user_id", userId);
+
+      if (profileErr) {
+        console.error("[verify-phone] Error updating profile:", JSON.stringify(profileErr));
+        return jsonResponse({ error: "Telefone verificado mas erro ao atualizar perfil. Tente recarregar." }, 500);
+      }
+      
+      console.log(`[verify-phone] Profile updated for user ${userId}, phone_verified=true`);
 
       return jsonResponse({ success: true, message: "Telefone verificado com sucesso!" });
     }
