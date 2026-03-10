@@ -6,7 +6,7 @@ import { Navigate } from "react-router-dom";
 import {
   Loader2, Users, BarChart3, FolderCog, Activity, Shield, Mail, Phone,
   Calendar, CheckCircle2, XCircle, Trash2, Plus, Pencil, Link2, DollarSign,
-  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown
+  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown, Globe
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -53,6 +53,24 @@ interface FinancialData {
   recentPayments: Array<{ id: string; email: string; amount: number; date: string; description: string }>;
 }
 
+interface LojouFinancialData {
+  activeSubscribers: number;
+  totalSubscriptions: number;
+  canceledCount: number;
+  approvedCount: number;
+  conversionRate: number;
+  mrr: number;
+  totalRevenue: number;
+  monthlyRevenue: number;
+  planBreakdown: Array<{ name: string; count: number; revenue: number }>;
+  subscriberList: Array<{
+    id: string; user_id: string; name: string; email: string; phone: string;
+    plan: string; plan_period: string; status: string; starts_at: string; ends_at: string;
+    order_number: string | null; created_at: string;
+  }>;
+  monthlyHistory: Array<{ month: number; year: number; revenue: number }>;
+}
+
 const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export default function Admin() {
@@ -62,6 +80,7 @@ export default function Admin() {
   const [settings, setSettings] = useState<AdminSetting[]>([]);
   const [connections, setConnections] = useState<Array<{key: string; connected: boolean; label: string; description: string}>>([]);
   const [financial, setFinancial] = useState<FinancialData | null>(null);
+  const [lojouFinancial, setLojouFinancial] = useState<LojouFinancialData | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [catName, setCatName] = useState("");
@@ -113,12 +132,20 @@ export default function Admin() {
     } catch (err) { console.error(err); }
   };
 
+  const fetchLojouFinancial = async () => {
+    try {
+      const { data: result } = await supabase.functions.invoke("admin-data?action=lojou-financial", { body: null });
+      if (result && typeof result.mrr === "number") setLojouFinancial(result);
+    } catch (err) { console.error(err); }
+  };
+
   useEffect(() => {
     if (!authLoading && user) {
       fetchData();
       fetchCategories();
       fetchSettings();
       fetchFinancial();
+      fetchLojouFinancial();
     }
   }, [authLoading, user]);
 
@@ -168,6 +195,17 @@ export default function Admin() {
   const settingIcons: Record<string, any> = { uazapi: MessageSquare, ai_transcription: Bot, ai_text: Zap, stripe: CreditCard };
   const settingLabels: Record<string, string> = { uazapi: "uazapi (WhatsApp)", ai_transcription: "Modelo IA – Transcrição", ai_text: "Modelo IA – Geração de Texto", stripe: "Stripe (Pagamentos)" };
 
+  const lojouChartData = lojouFinancial?.monthlyHistory.map(h => ({
+    name: `${MONTH_NAMES[h.month - 1]}/${String(h.year).slice(2)}`,
+    Receita: h.revenue,
+  })) || [];
+
+  const statusLabel: Record<string, { label: string; cls: string }> = {
+    active: { label: "Ativo", cls: "border-green-500/30 text-green-500" },
+    canceled: { label: "Cancelado", cls: "border-destructive/30 text-destructive" },
+    inactive: { label: "Inativo", cls: "border-muted-foreground/30 text-muted-foreground" },
+  };
+
   const chartData = financial?.monthlyHistory.map(h => ({
     name: `${MONTH_NAMES[h.month - 1]}/${String(h.year).slice(2)}`,
     Receita: h.revenue,
@@ -192,6 +230,7 @@ export default function Admin() {
             <TabsTrigger value="activity" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Activity className="h-3.5 w-3.5" /> Atividade</TabsTrigger>
             <TabsTrigger value="connections" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Link2 className="h-3.5 w-3.5" /> Conexões</TabsTrigger>
             <TabsTrigger value="financial" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><DollarSign className="h-3.5 w-3.5" /> Assinaturas</TabsTrigger>
+            <TabsTrigger value="mozambique" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Globe className="h-3.5 w-3.5" /> Moçambique</TabsTrigger>
           </TabsList>
 
           {/* METRICS */}
@@ -543,6 +582,141 @@ export default function Admin() {
                 <CardContent className="py-12 text-center text-muted-foreground">
                   <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary" />
                   <p>Carregando dados de assinaturas...</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* MOÇAMBIQUE - Lojou */}
+          <TabsContent value="mozambique" className="space-y-4">
+            {lojouFinancial ? (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { label: "Assinantes Ativos", value: String(lojouFinancial.activeSubscribers), icon: Users, color: "text-green-500" },
+                    { label: "MRR", value: `MT ${lojouFinancial.mrr.toFixed(0)}`, icon: TrendingUp, color: "text-primary" },
+                    { label: "Receita do Mês", value: `MT ${lojouFinancial.monthlyRevenue.toFixed(0)}`, icon: DollarSign, color: "text-green-500" },
+                    { label: "Receita Total", value: `MT ${lojouFinancial.totalRevenue.toFixed(0)}`, icon: CreditCard, color: "text-primary" },
+                  ].map((m) => (
+                    <Card key={m.label} className="bg-card border-border">
+                      <CardContent className="pt-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{m.label}</p>
+                            <p className={`text-xl font-display mt-1 ${m.color}`}>{m.value}</p>
+                          </div>
+                          <m.icon className={`h-7 w-7 ${m.color} opacity-40`} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <Card className="bg-card border-border">
+                    <CardContent className="pt-6">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total Vendas</p>
+                      <p className="text-xl font-display mt-1 text-foreground">{lojouFinancial.totalSubscriptions}</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card border-border">
+                    <CardContent className="pt-6">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Taxa Conversão</p>
+                      <p className="text-xl font-display mt-1 text-primary">{lojouFinancial.conversionRate.toFixed(1)}%</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card border-border">
+                    <CardContent className="pt-6">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Abandonos</p>
+                      <p className="text-xl font-display mt-1 text-destructive">{lojouFinancial.canceledCount}</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Card className="bg-card border-border">
+                    <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Receita Mensal em MT (6 meses)</CardTitle></CardHeader>
+                    <CardContent>
+                      <ResponsiveContainer width="100%" height={250}>
+                        <BarChart data={lojouChartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                          <XAxis dataKey="name" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                          <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 11 }} />
+                          <Tooltip
+                            contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }}
+                            labelStyle={{ color: "hsl(var(--foreground))" }}
+                            formatter={(value: number) => [`MT ${value.toFixed(0)}`, "Receita"]}
+                          />
+                          <Bar dataKey="Receita" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="bg-card border-border">
+                    <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Planos Ativos</CardTitle></CardHeader>
+                    <CardContent className="space-y-3">
+                      {lojouFinancial.planBreakdown.length > 0 ? (
+                        lojouFinancial.planBreakdown.map((plan, i) => (
+                          <div key={i} className="flex items-center justify-between border-b border-border pb-2 last:border-0">
+                            <div>
+                              <p className="text-sm text-foreground font-medium">{plan.name}</p>
+                              <p className="text-[10px] text-muted-foreground">{plan.count} assinante{plan.count !== 1 ? "s" : ""}</p>
+                            </div>
+                            <span className="text-sm font-display text-green-500">MT {plan.revenue.toFixed(0)}/mês</span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-muted-foreground text-sm text-center py-4">Nenhum plano ativo</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Subscriber list */}
+                <Card className="bg-card border-border">
+                  <CardHeader><CardTitle className="text-foreground font-display tracking-wider text-sm">Assinantes Lojou ({lojouFinancial.subscriberList.length})</CardTitle></CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="border-border">
+                          <TableHead className="text-muted-foreground">Nome</TableHead>
+                          <TableHead className="text-muted-foreground">Email</TableHead>
+                          <TableHead className="text-muted-foreground">Plano</TableHead>
+                          <TableHead className="text-muted-foreground">Status</TableHead>
+                          <TableHead className="text-muted-foreground">Vencimento</TableHead>
+                          <TableHead className="text-muted-foreground">Pedido</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {lojouFinancial.subscriberList.map((sub) => {
+                          const sl = statusLabel[sub.status] || { label: sub.status, cls: "border-border text-muted-foreground" };
+                          return (
+                            <TableRow key={sub.id} className="border-border">
+                              <TableCell className="text-foreground text-xs font-medium">{sub.name}</TableCell>
+                              <TableCell className="text-foreground text-xs">{sub.email}</TableCell>
+                              <TableCell className="text-foreground text-xs capitalize">{sub.plan} {sub.plan_period}</TableCell>
+                              <TableCell><Badge variant="outline" className={`text-[10px] ${sl.cls}`}>{sl.label}</Badge></TableCell>
+                              <TableCell className="text-foreground text-xs">
+                                {sub.ends_at ? format(new Date(sub.ends_at), "dd/MM/yyyy", { locale: ptBR }) : "—"}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground text-xs">#{sub.order_number || "—"}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                        {lojouFinancial.subscriberList.length === 0 && (
+                          <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum assinante</TableCell></TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </>
+            ) : (
+              <Card className="bg-card border-border">
+                <CardContent className="py-12 text-center text-muted-foreground">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-3 text-primary" />
+                  <p>Carregando dados de Moçambique...</p>
                 </CardContent>
               </Card>
             )}

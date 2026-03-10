@@ -43,6 +43,37 @@ function mapLojouPeriod(planType: string, planName?: string): string {
   return "mensal";
 }
 
+async function scheduleRenewalReminders(
+  supabase: any,
+  subscriptionId: string,
+  userId: string,
+  phone: string,
+  customerName: string,
+  planName: string,
+  endsAt: string
+) {
+  const endDate = new Date(endsAt);
+  const reminders = [3, 2, 1, 0]; // days before expiry
+
+  for (const daysBefore of reminders) {
+    const sendDate = new Date(endDate);
+    sendDate.setDate(sendDate.getDate() - daysBefore);
+    const sendDateStr = sendDate.toISOString().split("T")[0];
+
+    await supabase.from("subscription_reminders").insert({
+      subscription_id: subscriptionId,
+      user_id: userId,
+      phone,
+      customer_name: customerName,
+      plan_name: planName,
+      days_before: daysBefore,
+      send_date: sendDateStr,
+    });
+  }
+
+  console.log("[LOJOU-WEBHOOK] Scheduled 4 renewal reminders for:", phone, "plan:", planName);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -73,14 +104,6 @@ serve(async (req) => {
       });
     }
 
-    // Find user by email
-    const { data: users, error: listErr } = await supabase.auth.admin.listUsers();
-    if (listErr) throw new Error(`listUsers error: ${listErr.message}`);
-
-    const user = users.users.find(
-      (u: any) => u.email?.toLowerCase() === customerEmail
-    );
-
     // For cancelled/abandoned orders, send WhatsApp even if user not in system
     if (orderType === "order_cancelled" || status === "cancelled") {
       if (customerPhone) {
@@ -90,7 +113,9 @@ serve(async (req) => {
         console.log("[LOJOU-WEBHOOK] Abandonment WhatsApp sent to:", customerPhone);
       }
 
-      // Also cancel subscription if user exists
+      // Find user to cancel subscription if exists
+      const { data: users } = await supabase.auth.admin.listUsers();
+      const user = users?.users?.find((u: any) => u.email?.toLowerCase() === customerEmail);
       if (user) {
         await supabase
           .from("subscriptions")
@@ -104,6 +129,14 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // Find user by email
+    const { data: users, error: listErr } = await supabase.auth.admin.listUsers();
+    if (listErr) throw new Error(`listUsers error: ${listErr.message}`);
+
+    const user = users.users.find(
+      (u: any) => u.email?.toLowerCase() === customerEmail
+    );
 
     if (!user) {
       console.log("[LOJOU-WEBHOOK] User not found for email:", customerEmail);
@@ -145,7 +178,7 @@ serve(async (req) => {
         .eq("user_id", userId)
         .eq("provider", "lojou");
 
-      const { error: insertErr } = await supabase
+      const { data: insertedSub, error: insertErr } = await supabase
         .from("subscriptions")
         .insert({
           user_id: userId,
@@ -159,7 +192,9 @@ serve(async (req) => {
           transaction_id: payload.transaction_id || null,
           portal_url: planSub.portal_url || null,
           raw_payload: payload,
-        });
+        })
+        .select("id")
+        .single();
 
       if (insertErr) {
         console.error("[LOJOU-WEBHOOK] Insert error:", insertErr);
@@ -171,6 +206,19 @@ serve(async (req) => {
         .from("profiles")
         .update({ currency: "MZN" })
         .eq("user_id", userId);
+
+      // Schedule renewal reminders (3, 2, 1, 0 days before expiry)
+      if (customerPhone && insertedSub?.id) {
+        await scheduleRenewalReminders(
+          supabase,
+          insertedSub.id,
+          userId,
+          customerPhone,
+          customerName,
+          planDisplayName,
+          endsAt
+        );
+      }
 
       // Send congratulations WhatsApp
       if (customerPhone) {

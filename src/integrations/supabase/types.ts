@@ -898,6 +898,56 @@ export type Database = {
         }
         Relationships: []
       }
+      subscription_reminders: {
+        Row: {
+          created_at: string
+          customer_name: string
+          days_before: number
+          id: string
+          phone: string
+          plan_name: string
+          send_date: string
+          sent: boolean
+          sent_at: string | null
+          subscription_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_name?: string
+          days_before: number
+          id?: string
+          phone: string
+          plan_name?: string
+          send_date: string
+          sent?: boolean
+          sent_at?: string | null
+          subscription_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_name?: string
+          days_before?: number
+          id?: string
+          phone?: string
+          plan_name?: string
+          send_date?: string
+          sent?: boolean
+          sent_at?: string | null
+          subscription_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_reminders_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           created_at: string
