@@ -1368,7 +1368,7 @@ serve(async (req) => {
 
     const profile = (profiles || []).find((p: any) => {
       const pNorm = normalizePhone(p.phone);
-      const pNoCc = stripCountryCodeBR(pNorm);
+      const pNoCc = stripCountryCode(pNorm);
       return pNorm === incomingPhone || pNoCc === incomingPhoneNoCc;
     });
 
