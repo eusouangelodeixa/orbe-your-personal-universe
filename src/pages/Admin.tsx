@@ -132,12 +132,20 @@ export default function Admin() {
     } catch (err) { console.error(err); }
   };
 
+  const fetchLojouFinancial = async () => {
+    try {
+      const { data: result } = await supabase.functions.invoke("admin-data?action=lojou-financial", { body: null });
+      if (result && typeof result.mrr === "number") setLojouFinancial(result);
+    } catch (err) { console.error(err); }
+  };
+
   useEffect(() => {
     if (!authLoading && user) {
       fetchData();
       fetchCategories();
       fetchSettings();
       fetchFinancial();
+      fetchLojouFinancial();
     }
   }, [authLoading, user]);
 
