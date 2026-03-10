@@ -195,7 +195,16 @@ export default function Admin() {
   const settingIcons: Record<string, any> = { uazapi: MessageSquare, ai_transcription: Bot, ai_text: Zap, stripe: CreditCard };
   const settingLabels: Record<string, string> = { uazapi: "uazapi (WhatsApp)", ai_transcription: "Modelo IA – Transcrição", ai_text: "Modelo IA – Geração de Texto", stripe: "Stripe (Pagamentos)" };
 
-  const chartData = financial?.monthlyHistory.map(h => ({
+  const lojouChartData = lojouFinancial?.monthlyHistory.map(h => ({
+    name: `${MONTH_NAMES[h.month - 1]}/${String(h.year).slice(2)}`,
+    Receita: h.revenue,
+  })) || [];
+
+  const statusLabel: Record<string, { label: string; cls: string }> = {
+    active: { label: "Ativo", cls: "border-green-500/30 text-green-500" },
+    canceled: { label: "Cancelado", cls: "border-destructive/30 text-destructive" },
+    inactive: { label: "Inativo", cls: "border-muted-foreground/30 text-muted-foreground" },
+  };
     name: `${MONTH_NAMES[h.month - 1]}/${String(h.year).slice(2)}`,
     Receita: h.revenue,
   })) || [];
