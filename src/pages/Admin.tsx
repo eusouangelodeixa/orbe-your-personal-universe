@@ -204,6 +204,7 @@ export default function Admin() {
     active: { label: "Ativo", cls: "border-green-500/30 text-green-500" },
     canceled: { label: "Cancelado", cls: "border-destructive/30 text-destructive" },
     inactive: { label: "Inativo", cls: "border-muted-foreground/30 text-muted-foreground" },
+  };
 
   const chartData = financial?.monthlyHistory.map(h => ({
     name: `${MONTH_NAMES[h.month - 1]}/${String(h.year).slice(2)}`,
