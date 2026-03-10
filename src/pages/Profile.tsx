@@ -193,8 +193,11 @@ export default function Profile() {
       setIsEditingPhone(false);
       setVerificationStep("idle");
       setOtpCode("");
+      // Update profile state immediately so WhatsApp toggle unlocks
+      setProfile(prev => prev ? { ...prev, phone, phone_verified: true } : prev);
       toast.success("Telefone verificado com sucesso! ✅");
-      loadProfile();
+      // Reload in background to sync any other fields
+      setTimeout(() => loadProfile(), 500);
     } catch (err: any) {
       console.error("Verify code error:", err);
       toast.error(err.message || "Código inválido ou expirado");
