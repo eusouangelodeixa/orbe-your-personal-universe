@@ -1,0 +1,1 @@
+UPDATE profiles SET phone_verified = true WHERE user_id = 'd25f7156-8f56-49f2-8632-8a305d799461';
