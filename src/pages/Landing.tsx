@@ -544,7 +544,11 @@ export default function Landing() {
             { emoji: "🧠", name: "IA Especialista", desc: "Cada módulo tem sua IA especializada: financeiro, professor, nutricionista e personal trainer." },
             { emoji: "📊", name: "Gráficos Completos", desc: "Dashboard com evolução financeira, progresso físico e desempenho acadêmico em um só lugar." },
             { emoji: "🎯", name: "Metas & Progresso", desc: "Defina metas financeiras, físicas e acadêmicas. O ORBE acompanha e te motiva automaticamente." },
-            { emoji: "🌿", name: "Dietas Especiais", desc: "Vegetariano, vegano, pescetariano, flexitariano. Plano alimentar adaptado ao seu estilo de vida." },
+            { emoji: "🍅", name: "Pomodoro Timer", desc: "Timer de foco integrado às disciplinas com estatísticas de estudo. Acompanhe suas horas de dedicação." },
+            { emoji: "💳", name: "Carteiras Digitais", desc: "Gerencie múltiplas contas e carteiras com saldo em tempo real. Transferências e controle total." },
+            { emoji: "🐷", name: "Cofrinho de Metas", desc: "Crie metas de poupança, deposite via WhatsApp e acompanhe o progresso até alcançar seu objetivo." },
+            { emoji: "🌍", name: "Multi-Moeda", desc: "Suporte a BRL e MZN. Detecção automática de localização para exibir preços e valores na sua moeda." },
+            { emoji: "📄", name: "Relatórios PDF", desc: "Exporte relatórios financeiros, planos de treino e dieta em PDF profissional para guardar ou compartilhar." },
             { emoji: "🔒", name: "Dados Seguros", desc: "Encriptação de ponta a ponta. Seus dados financeiros, acadêmicos e de saúde protegidos." },
           ].map((f, i) => (
             <div key={f.name} className={`landing-feat-card fade-up ${i > 0 ? `fade-up-delay-${(i % 4)}` : ""}`}>
