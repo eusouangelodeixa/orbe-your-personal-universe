@@ -62,6 +62,7 @@ const taskItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const { isAdmin } = useUserRole();
   const location = useLocation();
   const { signOut } = useAuth();
 
