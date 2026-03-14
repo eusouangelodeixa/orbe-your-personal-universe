@@ -1783,8 +1783,10 @@ serve(async (req) => {
           personal: "fit",
           nutricionista: "fit",
           consultor: "finance",
+          "consultor financeiro": "finance",
           financeiro: "finance",
           tutor: "studies_central",
+          "tutor de estudos": "studies_central",
           estudos: "studies_central",
         };
         const switchTarget = commandContext.switchKeyword
