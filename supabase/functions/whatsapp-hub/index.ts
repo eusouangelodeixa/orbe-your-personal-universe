@@ -1619,97 +1619,173 @@ serve(async (req) => {
 
     if (pendingActions?.length) {
       const pending = pendingActions[0];
-      // Clean up this pending action
-      await supabase.from("whatsapp_pending_actions").delete().eq("id", pending.id);
 
-      if (pending.action_type === "select_cofrinho_goal") {
-        const data = pending.action_data as any;
-        const goals = data.goals || [];
-        const amount = data.amount || 0;
-        const walletId = data.wallet_id || null;
-        const walletName = data.wallet_name || "";
-        const input = userText.trim();
+      // ===== AGENT SESSION: route messages to agent orchestrator =====
+      if (pending.action_type === "agent_session") {
+        const agentData = pending.action_data as any;
+        const agentType = agentData?.agent || "fit";
+        const exitRe = /^(sair|voltar|encerrar|modo normal|menu)\s*[!.]*$/i;
 
-        // Match by number or name
-        let selectedGoal: any = null;
-        const numMatch = input.match(/\d+/);
-        const num = numMatch ? Number(numMatch[0]) : Number.NaN;
-        if (!Number.isNaN(num) && num >= 1 && num <= goals.length) {
-          selectedGoal = goals[num - 1];
+        if (exitRe.test(userText.trim())) {
+          await supabase.from("whatsapp_pending_actions").delete().eq("id", pending.id);
+          responseText = "👋 Sessão encerrada! Voltou ao modo normal.\n\nDiga *ajuda* para ver os comandos disponíveis.";
         } else {
-          const normalized = input.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          selectedGoal = goals.find((g: any) =>
-            g.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalized)
-          );
-        }
+          // Refresh session expiry
+          await supabase.from("whatsapp_pending_actions")
+            .update({ expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() })
+            .eq("id", pending.id);
 
-        if (selectedGoal) {
-          // Debit from wallet if specified
-          if (walletId) {
-            await supabase.from("wallet_transactions").insert({
-              wallet_id: walletId,
-              user_id: userId,
-              amount,
-              type: "debit",
-              description: `Cofrinho: ${selectedGoal.name}`,
-              reference_type: "savings",
-              reference_id: selectedGoal.id,
-            });
+          try {
+            responseText = await withTimeout(
+              callAgentOrchestrator(supabase, userId, agentType, userText),
+              25000, "agent_orchestrator"
+            );
+          } catch (agentErr) {
+            console.error("Agent orchestrator error:", agentErr);
+            responseText = "❌ Erro ao processar com o agente. Tente novamente.";
           }
 
-          // Update savings goal
-          const newAmount = Number(selectedGoal.current_amount) + amount;
-          await supabase.from("savings_goals")
-            .update({ current_amount: newAmount })
-            .eq("id", selectedGoal.id);
-
-          const target = Number(selectedGoal.target_amount);
-          const remaining = Math.max(target - newAmount, 0);
-          const pct = target > 0 ? Math.round((newAmount / target) * 100) : 0;
-
-          responseText = `🐷 *${fmtBRL(amount)}* guardado em *${selectedGoal.name}*!`;
-          if (walletName) responseText += `\n💳 Debitado de: ${walletName}`;
-          responseText += `\n\n💰 Guardado: ${fmtBRL(newAmount)} (${pct}%)`;
-          responseText += `\n📌 Falta: ${fmtBRL(remaining)}`;
-          if (remaining === 0) responseText += `\n\n🎉 Parabéns! Meta alcançada!`;
-          skipNormalFlow = true;
-        } else {
-          responseText = "❌ Não entendi. Responda com o número da meta (ex: 1).";
-          // Re-store the pending action for another try
-          await supabase.from("whatsapp_pending_actions").insert({
-            user_id: userId,
-            action_type: "select_cofrinho_goal",
-            action_data: data,
-            expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-          });
-          skipNormalFlow = true;
+          // Save to unified agent_chat_messages table
+          try {
+            await supabase.from("agent_chat_messages").insert([
+              { user_id: userId, agent: agentType, role: "user", content: userText, source: "whatsapp" },
+              { user_id: userId, agent: agentType, role: "assistant", content: responseText, source: "whatsapp" },
+            ]);
+          } catch (saveErr) {
+            console.warn("Failed to save agent chat:", saveErr);
+          }
         }
-      }
+        skipNormalFlow = true;
+      } else {
+        // Non-session pending actions: delete and handle normally
+        await supabase.from("whatsapp_pending_actions").delete().eq("id", pending.id);
 
-      // Handle pending expense wallet selection
-      if (pending.action_type === "select_expense_wallet") {
-        const data = pending.action_data as any;
-        const wallets = data.wallets || [];
-        const input = userText.trim();
+        if (pending.action_type === "select_cofrinho_goal") {
+          const data = pending.action_data as any;
+          const goals = data.goals || [];
+          const amount = data.amount || 0;
+          const walletId = data.wallet_id || null;
+          const walletName = data.wallet_name || "";
+          const input = userText.trim();
 
-        // Match by number or name
-        let selectedWallet: any = null;
-        const numMatch = input.match(/\d+/);
-        const num = numMatch ? Number(numMatch[0]) : Number.NaN;
-        if (!Number.isNaN(num) && num >= 1 && num <= wallets.length) {
-          selectedWallet = wallets[num - 1];
-        } else {
-          const normalized = normalizeText(input);
-          selectedWallet = wallets.find((w: any) =>
-            normalizeText(w.name).includes(normalized) || normalized.includes(normalizeText(w.name))
-          );
+          let selectedGoal: any = null;
+          const numMatch = input.match(/\d+/);
+          const num = numMatch ? Number(numMatch[0]) : Number.NaN;
+          if (!Number.isNaN(num) && num >= 1 && num <= goals.length) {
+            selectedGoal = goals[num - 1];
+          } else {
+            const normalized = input.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            selectedGoal = goals.find((g: any) =>
+              g.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(normalized)
+            );
+          }
+
+          if (selectedGoal) {
+            if (walletId) {
+              await supabase.from("wallet_transactions").insert({
+                wallet_id: walletId,
+                user_id: userId,
+                amount,
+                type: "debit",
+                description: `Cofrinho: ${selectedGoal.name}`,
+                reference_type: "savings",
+                reference_id: selectedGoal.id,
+              });
+            }
+
+            const newAmount = Number(selectedGoal.current_amount) + amount;
+            await supabase.from("savings_goals")
+              .update({ current_amount: newAmount })
+              .eq("id", selectedGoal.id);
+
+            const target = Number(selectedGoal.target_amount);
+            const remaining = Math.max(target - newAmount, 0);
+            const pct = target > 0 ? Math.round((newAmount / target) * 100) : 0;
+
+            responseText = `🐷 *${fmtBRL(amount)}* guardado em *${selectedGoal.name}*!`;
+            if (walletName) responseText += `\n💳 Debitado de: ${walletName}`;
+            responseText += `\n\n💰 Guardado: ${fmtBRL(newAmount)} (${pct}%)`;
+            responseText += `\n📌 Falta: ${fmtBRL(remaining)}`;
+            if (remaining === 0) responseText += `\n\n🎉 Parabéns! Meta alcançada!`;
+            skipNormalFlow = true;
+          } else {
+            responseText = "❌ Não entendi. Responda com o número da meta (ex: 1).";
+            await supabase.from("whatsapp_pending_actions").insert({
+              user_id: userId,
+              action_type: "select_cofrinho_goal",
+              action_data: data,
+              expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+            });
+            skipNormalFlow = true;
+          }
         }
 
-        if (selectedWallet) {
-          // Check balance
-          if (selectedWallet.balance < data.amount) {
-            responseText = `❌ Saldo insuficiente na carteira *${selectedWallet.name}*.\n\n💰 Saldo atual: ${fmtBRL(selectedWallet.balance)}\n💸 Valor do gasto: ${fmtBRL(data.amount)}\n\nEscolha outra carteira ou adicione saldo primeiro.\n\n${wallets.map((w: any, i: number) => `${i + 1}. ${w.name} (${fmtBRL(w.balance)})`).join("\n")}`;
-            // Re-store pending action
+        // Handle pending expense wallet selection
+        if (pending.action_type === "select_expense_wallet") {
+          const data = pending.action_data as any;
+          const wallets = data.wallets || [];
+          const input = userText.trim();
+
+          let selectedWallet: any = null;
+          const numMatch = input.match(/\d+/);
+          const num = numMatch ? Number(numMatch[0]) : Number.NaN;
+          if (!Number.isNaN(num) && num >= 1 && num <= wallets.length) {
+            selectedWallet = wallets[num - 1];
+          } else {
+            const normalized = normalizeText(input);
+            selectedWallet = wallets.find((w: any) =>
+              normalizeText(w.name).includes(normalized) || normalized.includes(normalizeText(w.name))
+            );
+          }
+
+          if (selectedWallet) {
+            if (selectedWallet.balance < data.amount) {
+              responseText = `❌ Saldo insuficiente na carteira *${selectedWallet.name}*.\n\n💰 Saldo atual: ${fmtBRL(selectedWallet.balance)}\n💸 Valor do gasto: ${fmtBRL(data.amount)}\n\nEscolha outra carteira ou adicione saldo primeiro.\n\n${wallets.map((w: any, i: number) => `${i + 1}. ${w.name} (${fmtBRL(w.balance)})`).join("\n")}`;
+              await supabase.from("whatsapp_pending_actions").insert({
+                user_id: userId,
+                action_type: "select_expense_wallet",
+                action_data: data,
+                expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+              });
+              skipNormalFlow = true;
+            } else {
+              const dueDate = data.due_date || brNow().toISOString().split("T")[0];
+              const { data: expenseData, error: expError } = await supabase.from("expenses").insert({
+                user_id: userId,
+                name: data.name,
+                amount: data.amount,
+                due_date: dueDate,
+                month: new Date(dueDate).getMonth() + 1,
+                year: new Date(dueDate).getFullYear(),
+                type: data.type || "variavel",
+                paid: true,
+                category_id: data.category_id,
+                wallet_id: selectedWallet.id,
+              }).select("id").single();
+
+              if (expError) throw expError;
+
+              if (expenseData) {
+                const { error: txError } = await supabase.from("wallet_transactions").insert({
+                  wallet_id: selectedWallet.id,
+                  user_id: userId,
+                  amount: data.amount,
+                  type: "debit",
+                  description: `Gasto: ${data.name}`,
+                  reference_type: "expense",
+                  reference_id: expenseData.id,
+                });
+                if (txError) {
+                  await supabase.from("expenses").delete().eq("id", expenseData.id);
+                  throw txError;
+                }
+              }
+
+              responseText = `✅ Gasto registrado!\n\n💸 *${data.name}*: ${fmtBRL(data.amount)}\n💳 Carteira: ${selectedWallet.name}\n💰 Novo saldo: ${fmtBRL(selectedWallet.balance - data.amount)}`;
+              skipNormalFlow = true;
+            }
+          } else {
+            responseText = "❌ Não entendi. Responda com o número da carteira (ex: 1).";
             await supabase.from("whatsapp_pending_actions").insert({
               user_id: userId,
               action_type: "select_expense_wallet",
@@ -1717,53 +1793,7 @@ serve(async (req) => {
               expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
             });
             skipNormalFlow = true;
-          } else {
-            // Register the expense with the selected wallet
-            const dueDate = data.due_date || brNow().toISOString().split("T")[0];
-            const { data: expenseData, error: expError } = await supabase.from("expenses").insert({
-              user_id: userId,
-              name: data.name,
-              amount: data.amount,
-              due_date: dueDate,
-              month: new Date(dueDate).getMonth() + 1,
-              year: new Date(dueDate).getFullYear(),
-              type: data.type || "variavel",
-              paid: true,
-              category_id: data.category_id,
-              wallet_id: selectedWallet.id,
-            }).select("id").single();
-
-            if (expError) throw expError;
-
-            // Create debit transaction
-            if (expenseData) {
-              const { error: txError } = await supabase.from("wallet_transactions").insert({
-                wallet_id: selectedWallet.id,
-                user_id: userId,
-                amount: data.amount,
-                type: "debit",
-                description: `Gasto: ${data.name}`,
-                reference_type: "expense",
-                reference_id: expenseData.id,
-              });
-              if (txError) {
-                await supabase.from("expenses").delete().eq("id", expenseData.id);
-                throw txError;
-              }
-            }
-
-            responseText = `✅ Gasto registrado!\n\n💸 *${data.name}*: ${fmtBRL(data.amount)}\n💳 Carteira: ${selectedWallet.name}\n💰 Novo saldo: ${fmtBRL(selectedWallet.balance - data.amount)}`;
-            skipNormalFlow = true;
           }
-        } else {
-          responseText = "❌ Não entendi. Responda com o número da carteira (ex: 1).";
-          await supabase.from("whatsapp_pending_actions").insert({
-            user_id: userId,
-            action_type: "select_expense_wallet",
-            action_data: data,
-            expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-          });
-          skipNormalFlow = true;
         }
       }
     }
