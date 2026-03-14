@@ -360,8 +360,20 @@ export default function Admin() {
                             ) : (
                               <Badge variant="outline" className="border-destructive/30 text-destructive text-[10px]">✗</Badge>
                             )}
-                          </TableCell>
-                        </TableRow>
+                           </TableCell>
+                           <TableCell className="text-right">
+                             <div className="flex justify-end gap-1">
+                               <Button variant="ghost" size="icon" title="Atribuir plano" onClick={() => openPlanDialog({ id: u.id, email: u.email })}>
+                                 <UserPlus className="h-4 w-4 text-primary" />
+                               </Button>
+                               {u.plan_name?.includes("manual") && (
+                                 <Button variant="ghost" size="icon" title="Remover plano manual" onClick={() => handleRemovePlan(u.id, u.email)}>
+                                   <XCircle className="h-4 w-4 text-destructive" />
+                                 </Button>
+                               )}
+                             </div>
+                           </TableCell>
+                         </TableRow>
                       );
                     })}
                   </TableBody>
