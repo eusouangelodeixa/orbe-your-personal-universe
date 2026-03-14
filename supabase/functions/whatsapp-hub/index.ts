@@ -396,7 +396,9 @@ REGRAS:
 - IMPORTANTE: Quando o usuário quiser GUARDAR/DEPOSITAR dinheiro no cofrinho (ex: "guardei 500 no cofrinho", "depositar 200 na reserva"), use action "save_to_cofrinho". Preencha params.amount, params.wallet_name (de onde sai o dinheiro) e params.goal_name (meta destino). Se o usuário NÃO mencionar o nome da meta, deixe goal_name vazio — o sistema vai listar as opções.
 - IMPORTANTE: Quando o usuário perguntar sobre saldo, gastos ou informações de uma carteira/conta ESPECÍFICA, preencha params.wallet_name com o nome da carteira. Responda APENAS com os dados da carteira pedida. NÃO inclua dados de outras carteiras, resumo geral ou patrimônio total a menos que o usuário peça explicitamente.
 - Mantenha respostas CONCISAS e FOCADAS no que foi perguntado. Máximo 10-15 linhas no WhatsApp.
-- MUITO IMPORTANTE: Leve em conta o HISTÓRICO DE CONVERSA recente. Se o usuário está respondendo a uma pergunta anterior (ex: fornecendo um valor, confirmando algo), CONECTE com o contexto anterior. Ex: se antes ele disse que comprou açaí e agora diz "20 reais", isso é o valor do açaí.`;
+- MUITO IMPORTANTE: Leve em conta o HISTÓRICO DE CONVERSA recente. Se o usuário está respondendo a uma pergunta anterior, CONECTE com o contexto anterior.
+- MUITO IMPORTANTE: Se a última mensagem do assistente no histórico foi um LEMBRETE DE TAREFA (ex: "Você tem tarefa pra hoje: Comprar leite") e o usuário responde com algo como "já fiz", "feito", "já comprei", "pronto", "concluído" → a intenção é COMPLETAR A TAREFA (complete_task), NÃO registrar gasto. Preencha params.task_title com o título da tarefa mencionada no lembrete.
+- NUNCA invente dados que não estão na mensagem. Se o usuário diz "já comprei" sem mencionar valor, NÃO crie um gasto com valor inventado. Verifique se faz sentido como conclusão de tarefa primeiro.`;
 
   const result = await callAI(apiKey, systemPrompt, text, INTENT_TOOLS, { type: "function", function: { name: "execute_action" } }, chatHistory);
 
@@ -1563,7 +1565,28 @@ serve(async (req) => {
     if (!skipNormalFlow) {
       // Build context for AI
       const nome = profile.display_name?.split(" ")[0] || "Usuário";
-      const context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
+      let context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
+
+      // Add today's pending tasks as context so the AI knows about them
+      try {
+        const todayStr = brNow().toISOString().split("T")[0];
+        const { data: pendingTasks } = await supabase
+          .from("tasks")
+          .select("id, title, due_date, category")
+          .eq("user_id", userId)
+          .eq("status", "pendente")
+          .lte("due_date", todayStr + "T23:59:59")
+          .order("due_date", { ascending: true })
+          .limit(10);
+        if (pendingTasks?.length) {
+          context += `\n\nTAREFAS PENDENTES DO USUÁRIO HOJE:`;
+          for (const t of pendingTasks) {
+            context += `\n- "${t.title}" (categoria: ${t.category || "geral"})`;
+          }
+        }
+      } catch (taskCtxErr) {
+        console.warn("Failed to fetch pending tasks context:", taskCtxErr);
+      }
 
       // Fetch recent chat history (last 10 messages within 30 min)
       let chatHistory: Array<{role: string, content: string}> = [];

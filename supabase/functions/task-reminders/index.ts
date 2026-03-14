@@ -112,12 +112,24 @@ serve(async (req) => {
         }
 
         try {
+          const fullMsg = `*ORBE Tarefas*\n\n${msg}`;
           await fetch(`${UAZAPI_URL}/send/text`, {
             method: "POST",
             headers: { "Content-Type": "application/json", token: UAZAPI_TOKEN },
-            body: JSON.stringify({ number: profile.phone, text: `*ORBE Tarefas*\n\n${msg}` }),
+            body: JSON.stringify({ number: profile.phone, text: fullMsg }),
           });
           sentCount++;
+
+          // Store reminder in chat history so the bot has context when user replies
+          try {
+            await supabase.from("whatsapp_chat_history").insert({
+              user_id: userId,
+              role: "assistant",
+              content: fullMsg,
+            });
+          } catch (histErr) {
+            console.warn(`Failed to store reminder in chat history for user ${userId}:`, histErr);
+          }
 
           // Mark as reminded (only for 1h reminders to avoid re-sending)
           if (type === "1h") {
