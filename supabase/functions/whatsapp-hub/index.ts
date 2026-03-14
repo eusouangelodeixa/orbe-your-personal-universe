@@ -293,8 +293,8 @@ async function transcribeAudio(_apiKey: string, audioBase64: string, mimeType = 
 
   if (!res.ok) {
     const t = await res.text();
-    console.error("OpenAI Whisper transcription error:", res.status, t);
-    throw new Error(`Não consegui transcrever o áudio [${res.status}]`);
+    console.error("OpenAI Whisper transcription error:", res.status, t, `mime=${cleanMime}, ext=${ext}, bytes=${bytes.length}`);
+    throw new Error(`Não consegui transcrever o áudio [${res.status}]: ${t.slice(0, 200)}`);
   }
 
   const data = await res.json();
