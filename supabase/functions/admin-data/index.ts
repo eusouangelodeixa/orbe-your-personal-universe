@@ -561,6 +561,90 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Manual plan assignment
+    if (action === "assign-plan") {
+      const body = await req.json();
+      const { user_id, plan, plan_period, duration_days } = body;
+
+      if (!user_id || !plan || !plan_period || !duration_days) {
+        return new Response(JSON.stringify({ error: "Missing required fields" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const validPlans = ["basic", "student", "full", "fit"];
+      const validPeriods = ["mensal", "trimestral", "anual"];
+      if (!validPlans.includes(plan) || !validPeriods.includes(plan_period)) {
+        return new Response(JSON.stringify({ error: "Invalid plan or period" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const durationNum = Number(duration_days);
+      if (isNaN(durationNum) || durationNum < 1 || durationNum > 730) {
+        return new Response(JSON.stringify({ error: "Invalid duration" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const now = new Date();
+      const endsAt = new Date(now.getTime() + durationNum * 24 * 60 * 60 * 1000);
+
+      // Deactivate any existing manual subscriptions for this user
+      await adminClient
+        .from("subscriptions")
+        .update({ status: "inactive", updated_at: now.toISOString() })
+        .eq("user_id", user_id)
+        .eq("provider", "manual")
+        .eq("status", "active");
+
+      // Create new subscription
+      const { error: insertError } = await adminClient
+        .from("subscriptions")
+        .insert({
+          user_id,
+          plan,
+          plan_period,
+          provider: "manual",
+          status: "active",
+          starts_at: now.toISOString(),
+          ends_at: endsAt.toISOString(),
+        });
+
+      if (insertError) throw insertError;
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Remove manual plan
+    if (action === "remove-plan") {
+      const body = await req.json();
+      const { user_id } = body;
+
+      if (!user_id) {
+        return new Response(JSON.stringify({ error: "Missing user_id" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      await adminClient
+        .from("subscriptions")
+        .update({ status: "inactive", updated_at: new Date().toISOString() })
+        .eq("user_id", user_id)
+        .eq("provider", "manual")
+        .eq("status", "active");
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
