@@ -191,6 +191,44 @@ export default function Admin() {
   const openEditCat = (cat: Category) => { setEditingCat(cat); setCatName(cat.name); setCatColor(cat.color || "#E87C1E"); setCatIcon(cat.icon || ""); setShowCatDialog(true); };
   const openNewCat = () => { setEditingCat(null); setCatName(""); setCatColor("#E87C1E"); setCatIcon(""); setShowCatDialog(true); };
 
+  const openPlanDialog = (u: { id: string; email: string }) => {
+    setPlanTargetUser(u);
+    setPlanForm({ plan: "full", period: "mensal", days: "30" });
+    setShowPlanDialog(true);
+  };
+
+  const handleAssignPlan = async () => {
+    if (!planTargetUser) return;
+    setAssigningPlan(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke("admin-data?action=assign-plan", {
+        body: { user_id: planTargetUser.id, plan: planForm.plan, plan_period: planForm.period, duration_days: Number(planForm.days) },
+      });
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+      toast.success(`Plano ${planForm.plan} atribuído a ${planTargetUser.email}`);
+      setShowPlanDialog(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao atribuir plano");
+    } finally {
+      setAssigningPlan(false);
+    }
+  };
+
+  const handleRemovePlan = async (userId: string, email: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("admin-data?action=remove-plan", {
+        body: { user_id: userId },
+      });
+      if (error) throw error;
+      toast.success(`Plano manual removido de ${email}`);
+      fetchData();
+    } catch {
+      toast.error("Erro ao remover plano");
+    }
+  };
+
   if (authLoading || loading || roleLoading) {
     return <AppLayout><div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
