@@ -17,6 +17,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   created_at: string;
+  source?: string;
 }
 
 const ORCHESTRATOR_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-orchestrator`;
@@ -33,12 +34,25 @@ export default function StudiesChat() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  useEffect(() => { if (user) loadMessages(); }, [user]);
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  const loadMessages = async () => {
+    const { data } = await supabase
+      .from("agent_chat_messages" as any)
+      .select("*")
+      .eq("user_id", user!.id)
+      .eq("agent", "studies_central")
+      .order("created_at", { ascending: true });
+    setMessages((data as any) || []);
+    setLoading(false);
+  };
 
   const sendMessage = async (text?: string) => {
     const userMsg = (text || input).trim();
@@ -53,6 +67,8 @@ export default function StudiesChat() {
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, tempUserMsg]);
+
+    await supabase.from("agent_chat_messages" as any).insert({ user_id: user!.id, agent: "studies_central", role: "user", content: userMsg, source: "web" } as any);
 
     let assistantContent = "";
     const tempAssistantId = crypto.randomUUID();
@@ -119,6 +135,10 @@ export default function StudiesChat() {
           } catch {}
         }
       }
+
+      if (assistantContent) {
+        await supabase.from("agent_chat_messages" as any).insert({ user_id: user!.id, agent: "studies_central", role: "assistant", content: assistantContent, source: "web" } as any);
+      }
     } catch (err) {
       console.error("Chat error:", err);
       toast.error("Erro na comunicação com o assistente");
@@ -126,10 +146,15 @@ export default function StudiesChat() {
     setSending(false);
   };
 
-  const clearChat = () => {
+  const clearChat = async () => {
+    await supabase.from("agent_chat_messages" as any).delete().eq("user_id", user!.id).eq("agent", "studies_central");
     setMessages([]);
     toast.success("Histórico limpo");
   };
+
+  if (loading) {
+    return <AppLayout><div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
+  }
 
   return (
     <AppLayout>
@@ -197,6 +222,9 @@ export default function StudiesChat() {
                       : "bg-muted rounded-bl-md"
                   }`}
                 >
+                  {msg.source === "whatsapp" && (
+                    <span className="text-[10px] opacity-60 block mb-1">📱 via WhatsApp</span>
+                  )}
                   {msg.content ? (
                     msg.role === "assistant" ? (
                       <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2 [&>table]:w-full [&>table]:border-collapse [&>table]:my-3 [&>table]:text-xs [&_th]:border [&_th]:border-border [&_th]:bg-muted/70 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5 [&_tr:nth-child(even)]:bg-muted/30 overflow-x-auto">
