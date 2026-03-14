@@ -546,7 +546,13 @@ async function callAgentOrchestrator(supabase: any, userId: string, agent: strin
   }
 
   const data = await resp.json();
-  return data.content || "Desculpe, não consegui gerar uma resposta.";
+  const content = typeof data?.content === "string"
+    ? data.content
+    : Array.isArray(data?.content)
+      ? data.content.map((part: any) => typeof part === "string" ? part : (part?.text || "")).join("")
+      : (data?.content?.text || "");
+
+  return content?.trim() || "Desculpe, não consegui gerar uma resposta.";
 }
 
 // ========== ACTION EXECUTORS ==========
