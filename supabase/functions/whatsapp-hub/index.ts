@@ -1707,20 +1707,22 @@ serve(async (req) => {
       // ===== AGENT SESSION: route messages to agent orchestrator =====
       if (pending.action_type === "agent_session") {
         const agentData = pending.action_data as any;
-        const agentType = agentData?.agent || "fit";
+        const currentAgentType = agentData?.agent || "fit";
         const exitRe = /^(sair|voltar|encerrar|modo normal|menu)\s*[!.]*$/i;
 
-        // Detect agent-switching/activation requests within an active session
-        const normalizedUserText = normalizeText(userText);
-        const switchMatch = normalizedUserText.match(
-          /(?:falar|quero|conectar|chamar|abrir|iniciar)?\s*(?:com\s+)?(?:o\s+)?(personal|nutricionista|consultor|financeiro|tutor|estudos)/
-        );
+        const commandContext = extractAgentCommandContext(userText);
         const agentSwitchMap: Record<string, string> = {
-          personal: "fit", nutricionista: "fit",
-          consultor: "finance", financeiro: "finance",
-          tutor: "studies_central", estudos: "studies_central",
+          personal: "fit",
+          nutricionista: "fit",
+          consultor: "finance",
+          financeiro: "finance",
+          tutor: "studies_central",
+          estudos: "studies_central",
         };
-        const switchTarget = switchMatch ? agentSwitchMap[switchMatch[1]] : null;
+        const switchTarget = commandContext.switchKeyword
+          ? agentSwitchMap[commandContext.switchKeyword]
+          : null;
+
         const agentLabels: Record<string, string> = {
           fit: "🏋️ *Personal/Nutricionista*",
           finance: "💰 *Consultor Financeiro*",
@@ -1730,49 +1732,59 @@ serve(async (req) => {
         if (exitRe.test(userText.trim())) {
           await supabase.from("whatsapp_pending_actions").delete().eq("id", pending.id);
           responseText = "👋 Sessão encerrada! Voltou ao modo normal.\n\nDiga *ajuda* para ver os comandos disponíveis.";
-        } else if (switchTarget && switchTarget !== agentType) {
-          // Switch to a different agent
-          await supabase.from("whatsapp_pending_actions")
-            .update({
-              action_data: { agent: switchTarget },
-              expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
-            })
-            .eq("id", pending.id);
-
-          responseText = `🔄 Sessão trocada!\n\n🔗 ${agentLabels[switchTarget] || "Agente"} conectado!\n\nAgora suas mensagens vão direto para o novo agente. Pergunte o que quiser! Diga *sair* para voltar ao modo normal.`;
-        } else if (switchTarget && switchTarget === agentType) {
-          // User repeated activation phrase for the same active agent; confirm instead of forwarding to AI
-          await supabase.from("whatsapp_pending_actions")
-            .update({ expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() })
-            .eq("id", pending.id);
-
-          responseText = `✅ ${agentLabels[agentType] || "Agente"} já está conectado.\n\nPode mandar sua pergunta agora — vou responder com base nos seus dados.`;
         } else {
-          // Refresh session expiry
-          await supabase.from("whatsapp_pending_actions")
-            .update({ expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() })
-            .eq("id", pending.id);
+          let targetAgentType = currentAgentType;
+          let responsePrefix = "";
+          const hasInlineQuery = !commandContext.isActivationCommand && commandContext.queryText.length > 2;
+          const userMessageForAgent = hasInlineQuery ? commandContext.queryText : userText;
 
-          try {
-            responseText = await withTimeout(
-              callAgentOrchestrator(supabase, userId, agentType, userText),
-              25000, "agent_orchestrator"
-            );
-          } catch (agentErr) {
-            console.error("Agent orchestrator error:", agentErr);
-            responseText = "❌ Erro ao processar com o agente. Tente novamente.";
+          if (switchTarget && switchTarget !== currentAgentType) {
+            targetAgentType = switchTarget;
+            await supabase.from("whatsapp_pending_actions")
+              .update({
+                action_data: { agent: targetAgentType },
+                expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+              })
+              .eq("id", pending.id);
+
+            responsePrefix = `🔄 Sessão trocada!\n\n🔗 ${agentLabels[targetAgentType] || "Agente"} conectado!\n\n`;
+          } else {
+            await supabase.from("whatsapp_pending_actions")
+              .update({ expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() })
+              .eq("id", pending.id);
           }
 
-          // Save to unified agent_chat_messages table
-          try {
-            await supabase.from("agent_chat_messages").insert([
-              { user_id: userId, agent: agentType, role: "user", content: userText, source: "whatsapp" },
-              { user_id: userId, agent: agentType, role: "assistant", content: responseText, source: "whatsapp" },
-            ]);
-          } catch (saveErr) {
-            console.warn("Failed to save agent chat:", saveErr);
+          if (switchTarget && switchTarget === currentAgentType && !hasInlineQuery) {
+            responseText = `✅ ${agentLabels[currentAgentType] || "Agente"} já está conectado.\n\nPode mandar sua pergunta agora — vou responder com base nos seus dados.`;
+          } else if (switchTarget && switchTarget !== currentAgentType && !hasInlineQuery) {
+            responseText = `${responsePrefix}Agora suas mensagens vão direto para o novo agente. Pergunte o que quiser! Diga *sair* para voltar ao modo normal.`;
+          } else {
+            try {
+              responseText = await withTimeout(
+                callAgentOrchestrator(supabase, userId, targetAgentType, userMessageForAgent),
+                25000,
+                "agent_orchestrator"
+              );
+            } catch (agentErr) {
+              console.error("Agent orchestrator error:", agentErr);
+              responseText = "❌ Erro ao processar com o agente. Tente novamente.";
+            }
+
+            if (responsePrefix) {
+              responseText = `${responsePrefix}${responseText}\n\n_Diga *sair* para voltar ao modo normal._`;
+            }
+
+            try {
+              await supabase.from("agent_chat_messages").insert([
+                { user_id: userId, agent: targetAgentType, role: "user", content: userMessageForAgent, source: "whatsapp" },
+                { user_id: userId, agent: targetAgentType, role: "assistant", content: responseText, source: "whatsapp" },
+              ]);
+            } catch (saveErr) {
+              console.warn("Failed to save agent chat:", saveErr);
+            }
           }
         }
+
         skipNormalFlow = true;
       } else {
         // Non-session pending actions: delete and handle normally
