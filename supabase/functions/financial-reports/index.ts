@@ -63,6 +63,8 @@ Deno.serve(async (req) => {
 
     for (const profile of profiles) {
       try {
+        const cur = profile.currency || "BRL";
+        const fmt = (v: number) => fmtMoney(v, cur);
         // Get incomes
         const { data: incomes } = await supabase
           .from("incomes")
