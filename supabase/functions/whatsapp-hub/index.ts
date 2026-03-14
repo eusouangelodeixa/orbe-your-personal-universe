@@ -358,7 +358,9 @@ const INTENT_TOOLS = [
               // Tarefas
               "add_task", "list_tasks", "complete_task", "delete_task",
               // Geral
-              "daily_summary", "help", "chat"
+              "daily_summary", "help", "chat",
+              // Agentes conversacionais
+              "agent_chat"
             ]
           },
           params: {
