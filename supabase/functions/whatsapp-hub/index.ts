@@ -1918,6 +1918,10 @@ serve(async (req) => {
                 25000,
                 "agent_orchestrator"
               );
+
+              if (targetAgentType === "finance") {
+                responseText = await maybeOverrideFinanceEmptyReply(supabase, userId, userMessageForAgent, responseText);
+              }
             } catch (agentErr) {
               console.error("Agent orchestrator error:", agentErr);
               responseText = "❌ Erro ao processar com o agente. Tente novamente.";
