@@ -519,6 +519,67 @@ function extractAgentCommandContext(text: string) {
   };
 }
 
+async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<string> {
+  const now = brNow();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+
+  const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
+    supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("expenses").select("name, amount, paid, due_date, category_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("wallets").select("name, balance, is_default").eq("user_id", userId),
+    supabase.from("savings_goals").select("name, target_amount, current_amount, deadline").eq("user_id", userId),
+  ]);
+
+  const incomes = incomesRes.data || [];
+  const expenses = expensesRes.data || [];
+  const wallets = walletsRes.data || [];
+  const goals = goalsRes.data || [];
+
+  const totalIncome = incomes.reduce((a: number, i: any) => a + Number(i.amount), 0);
+  const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.amount), 0);
+  const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
+  const pendingExpenses = totalExpenses - paidExpenses;
+  const totalWallets = wallets.reduce((a: number, w: any) => a + Number(w.balance), 0);
+
+  const topExpenses = [...expenses]
+    .sort((a: any, b: any) => Number(b.amount) - Number(a.amount))
+    .slice(0, 5);
+
+  const lines: string[] = [];
+  lines.push(`DADOS FINANCEIROS REAIS DO USUÁRIO (mês ${month}/${year}) — USE ESTES DADOS, NÃO DIGA QUE NÃO TEM DADOS:`);
+  lines.push(`Renda total: ${fmtMoney(totalIncome)}`);
+  lines.push(`Gastos total: ${fmtMoney(totalExpenses)} (pagos: ${fmtMoney(paidExpenses)}, pendentes: ${fmtMoney(pendingExpenses)})`);
+  lines.push(`Fluxo mensal: ${fmtMoney(totalIncome - totalExpenses)} (${totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 100) : 0}% comprometido)`);
+
+  if (topExpenses.length) {
+    lines.push(`Maiores gastos:`);
+    topExpenses.forEach((e: any) => {
+      lines.push(`  - ${e.name}: ${fmtMoney(Number(e.amount))} (${e.paid ? "pago" : "pendente"}, vence ${e.due_date})`);
+    });
+  }
+
+  if (wallets.length) {
+    lines.push(`Carteiras: ${wallets.map((w: any) => `${w.name}: ${fmtMoney(Number(w.balance))}`).join(", ")}`);
+    lines.push(`Patrimônio total: ${fmtMoney(totalWallets)}`);
+  }
+
+  if (goals.length) {
+    lines.push(`Metas de poupança:`);
+    goals.forEach((g: any) => {
+      const target = Number(g.target_amount);
+      const current = Number(g.current_amount);
+      lines.push(`  - ${g.name}: ${fmtMoney(current)} de ${fmtMoney(target)} (faltam ${fmtMoney(Math.max(target - current, 0))}${g.deadline ? `, prazo: ${g.deadline}` : ""})`);
+    });
+  }
+
+  if (!incomes.length && !expenses.length && !wallets.length && !goals.length) {
+    lines.push("Nenhum dado financeiro registrado neste mês.");
+  }
+
+  return lines.join("\n");
+}
+
 async function callAgentOrchestrator(supabase: any, userId: string, agent: string, userMessage: string): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -526,6 +587,17 @@ async function callAgentOrchestrator(supabase: any, userId: string, agent: strin
 
   if (!serviceRoleKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY ausente no whatsapp-hub");
+  }
+
+  // Build extra context for finance agent — inject data directly so AI can't miss it
+  let extraSystemPrompt: string | undefined;
+  if (agent === "finance") {
+    try {
+      extraSystemPrompt = await buildFinanceExtraPrompt(supabase, userId);
+      console.log("Finance extraSystemPrompt built:", extraSystemPrompt.slice(0, 200));
+    } catch (err) {
+      console.warn("Failed to build finance extra prompt:", err);
+    }
   }
 
   // Load recent chat history for context continuity
@@ -559,6 +631,7 @@ async function callAgentOrchestrator(supabase: any, userId: string, agent: strin
       agent,
       user_id: userId,
       stream: false,
+      ...(extraSystemPrompt ? { extraSystemPrompt } : {}),
     }),
   });
 
