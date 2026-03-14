@@ -507,9 +507,18 @@ serve(async (req) => {
     const body = await req.json();
     const { messages, agent, extraSystemPrompt, stream: shouldStream = true, user_id: bodyUserId } = body;
 
-    // Allow service-role calls with explicit user_id (for WhatsApp integration)
+    // Allow internal service calls with explicit user_id (WhatsApp integration)
+    const internalKeyHeader = req.headers.get("x-internal-service-key");
+    const apiKeyHeader = req.headers.get("apikey");
+    const isInternalServiceCall =
+      typeof bodyUserId === "string" &&
+      bodyUserId.length > 0 &&
+      (token === serviceRoleKey ||
+        internalKeyHeader === serviceRoleKey ||
+        apiKeyHeader === serviceRoleKey);
+
     let userId: string;
-    if (bodyUserId && token === serviceRoleKey) {
+    if (isInternalServiceCall) {
       userId = bodyUserId;
     } else {
       const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
