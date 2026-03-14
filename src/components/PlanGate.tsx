@@ -1,6 +1,6 @@
 import { useAuth, ORBE_PLANS, PlanKey, BillingPeriod } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Lock, Loader2, Crown, Sparkles, Clock } from "lucide-react";
@@ -23,6 +23,29 @@ const GROUP_LABELS: Record<string, string> = {
   studies: "Estudos",
   fit: "Fit",
 };
+
+const LOJOU_PRICES: Record<PlanKey, number> = {
+  basic: 229,
+  student: 349,
+  full: 539,
+  fit: 299,
+};
+
+const LOJOU_CHECKOUT_URL = "https://pay.lojou.app/p/iGdxz";
+
+function useIsMozambique() {
+  const [isMoz, setIsMoz] = useState(false);
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+      const lang = navigator.language || "";
+      if (tz === "Africa/Maputo" || lang.toLowerCase().includes("mz")) {
+        setIsMoz(true);
+      }
+    } catch {}
+  }, []);
+  return isMoz;
+}
 
 interface PlanGateProps {
   children: React.ReactNode;
@@ -83,8 +106,13 @@ function TrialBanner({ trialEndsAt }: { trialEndsAt: string | null }) {
 
 function UpgradeWall({ group }: { group: string }) {
   const [loading, setLoading] = useState<string | null>(null);
+  const isMozambique = useIsMozambique();
 
   const handleCheckout = async (planKey: PlanKey, period: BillingPeriod = "mensal") => {
+    if (isMozambique) {
+      window.open(LOJOU_CHECKOUT_URL, "_blank");
+      return;
+    }
     setLoading(planKey);
     try {
       const plan = ORBE_PLANS[planKey];
@@ -124,6 +152,10 @@ function UpgradeWall({ group }: { group: string }) {
         <div className="space-y-3">
           {relevantPlans.map(([key, plan]) => {
             const isRecommended = key === suggestedKey;
+            const price = isMozambique
+              ? LOJOU_PRICES[key as PlanKey]
+              : plan.prices.mensal.amount;
+            const symbol = isMozambique ? "MT" : "R$";
             return (
               <div
                 key={key}
@@ -143,7 +175,7 @@ function UpgradeWall({ group }: { group: string }) {
                       {plan.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      R$ {plan.prices.mensal.amount}<span className="text-xs">/mês</span>
+                      {symbol} {price}<span className="text-xs">/mês</span>
                     </p>
                   </div>
                   <Button
