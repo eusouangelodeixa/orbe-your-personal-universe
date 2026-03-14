@@ -24,7 +24,8 @@ function fmtMoney(v: number, currencyCode = "BRL") {
   });
   if (currencyCode === "MZN") return formatted.replace(/MTn|MTN/g, "MT");
   return formatted;
-}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
