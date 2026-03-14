@@ -355,11 +355,14 @@ export default function Admin() {
                           <TableCell className="text-foreground text-xs">{format(new Date(u.created_at), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
                           <TableCell className="text-foreground text-xs">{u.last_sign_in_at ? format(new Date(u.last_sign_in_at), "dd/MM/yyyy HH:mm", { locale: ptBR }) : "—"}</TableCell>
                           <TableCell>
-                            {u.email_confirmed_at ? (
-                              <Badge variant="outline" className="border-green-500/30 text-green-500 text-[10px]">✓</Badge>
-                            ) : (
-                              <Badge variant="outline" className="border-destructive/30 text-destructive text-[10px]">✗</Badge>
-                            )}
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="outline" className={`text-[10px] ${u.email_confirmed_at ? "border-green-500/30 text-green-500" : "border-destructive/30 text-destructive"}`}>
+                                <Mail className="h-3 w-3 mr-1" />{u.email_confirmed_at ? "✓" : "✗"}
+                              </Badge>
+                              <Badge variant="outline" className={`text-[10px] ${u.phone_verified ? "border-green-500/30 text-green-500" : "border-muted-foreground/30 text-muted-foreground"}`}>
+                                <Phone className="h-3 w-3 mr-1" />{u.phone_verified ? "✓" : "✗"}
+                              </Badge>
+                            </div>
                            </TableCell>
                            <TableCell className="text-right">
                              <div className="flex justify-end gap-1">
