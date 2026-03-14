@@ -494,30 +494,70 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims) {
-      return new Response(JSON.stringify({ error: "Token inválido" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const userId = claimsData.claims.sub as string;
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY não configurada");
 
     const body = await req.json();
-    const { messages, agent, extraSystemPrompt } = body;
+    const { messages, agent, extraSystemPrompt, stream: shouldStream = true, user_id: bodyUserId } = body;
+
+    // Allow service-role calls with explicit user_id (for WhatsApp integration)
+    let userId: string;
+    if (bodyUserId && token === serviceRoleKey) {
+      userId = bodyUserId;
+    } else {
+      const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
+      if (claimsErr || !claimsData?.claims) {
+        return new Response(JSON.stringify({ error: "Token inválido" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      userId = claimsData.claims.sub as string;
+    }
 
     const agentType = agent || "fit";
     let systemPrompt = AGENT_PROMPTS[agentType] || AGENT_PROMPTS.fit;
     if (extraSystemPrompt) {
       systemPrompt += `\n\nCONTEXTO ADICIONAL:\n${extraSystemPrompt}`;
+    }
+
+    // ── Helper: make AI call (streaming or JSON) ──
+    async function makeFinalCall(msgs: any[]) {
+      const finalResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: msgs,
+          stream: shouldStream,
+        }),
+      });
+      if (!finalResp.ok) {
+        const t = await finalResp.text();
+        console.error("AI gateway error (final):", finalResp.status, t);
+        throw new Error("Erro na resposta final");
+      }
+      if (shouldStream) {
+        return new Response(finalResp.body, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+        });
+      } else {
+        const result = await finalResp.json();
+        const content = result.choices?.[0]?.message?.content || "";
+        return new Response(JSON.stringify({ content }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // ── Step 1: First AI call with tools ──
@@ -554,24 +594,9 @@ serve(async (req) => {
     const firstResult = await firstResp.json();
     const assistantMessage = firstResult.choices?.[0]?.message;
 
-    // ── If no tool calls, stream the final response ──
+    // ── If no tool calls, make final call ──
     if (!assistantMessage?.tool_calls?.length) {
-      const streamResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [{ role: "system", content: systemPrompt }, ...messages],
-          stream: true,
-        }),
-      });
-      if (!streamResp.ok) throw new Error("Erro ao gerar resposta");
-      return new Response(streamResp.body, {
-        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-      });
+      return await makeFinalCall([{ role: "system", content: systemPrompt }, ...messages]);
     }
 
     // ── Step 2: Execute all tool calls in parallel ──
@@ -590,34 +615,13 @@ serve(async (req) => {
       })
     );
 
-    // ── Step 3: Final AI call with tool results — streamed ──
-    const finalResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-          assistantMessage,
-          ...toolResults,
-        ],
-        stream: true,
-      }),
-    });
-
-    if (!finalResp.ok) {
-      const t = await finalResp.text();
-      console.error("AI gateway error (step 3):", finalResp.status, t);
-      throw new Error("Erro na resposta final");
-    }
-
-    return new Response(finalResp.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-    });
+    // ── Step 3: Final AI call with tool results ──
+    return await makeFinalCall([
+      { role: "system", content: systemPrompt },
+      ...messages,
+      assistantMessage,
+      ...toolResults,
+    ]);
   } catch (e) {
     console.error("agent-orchestrator error:", e);
     return new Response(

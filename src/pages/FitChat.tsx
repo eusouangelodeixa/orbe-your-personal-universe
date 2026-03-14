@@ -17,6 +17,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   created_at: string;
+  source?: string;
 }
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/fit-chat`;
@@ -40,7 +41,12 @@ export default function FitChat() {
   useEffect(() => { scrollRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
   const loadMessages = async () => {
-    const { data } = await supabase.from("fit_chat_messages" as any).select("*").eq("user_id", user!.id).order("created_at", { ascending: true });
+    const { data } = await supabase
+      .from("agent_chat_messages" as any)
+      .select("*")
+      .eq("user_id", user!.id)
+      .eq("agent", "fit")
+      .order("created_at", { ascending: true });
     setMessages((data as any) || []);
     setLoading(false);
   };
@@ -54,7 +60,7 @@ export default function FitChat() {
     const tempUserMsg: Message = { id: crypto.randomUUID(), role: "user", content: userMsg, created_at: new Date().toISOString() };
     setMessages(prev => [...prev, tempUserMsg]);
 
-    await supabase.from("fit_chat_messages" as any).insert({ user_id: user!.id, role: "user", content: userMsg } as any);
+    await supabase.from("agent_chat_messages" as any).insert({ user_id: user!.id, agent: "fit", role: "user", content: userMsg, source: "web" } as any);
 
     let assistantContent = "";
     const tempAssistantId = crypto.randomUUID();
@@ -63,7 +69,6 @@ export default function FitChat() {
       const session = await supabase.auth.getSession();
       const token = session.data.session?.access_token;
 
-      // Include context about active plans for plan adjustment
       let extraContext = "";
       const [workoutRes, mealRes] = await Promise.all([
         supabase.from("fit_workout_plans" as any).select("title, plan_data").eq("user_id", user!.id).eq("active", true).maybeSingle(),
@@ -121,7 +126,7 @@ export default function FitChat() {
       }
 
       if (assistantContent) {
-        await supabase.from("fit_chat_messages" as any).insert({ user_id: user!.id, role: "assistant", content: assistantContent } as any);
+        await supabase.from("agent_chat_messages" as any).insert({ user_id: user!.id, agent: "fit", role: "assistant", content: assistantContent, source: "web" } as any);
       }
     } catch (err) {
       console.error("Chat error:", err);
@@ -131,7 +136,7 @@ export default function FitChat() {
   };
 
   const clearChat = async () => {
-    await supabase.from("fit_chat_messages" as any).delete().eq("user_id", user!.id);
+    await supabase.from("agent_chat_messages" as any).delete().eq("user_id", user!.id).eq("agent", "fit");
     setMessages([]);
     toast.success("Histórico limpo");
   };
@@ -180,6 +185,9 @@ export default function FitChat() {
                     ? "bg-primary text-primary-foreground rounded-br-md"
                     : "bg-muted rounded-bl-md"
                 }`}>
+                  {msg.source === "whatsapp" && (
+                    <span className="text-[10px] opacity-60 block mb-1">📱 via WhatsApp</span>
+                  )}
                   {msg.content ? (
                     msg.role === "assistant" ? (
                       <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:mb-2 [&>ul]:mb-2 [&>ol]:mb-2">
