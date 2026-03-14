@@ -1575,16 +1575,84 @@ serve(async (req) => {
 
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
-      .select("user_id, display_name, phone, phone_verified, currency")
+      .select("user_id, display_name, phone, phone_verified, currency, created_at, updated_at")
       .eq("phone_verified", true);
 
     if (profilesError) throw profilesError;
 
-    const profile = (profiles || []).find((p: any) => {
+    const matchingProfiles = (profiles || []).filter((p: any) => {
       const pNorm = normalizePhone(p.phone);
       const pNoCc = stripCountryCode(pNorm);
       return pNorm === incomingPhone || pNoCc === incomingPhoneNoCc;
     });
+
+    let profile = matchingProfiles[0] || null;
+
+    if (matchingProfiles.length > 1) {
+      const now = brNow();
+      const month = now.getMonth() + 1;
+      const year = now.getFullYear();
+
+      const scoredProfiles = await Promise.all(
+        matchingProfiles.map(async (candidate: any) => {
+          const uid = candidate.user_id;
+          const [
+            expensesMonthRes,
+            incomesMonthRes,
+            expensesTotalRes,
+            incomesTotalRes,
+            walletsTotalRes,
+            goalsTotalRes,
+          ] = await Promise.all([
+            supabase.from("expenses").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("month", month).eq("year", year),
+            supabase.from("incomes").select("id", { count: "exact", head: true }).eq("user_id", uid).eq("month", month).eq("year", year),
+            supabase.from("expenses").select("id", { count: "exact", head: true }).eq("user_id", uid),
+            supabase.from("incomes").select("id", { count: "exact", head: true }).eq("user_id", uid),
+            supabase.from("wallets").select("id", { count: "exact", head: true }).eq("user_id", uid),
+            supabase.from("savings_goals").select("id", { count: "exact", head: true }).eq("user_id", uid),
+          ]);
+
+          const expensesMonth = expensesMonthRes.count || 0;
+          const incomesMonth = incomesMonthRes.count || 0;
+          const expensesTotal = expensesTotalRes.count || 0;
+          const incomesTotal = incomesTotalRes.count || 0;
+          const walletsTotal = walletsTotalRes.count || 0;
+          const goalsTotal = goalsTotalRes.count || 0;
+
+          const activityScore =
+            (expensesMonth + incomesMonth) * 20 +
+            (walletsTotal + goalsTotal) * 10 +
+            (expensesTotal + incomesTotal);
+
+          return {
+            ...candidate,
+            _activityScore: activityScore,
+          };
+        })
+      );
+
+      scoredProfiles.sort((a: any, b: any) => {
+        if (b._activityScore !== a._activityScore) {
+          return b._activityScore - a._activityScore;
+        }
+
+        const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+        const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+        return bTime - aTime;
+      });
+
+      profile = scoredProfiles[0] || profile;
+
+      console.warn("Multiple verified profiles matched incoming phone. Selected by activity score.", {
+        incomingPhone,
+        candidates: scoredProfiles.map((p: any) => ({
+          user_id: p.user_id,
+          display_name: p.display_name,
+          activityScore: p._activityScore,
+        })),
+        selected_user_id: profile?.user_id,
+      });
+    }
 
     if (!profile) {
       console.log(`Unknown phone. incoming=${incomingPhone} (raw=${phone})`);
