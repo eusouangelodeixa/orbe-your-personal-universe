@@ -97,11 +97,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data, error } = await supabase.functions.invoke("check-subscription");
       if (error) { console.error("check-subscription error:", error); return; }
       if (data) {
-        // Lojou returns plan directly as string (basic/student/full/fit)
-        const isLojou = data.provider === "lojou";
+        // Internal providers (lojou/manual) return plan directly as string
+        const isInternalProvider = data.provider === "lojou" || data.provider === "manual";
         const plan = data.is_admin
           ? "full" as PlanKey
-          : isLojou && data.plan
+          : isInternalProvider && data.plan
             ? data.plan as PlanKey
             : (data.trial && !data.product_id ? "full" as PlanKey : productToPlan(data.product_id));
         setSubscription({
