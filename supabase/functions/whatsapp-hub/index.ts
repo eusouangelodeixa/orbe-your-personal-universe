@@ -231,12 +231,13 @@ async function downloadMediaFromUazapi(uazapiUrl: string, uazapiToken: string, m
   }
 
   // Some UAZAPI versions return a URL to the decrypted file
-  if (data.url || data.mediaUrl || data.data?.url) {
-    const mediaUrl = data.url || data.mediaUrl || data.data?.url;
-    const mediaRes = await fetch(mediaUrl);
+  const fileUrl = data.fileURL || data.fileUrl || data.url || data.mediaUrl || data.data?.fileURL || data.data?.url;
+  if (fileUrl) {
+    console.log(`UAZAPI returned file URL, downloading: ${fileUrl}`);
+    const mediaRes = await fetch(fileUrl);
     if (!mediaRes.ok) throw new Error(`Failed to fetch decrypted media [${mediaRes.status}]`);
     const buffer = new Uint8Array(await mediaRes.arrayBuffer());
-    const ct = mediaRes.headers.get("content-type") || "audio/ogg";
+    const ct = data.mimetype || data.mimeType || mediaRes.headers.get("content-type") || "audio/ogg";
     return { base64: uint8ToBase64(buffer), mimeType: ct.split(";")[0].trim() };
   }
 
