@@ -496,6 +496,29 @@ function parseFallbackIntent(text: string) {
 
 // ========== AGENT ORCHESTRATOR CALLER ==========
 
+function extractAgentCommandContext(text: string) {
+  const raw = safeString(text).trim();
+  const activationPrefixRe = /^\s*(?:(?:quero\s+)?(?:falar|conectar|chamar|abrir|iniciar)\s+(?:com\s+)?(?:o\s+)?)?(personal|nutricionista|consultor(?:\s+financeiro)?|financeiro|tutor(?:\s+de\s+estudos)?|estudos)\b[\s:,.!?-]*/i;
+  const match = raw.match(activationPrefixRe);
+
+  if (!match) {
+    return {
+      switchKeyword: null as string | null,
+      isActivationCommand: false,
+      queryText: raw,
+    };
+  }
+
+  const switchKeyword = normalizeText(match[1]);
+  const remainder = raw.slice(match[0].length).trim();
+
+  return {
+    switchKeyword,
+    isActivationCommand: remainder.length === 0,
+    queryText: remainder,
+  };
+}
+
 async function callAgentOrchestrator(supabase: any, userId: string, agent: string, userMessage: string): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
