@@ -82,7 +82,7 @@ serve(async (req) => {
         `💪 Plano de treino e dieta personalizados\n` +
         `✅ Gerenciamento de tarefas\n\n` +
         `Para continuar usando o ORBE sem interrupções, escolha seu plano:\n` +
-        `👉 https://apporbe.lovable.app/auth\n\n` +
+        `👉 https://apporbe.com.br\n\n` +
         `Temos planos a partir de R$19/mês (ou 229 MT).\n\n` +
         `Qualquer dúvida, é só mandar mensagem aqui! 🚀`;
 
