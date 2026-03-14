@@ -1437,7 +1437,7 @@ serve(async (req) => {
 
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
-      .select("user_id, display_name, phone, phone_verified")
+      .select("user_id, display_name, phone, phone_verified, currency")
       .eq("phone_verified", true);
 
     if (profilesError) throw profilesError;
