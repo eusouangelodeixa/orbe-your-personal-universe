@@ -8,8 +8,38 @@ const corsHeaders = {
 
 // ========== HELPERS ==========
 
+const CURRENCY_CONFIG: Record<string, { symbol: string; locale: string; decimals: number }> = {
+  BRL: { symbol: "R$", locale: "pt-BR", decimals: 2 },
+  USD: { symbol: "$", locale: "en-US", decimals: 2 },
+  EUR: { symbol: "€", locale: "de-DE", decimals: 2 },
+  GBP: { symbol: "£", locale: "en-GB", decimals: 2 },
+  MZN: { symbol: "MT", locale: "pt-MZ", decimals: 2 },
+  JPY: { symbol: "¥", locale: "ja-JP", decimals: 0 },
+};
+
+let _userCurrency = "BRL";
+
+function setUserCurrency(code: string) {
+  _userCurrency = CURRENCY_CONFIG[code] ? code : "BRL";
+}
+
+function fmtMoney(v: number, currencyCode?: string) {
+  const code = currencyCode || _userCurrency;
+  const cfg = CURRENCY_CONFIG[code] || CURRENCY_CONFIG.BRL;
+  const formatted = Number(v).toLocaleString(cfg.locale, {
+    style: "currency",
+    currency: code,
+    minimumFractionDigits: cfg.decimals,
+    maximumFractionDigits: cfg.decimals,
+  });
+  // Intl uses "MTn"/"MTN" for MZN; replace with custom symbol
+  if (code === "MZN") return formatted.replace(/MTn|MTN/g, "MT");
+  return formatted;
+}
+
+// Keep backward compat alias
 function fmtBRL(v: number) {
-  return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return fmtMoney(v);
 }
 
 function brNow() {
