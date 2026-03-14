@@ -8,11 +8,18 @@ export function useUserRole() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+
     if (!user) {
       setIsAdmin(false);
       setIsLoading(false);
-      return;
+      return () => {
+        isMounted = false;
+      };
     }
+
+    setIsLoading(true);
+    setIsAdmin(false);
 
     const checkRole = async () => {
       try {
@@ -23,16 +30,23 @@ export function useUserRole() {
           .eq("role", "admin")
           .maybeSingle();
 
+        if (!isMounted) return;
         setIsAdmin(!error && !!data);
       } catch {
+        if (!isMounted) return;
         setIsAdmin(false);
       } finally {
+        if (!isMounted) return;
         setIsLoading(false);
       }
     };
 
     checkRole();
-  }, [user]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
 
   return { isAdmin, isLoading };
 }

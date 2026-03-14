@@ -62,7 +62,7 @@ const taskItems = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isLoading: isRoleLoading } = useUserRole();
   const location = useLocation();
   const { signOut } = useAuth();
 
@@ -190,7 +190,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-3 border-t border-border">
         <SidebarMenu>
-          {isAdmin && (
+          {!isRoleLoading && isAdmin && (
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
                 <NavLink
