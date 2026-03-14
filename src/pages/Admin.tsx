@@ -382,7 +382,56 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          {/* CONTENT */}
+          {/* Plan Assignment Dialog */}
+          <Dialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
+            <DialogContent className="bg-card border-border">
+              <DialogHeader>
+                <DialogTitle className="text-foreground font-display">Atribuir Plano Manual</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">Usuário: <span className="text-foreground font-medium">{planTargetUser?.email}</span></p>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Plano</label>
+                  <Select value={planForm.plan} onValueChange={(v) => setPlanForm(p => ({ ...p, plan: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="basic">Basic</SelectItem>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="full">Full</SelectItem>
+                      <SelectItem value="fit">Fit Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Período</label>
+                  <Select value={planForm.period} onValueChange={(v) => setPlanForm(p => ({ ...p, period: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mensal">Mensal</SelectItem>
+                      <SelectItem value="trimestral">Trimestral</SelectItem>
+                      <SelectItem value="anual">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Duração (dias)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={730}
+                    value={planForm.days}
+                    onChange={(e) => setPlanForm(p => ({ ...p, days: e.target.value }))}
+                    placeholder="30"
+                  />
+                </div>
+                <Button onClick={handleAssignPlan} disabled={assigningPlan || !planForm.days} className="w-full">
+                  {assigningPlan ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+                  Atribuir Plano
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <TabsContent value="content" className="space-y-4">
             <Card className="bg-card border-border">
               <CardHeader className="flex flex-row items-center justify-between">
