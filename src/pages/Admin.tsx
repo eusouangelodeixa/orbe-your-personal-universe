@@ -7,7 +7,7 @@ import { Navigate } from "react-router-dom";
 import {
   Loader2, Users, BarChart3, FolderCog, Activity, Shield, Mail, Phone,
   Calendar, CheckCircle2, XCircle, Trash2, Plus, Pencil, Link2, DollarSign,
-  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown, Globe
+  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown, Globe, UserPlus
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -93,6 +94,10 @@ export default function Admin() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [settingEdits, setSettingEdits] = useState<Record<string, Record<string, any>>>({});
   const [savingSettings, setSavingSettings] = useState<Record<string, boolean>>({});
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
+  const [planTargetUser, setPlanTargetUser] = useState<{ id: string; email: string } | null>(null);
+  const [planForm, setPlanForm] = useState({ plan: "full", period: "mensal", days: "30" });
+  const [assigningPlan, setAssigningPlan] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -186,6 +191,44 @@ export default function Admin() {
   const openEditCat = (cat: Category) => { setEditingCat(cat); setCatName(cat.name); setCatColor(cat.color || "#E87C1E"); setCatIcon(cat.icon || ""); setShowCatDialog(true); };
   const openNewCat = () => { setEditingCat(null); setCatName(""); setCatColor("#E87C1E"); setCatIcon(""); setShowCatDialog(true); };
 
+  const openPlanDialog = (u: { id: string; email: string }) => {
+    setPlanTargetUser(u);
+    setPlanForm({ plan: "full", period: "mensal", days: "30" });
+    setShowPlanDialog(true);
+  };
+
+  const handleAssignPlan = async () => {
+    if (!planTargetUser) return;
+    setAssigningPlan(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke("admin-data?action=assign-plan", {
+        body: { user_id: planTargetUser.id, plan: planForm.plan, plan_period: planForm.period, duration_days: Number(planForm.days) },
+      });
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+      toast.success(`Plano ${planForm.plan} atribuído a ${planTargetUser.email}`);
+      setShowPlanDialog(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao atribuir plano");
+    } finally {
+      setAssigningPlan(false);
+    }
+  };
+
+  const handleRemovePlan = async (userId: string, email: string) => {
+    try {
+      const { error } = await supabase.functions.invoke("admin-data?action=remove-plan", {
+        body: { user_id: userId },
+      });
+      if (error) throw error;
+      toast.success(`Plano manual removido de ${email}`);
+      fetchData();
+    } catch {
+      toast.error("Erro ao remover plano");
+    }
+  };
+
   if (authLoading || loading || roleLoading) {
     return <AppLayout><div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
@@ -276,7 +319,8 @@ export default function Admin() {
                       <TableHead className="text-muted-foreground">Plano</TableHead>
                       <TableHead className="text-muted-foreground">Cadastro</TableHead>
                       <TableHead className="text-muted-foreground">Último Acesso</TableHead>
-                      <TableHead className="text-muted-foreground">Verificação</TableHead>
+                       <TableHead className="text-muted-foreground">Verificação</TableHead>
+                       <TableHead className="text-muted-foreground text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -316,8 +360,20 @@ export default function Admin() {
                             ) : (
                               <Badge variant="outline" className="border-destructive/30 text-destructive text-[10px]">✗</Badge>
                             )}
-                          </TableCell>
-                        </TableRow>
+                           </TableCell>
+                           <TableCell className="text-right">
+                             <div className="flex justify-end gap-1">
+                               <Button variant="ghost" size="icon" title="Atribuir plano" onClick={() => openPlanDialog({ id: u.id, email: u.email })}>
+                                 <UserPlus className="h-4 w-4 text-primary" />
+                               </Button>
+                               {u.plan_name?.includes("manual") && (
+                                 <Button variant="ghost" size="icon" title="Remover plano manual" onClick={() => handleRemovePlan(u.id, u.email)}>
+                                   <XCircle className="h-4 w-4 text-destructive" />
+                                 </Button>
+                               )}
+                             </div>
+                           </TableCell>
+                         </TableRow>
                       );
                     })}
                   </TableBody>
@@ -326,7 +382,56 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          {/* CONTENT */}
+          {/* Plan Assignment Dialog */}
+          <Dialog open={showPlanDialog} onOpenChange={setShowPlanDialog}>
+            <DialogContent className="bg-card border-border">
+              <DialogHeader>
+                <DialogTitle className="text-foreground font-display">Atribuir Plano Manual</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">Usuário: <span className="text-foreground font-medium">{planTargetUser?.email}</span></p>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Plano</label>
+                  <Select value={planForm.plan} onValueChange={(v) => setPlanForm(p => ({ ...p, plan: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="basic">Basic</SelectItem>
+                      <SelectItem value="student">Student</SelectItem>
+                      <SelectItem value="full">Full</SelectItem>
+                      <SelectItem value="fit">Fit Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Período</label>
+                  <Select value={planForm.period} onValueChange={(v) => setPlanForm(p => ({ ...p, period: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mensal">Mensal</SelectItem>
+                      <SelectItem value="trimestral">Trimestral</SelectItem>
+                      <SelectItem value="anual">Anual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Duração (dias)</label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={730}
+                    value={planForm.days}
+                    onChange={(e) => setPlanForm(p => ({ ...p, days: e.target.value }))}
+                    placeholder="30"
+                  />
+                </div>
+                <Button onClick={handleAssignPlan} disabled={assigningPlan || !planForm.days} className="w-full">
+                  {assigningPlan ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <UserPlus className="h-4 w-4 mr-2" />}
+                  Atribuir Plano
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           <TabsContent value="content" className="space-y-4">
             <Card className="bg-card border-border">
               <CardHeader className="flex flex-row items-center justify-between">
