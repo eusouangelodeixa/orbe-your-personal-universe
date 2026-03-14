@@ -64,7 +64,7 @@ serve(async (req) => {
       // Check if user has verified phone
       const { data: profile } = await supabase
         .from("profiles")
-        .select("phone, phone_verified, display_name")
+        .select("phone, phone_verified, display_name, currency")
         .eq("user_id", user.id)
         .single();
 
@@ -72,6 +72,11 @@ serve(async (req) => {
 
       const phoneNumber = profile.phone.replace(/[^0-9]/g, "");
       const name = profile.display_name?.split(" ")[0] || "Usuário";
+      const isMoz = profile.phone.startsWith("+258") || profile.currency === "MZN";
+
+      const priceInfo = isMoz
+        ? `Temos planos a partir de 229 MT/mês.`
+        : `Temos planos a partir de R$19/mês.`;
 
       const message = `*ORBE*\n\n` +
         `Olá, ${name}! 👋\n\n` +
@@ -83,7 +88,7 @@ serve(async (req) => {
         `✅ Gerenciamento de tarefas\n\n` +
         `Para continuar usando o ORBE sem interrupções, escolha seu plano:\n` +
         `👉 https://apporbe.com.br\n\n` +
-        `Temos planos a partir de R$19/mês (ou 229 MT).\n\n` +
+        `${priceInfo}\n\n` +
         `Qualquer dúvida, é só mandar mensagem aqui! 🚀`;
 
       try {
