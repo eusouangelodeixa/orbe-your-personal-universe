@@ -5,11 +5,26 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function fmtBRL(v: number) {
-  return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+const CURRENCY_CONFIG: Record<string, { symbol: string; locale: string; decimals: number }> = {
+  BRL: { symbol: "R$", locale: "pt-BR", decimals: 2 },
+  USD: { symbol: "$", locale: "en-US", decimals: 2 },
+  EUR: { symbol: "€", locale: "de-DE", decimals: 2 },
+  GBP: { symbol: "£", locale: "en-GB", decimals: 2 },
+  MZN: { symbol: "MT", locale: "pt-MZ", decimals: 2 },
+  JPY: { symbol: "¥", locale: "ja-JP", decimals: 0 },
+};
 
-Deno.serve(async (req) => {
+function fmtMoney(v: number, currencyCode = "BRL") {
+  const cfg = CURRENCY_CONFIG[currencyCode] || CURRENCY_CONFIG.BRL;
+  const formatted = Number(v).toLocaleString(cfg.locale, {
+    style: "currency",
+    currency: currencyCode,
+    minimumFractionDigits: cfg.decimals,
+    maximumFractionDigits: cfg.decimals,
+  });
+  if (currencyCode === "MZN") return formatted.replace(/MTn|MTN/g, "MT");
+  return formatted;
+}
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
