@@ -1,0 +1,1 @@
+UPDATE profiles SET phone_verified = true, updated_at = now() WHERE user_id = '877f03b7-d7f8-4451-8853-9c97200b5797' AND phone_verified = false;
