@@ -1456,6 +1456,7 @@ serve(async (req) => {
     }
 
     const userId = profile.user_id;
+    setUserCurrency(profile.currency || "BRL");
 
     // Deduplicate incoming messages to avoid loops/repeated replies from webhook retries
     if (messageId) {
