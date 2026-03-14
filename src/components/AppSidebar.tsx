@@ -190,7 +190,7 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-3 border-t border-border">
         <SidebarMenu>
-          {isAdmin && (
+          {!isRoleLoading && isAdmin && (
             <SidebarMenuItem>
               <SidebarMenuButton asChild>
                 <NavLink
