@@ -1231,10 +1231,55 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           `• "tarefa: comprar leite amanhã"\n` +
           `• "minhas tarefas"\n` +
           `• "completar tarefa comprar leite"\n\n` +
+          `🤖 *Agentes IA (conversa profunda):*\n` +
+          `• "falar com o personal"\n` +
+          `• "consultor financeiro"\n` +
+          `• "tutor de estudos"\n` +
+          `• "sair" (encerrar sessão)\n\n` +
           `📊 *Geral:*\n` +
           `• "resumo do dia"\n` +
           `• "ajuda"\n\n` +
           `🎤 Também aceito áudio!`;
+      }
+
+      case "agent_chat": {
+        const agentType = params.agent || "fit";
+        const agentLabels: Record<string, string> = {
+          fit: "🏋️ *Personal/Nutricionista*",
+          finance: "💰 *Consultor Financeiro*",
+          studies_central: "📚 *Tutor de Estudos*",
+        };
+
+        // Create agent session (30 min)
+        await supabase.from("whatsapp_pending_actions").insert({
+          user_id: userId,
+          action_type: "agent_session",
+          action_data: { agent: agentType },
+          expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+        });
+
+        // Check if message has a real question beyond activation
+        const justActivation = /^(falar|quero|conectar|chamar|abrir|iniciar)\s+(com\s+)?(o\s+)?(personal|nutricionista|consultor|financeiro|tutor|estudos)/i.test(originalText.trim());
+
+        if (!justActivation && originalText.trim().length > 15) {
+          try {
+            const agentResponse = await withTimeout(
+              callAgentOrchestrator(supabase, userId, agentType, originalText),
+              25000, "agent_first_msg"
+            );
+
+            await supabase.from("agent_chat_messages").insert([
+              { user_id: userId, agent: agentType, role: "user", content: originalText, source: "whatsapp" },
+              { user_id: userId, agent: agentType, role: "assistant", content: agentResponse, source: "whatsapp" },
+            ]);
+
+            return `🔗 ${agentLabels[agentType] || "Agente"} conectado!\n\n${agentResponse}\n\n_Diga *sair* para voltar ao modo normal._`;
+          } catch (e) {
+            console.error("Agent first msg error:", e);
+          }
+        }
+
+        return `🔗 ${agentLabels[agentType] || "Agente"} conectado!\n\nAgora suas mensagens vão direto para o agente com acesso completo aos seus dados.\n\nPergunte o que quiser! Diga *sair* para voltar ao modo normal.`;
       }
 
       case "chat":
