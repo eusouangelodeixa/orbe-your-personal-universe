@@ -1681,9 +1681,35 @@ serve(async (req) => {
         const agentType = agentData?.agent || "fit";
         const exitRe = /^(sair|voltar|encerrar|modo normal|menu)\s*[!.]*$/i;
 
+        // Detect agent-switching requests within an active session
+        const switchMatch = normalizeText(userText).match(
+          /(?:falar|quero|conectar|chamar|abrir|iniciar)\s+(?:com\s+)?(?:o\s+)?(personal|nutricionista|consultor|financeiro|tutor|estudos)/
+        );
+        const agentSwitchMap: Record<string, string> = {
+          personal: "fit", nutricionista: "fit",
+          consultor: "finance", financeiro: "finance",
+          tutor: "studies_central", estudos: "studies_central",
+        };
+        const switchTarget = switchMatch ? agentSwitchMap[switchMatch[1]] : null;
+
         if (exitRe.test(userText.trim())) {
           await supabase.from("whatsapp_pending_actions").delete().eq("id", pending.id);
           responseText = "👋 Sessão encerrada! Voltou ao modo normal.\n\nDiga *ajuda* para ver os comandos disponíveis.";
+        } else if (switchTarget && switchTarget !== agentType) {
+          // Switch to a different agent
+          await supabase.from("whatsapp_pending_actions")
+            .update({
+              action_data: { agent: switchTarget },
+              expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+            })
+            .eq("id", pending.id);
+
+          const agentLabels: Record<string, string> = {
+            fit: "🏋️ *Personal/Nutricionista*",
+            finance: "💰 *Consultor Financeiro*",
+            studies_central: "📚 *Tutor de Estudos*",
+          };
+          responseText = `🔄 Sessão trocada!\n\n🔗 ${agentLabels[switchTarget] || "Agente"} conectado!\n\nAgora suas mensagens vão direto para o novo agente. Pergunte o que quiser! Diga *sair* para voltar ao modo normal.`;
         } else {
           // Refresh session expiry
           await supabase.from("whatsapp_pending_actions")
