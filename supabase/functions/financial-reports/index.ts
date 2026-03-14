@@ -5,9 +5,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function fmtBRL(v: number) {
-  return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
+const CURRENCY_CONFIG: Record<string, { symbol: string; locale: string; decimals: number }> = {
+  BRL: { symbol: "R$", locale: "pt-BR", decimals: 2 },
+  USD: { symbol: "$", locale: "en-US", decimals: 2 },
+  EUR: { symbol: "€", locale: "de-DE", decimals: 2 },
+  GBP: { symbol: "£", locale: "en-GB", decimals: 2 },
+  MZN: { symbol: "MT", locale: "pt-MZ", decimals: 2 },
+  JPY: { symbol: "¥", locale: "ja-JP", decimals: 0 },
+};
+
+function fmtMoney(v: number, currencyCode = "BRL") {
+  const cfg = CURRENCY_CONFIG[currencyCode] || CURRENCY_CONFIG.BRL;
+  const formatted = Number(v).toLocaleString(cfg.locale, {
+    style: "currency",
+    currency: currencyCode,
+    minimumFractionDigits: cfg.decimals,
+    maximumFractionDigits: cfg.decimals,
+  });
+  if (currencyCode === "MZN") return formatted.replace(/MTn|MTN/g, "MT");
+  return formatted;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -31,7 +47,7 @@ Deno.serve(async (req) => {
     // Get all profiles with WhatsApp notifications enabled and verified phone
     const { data: profiles, error: pErr } = await supabase
       .from("profiles")
-      .select("user_id, phone, display_name")
+      .select("user_id, phone, display_name, currency")
       .eq("whatsapp_notifications", true)
       .eq("phone_verified", true)
       .not("phone", "is", null);
@@ -47,6 +63,8 @@ Deno.serve(async (req) => {
 
     for (const profile of profiles) {
       try {
+        const cur = profile.currency || "BRL";
+        const fmt = (v: number) => fmtMoney(v, cur);
         // Get incomes
         const { data: incomes } = await supabase
           .from("incomes")
@@ -97,15 +115,15 @@ Deno.serve(async (req) => {
         let msg = "";
         if (reportType === "weekly") {
           msg = `📊 *Resumo Semanal*\n\n${greeting}\n\n`;
-          msg += `💰 Renda: ${fmtBRL(totalIncome)}\n`;
-          msg += `💸 Gastos: ${fmtBRL(totalExpense)} (${pct}%)\n`;
-          msg += `📌 Pendentes: ${fmtBRL(totalPending)}\n`;
-          msg += `💳 Patrimônio: ${fmtBRL(totalWallets)}\n`;
+          msg += `💰 Renda: ${fmt(totalIncome)}\n`;
+          msg += `💸 Gastos: ${fmt(totalExpense)} (${pct}%)\n`;
+          msg += `📌 Pendentes: ${fmt(totalPending)}\n`;
+          msg += `💳 Patrimônio: ${fmt(totalWallets)}\n`;
 
           if (overdue.length > 0) {
             msg += `\n⚠️ *${overdue.length} conta(s) vencida(s):*\n`;
             overdue.slice(0, 5).forEach(e => {
-              msg += `  • ${e.name} — ${fmtBRL(Number(e.amount))}\n`;
+              msg += `  • ${e.name} — ${fmt(Number(e.amount))}\n`;
             });
           }
 
@@ -113,19 +131,19 @@ Deno.serve(async (req) => {
             msg += `\n🔔 *Vencendo em breve:*\n`;
             upcoming.slice(0, 5).forEach(e => {
               const d = new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR");
-              msg += `  • ${e.name} — ${fmtBRL(Number(e.amount))} (${d})\n`;
+              msg += `  • ${e.name} — ${fmt(Number(e.amount))} (${d})\n`;
             });
           }
         } else {
           // Monthly
           msg = `📈 *Relatório Mensal — ${monthName}*\n\n${greeting}\n\n`;
-          msg += `💰 Renda total: ${fmtBRL(totalIncome)}\n`;
-          msg += `💸 Total gastos: ${fmtBRL(totalExpense)}\n`;
-          msg += `✅ Pagos: ${fmtBRL(totalPaid)}\n`;
-          msg += `⏳ Pendentes: ${fmtBRL(totalPending)}\n`;
+          msg += `💰 Renda total: ${fmt(totalIncome)}\n`;
+          msg += `💸 Total gastos: ${fmt(totalExpense)}\n`;
+          msg += `✅ Pagos: ${fmt(totalPaid)}\n`;
+          msg += `⏳ Pendentes: ${fmt(totalPending)}\n`;
           msg += `📊 Comprometimento: ${pct}%\n`;
-          msg += `${balance >= 0 ? "✅" : "🔴"} Saldo: ${fmtBRL(balance)}\n`;
-          msg += `💳 Patrimônio: ${fmtBRL(totalWallets)}\n`;
+          msg += `${balance >= 0 ? "✅" : "🔴"} Saldo: ${fmt(balance)}\n`;
+          msg += `💳 Patrimônio: ${fmt(totalWallets)}\n`;
 
           // By category
           const byCat: Record<string, number> = {};
@@ -137,7 +155,7 @@ Deno.serve(async (req) => {
           if (sorted.length > 0) {
             msg += `\n📂 *Por categoria:*\n`;
             sorted.slice(0, 8).forEach(([cat, val]) => {
-              msg += `  • ${cat}: ${fmtBRL(val)}\n`;
+              msg += `  • ${cat}: ${fmt(val)}\n`;
             });
           }
         }

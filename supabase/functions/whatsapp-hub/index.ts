@@ -8,8 +8,38 @@ const corsHeaders = {
 
 // ========== HELPERS ==========
 
+const CURRENCY_CONFIG: Record<string, { symbol: string; locale: string; decimals: number }> = {
+  BRL: { symbol: "R$", locale: "pt-BR", decimals: 2 },
+  USD: { symbol: "$", locale: "en-US", decimals: 2 },
+  EUR: { symbol: "€", locale: "de-DE", decimals: 2 },
+  GBP: { symbol: "£", locale: "en-GB", decimals: 2 },
+  MZN: { symbol: "MT", locale: "pt-MZ", decimals: 2 },
+  JPY: { symbol: "¥", locale: "ja-JP", decimals: 0 },
+};
+
+let _userCurrency = "BRL";
+
+function setUserCurrency(code: string) {
+  _userCurrency = CURRENCY_CONFIG[code] ? code : "BRL";
+}
+
+function fmtMoney(v: number, currencyCode?: string) {
+  const code = currencyCode || _userCurrency;
+  const cfg = CURRENCY_CONFIG[code] || CURRENCY_CONFIG.BRL;
+  const formatted = Number(v).toLocaleString(cfg.locale, {
+    style: "currency",
+    currency: code,
+    minimumFractionDigits: cfg.decimals,
+    maximumFractionDigits: cfg.decimals,
+  });
+  // Intl uses "MTn"/"MTN" for MZN; replace with custom symbol
+  if (code === "MZN") return formatted.replace(/MTn|MTN/g, "MT");
+  return formatted;
+}
+
+// Keep backward compat alias
 function fmtBRL(v: number) {
-  return `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return fmtMoney(v);
 }
 
 function brNow() {
@@ -380,7 +410,7 @@ REGRAS:
 - Se não entender a intenção, use action "chat" e responda normalmente
 - Para "ajuda" ou mensagens vagas, use action "help"
 - reply_text deve ser amigável, curto e usar emojis
-- Valores financeiros em BRL
+- Valores financeiros na moeda do usuário (informada no contexto)
 - Se o usuário pedir resumo do dia, use "daily_summary"
 - Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente
 - IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".
@@ -1407,7 +1437,7 @@ serve(async (req) => {
 
     const { data: profiles, error: profilesError } = await supabase
       .from("profiles")
-      .select("user_id, display_name, phone, phone_verified")
+      .select("user_id, display_name, phone, phone_verified, currency")
       .eq("phone_verified", true);
 
     if (profilesError) throw profilesError;
@@ -1426,6 +1456,7 @@ serve(async (req) => {
     }
 
     const userId = profile.user_id;
+    setUserCurrency(profile.currency || "BRL");
 
     // Deduplicate incoming messages to avoid loops/repeated replies from webhook retries
     if (messageId) {
@@ -1686,7 +1717,9 @@ serve(async (req) => {
     if (!skipNormalFlow) {
       // Build context for AI
       const nome = profile.display_name?.split(" ")[0] || "Usuário";
-      let context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
+      const userCurrencyCode = profile.currency || "BRL";
+      const userCurrencySymbol = CURRENCY_CONFIG[userCurrencyCode]?.symbol || "R$";
+      let context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}\nMoeda do usuário: ${userCurrencyCode} (${userCurrencySymbol}). Use SEMPRE esta moeda ao falar de valores financeiros.`;
 
       // Add today's pending tasks as context so the AI knows about them
       try {
