@@ -432,7 +432,13 @@ REGRAS:
 - Mantenha respostas CONCISAS e FOCADAS no que foi perguntado. Máximo 10-15 linhas no WhatsApp.
 - MUITO IMPORTANTE: Leve em conta o HISTÓRICO DE CONVERSA recente. Se o usuário está respondendo a uma pergunta anterior, CONECTE com o contexto anterior.
 - MUITO IMPORTANTE: Se a última mensagem do assistente no histórico foi um LEMBRETE DE TAREFA (ex: "Você tem tarefa pra hoje: Comprar leite") e o usuário responde com algo como "já fiz", "feito", "já comprei", "pronto", "concluído" → a intenção é COMPLETAR A TAREFA (complete_task), NÃO registrar gasto. Preencha params.task_title com o título da tarefa mencionada no lembrete.
-- NUNCA invente dados que não estão na mensagem. Se o usuário diz "já comprei" sem mencionar valor, NÃO crie um gasto com valor inventado. Verifique se faz sentido como conclusão de tarefa primeiro.`;
+- NUNCA invente dados que não estão na mensagem. Se o usuário diz "já comprei" sem mencionar valor, NÃO crie um gasto com valor inventado. Verifique se faz sentido como conclusão de tarefa primeiro.
+- IMPORTANTE: Quando o usuário quiser CONVERSAR com um agente especialista, use action "agent_chat":
+  • "falar com personal", "nutricionista", "quero o personal", "personal me ajuda" → agent_chat com params.agent = "fit"
+  • "falar com consultor", "consultor financeiro", "análise financeira detalhada" → agent_chat com params.agent = "finance"
+  • "falar com tutor", "tutor de estudos", "me ajuda com as matérias" → agent_chat com params.agent = "studies_central"
+  • Perguntas que exigem análise PROFUNDA com cruzamento de dados (ex: "analisa minha evolução", "monta um plano de estudos") → sugira agent_chat.
+  • Ações rápidas (registrar gasto, ver saldo, criar tarefa) NÃO precisam de agent_chat — use as ações normais.`;
 
   const result = await callAI(apiKey, systemPrompt, text, INTENT_TOOLS, { type: "function", function: { name: "execute_action" } }, chatHistory);
 
