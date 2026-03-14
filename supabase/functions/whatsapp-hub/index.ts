@@ -231,12 +231,13 @@ async function downloadMediaFromUazapi(uazapiUrl: string, uazapiToken: string, m
   }
 
   // Some UAZAPI versions return a URL to the decrypted file
-  if (data.url || data.mediaUrl || data.data?.url) {
-    const mediaUrl = data.url || data.mediaUrl || data.data?.url;
-    const mediaRes = await fetch(mediaUrl);
+  const fileUrl = data.fileURL || data.fileUrl || data.url || data.mediaUrl || data.data?.fileURL || data.data?.url;
+  if (fileUrl) {
+    console.log(`UAZAPI returned file URL, downloading: ${fileUrl}`);
+    const mediaRes = await fetch(fileUrl);
     if (!mediaRes.ok) throw new Error(`Failed to fetch decrypted media [${mediaRes.status}]`);
     const buffer = new Uint8Array(await mediaRes.arrayBuffer());
-    const ct = mediaRes.headers.get("content-type") || "audio/ogg";
+    const ct = data.mimetype || data.mimeType || mediaRes.headers.get("content-type") || "audio/ogg";
     return { base64: uint8ToBase64(buffer), mimeType: ct.split(";")[0].trim() };
   }
 
@@ -292,8 +293,8 @@ async function transcribeAudio(_apiKey: string, audioBase64: string, mimeType = 
 
   if (!res.ok) {
     const t = await res.text();
-    console.error("OpenAI Whisper transcription error:", res.status, t);
-    throw new Error(`Não consegui transcrever o áudio [${res.status}]`);
+    console.error("OpenAI Whisper transcription error:", res.status, t, `mime=${cleanMime}, ext=${ext}, bytes=${bytes.length}`);
+    throw new Error(`Não consegui transcrever o áudio [${res.status}]: ${t.slice(0, 200)}`);
   }
 
   const data = await res.json();
