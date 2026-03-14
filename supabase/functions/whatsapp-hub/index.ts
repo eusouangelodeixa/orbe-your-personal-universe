@@ -578,6 +578,84 @@ async function callAgentOrchestrator(supabase: any, userId: string, agent: strin
   return content?.trim() || "Desculpe, não consegui gerar uma resposta.";
 }
 
+async function maybeOverrideFinanceEmptyReply(
+  supabase: any,
+  userId: string,
+  userMessage: string,
+  agentReply: string,
+): Promise<string> {
+  const normalizedReply = normalizeText(agentReply);
+  const looksEmptyDataReply =
+    normalizedReply.includes("historico financeiro") ||
+    normalizedReply.includes("historico vazio") ||
+    normalizedReply.includes("nao identifiquei gastos") ||
+    normalizedReply.includes("nao existem registros de gastos") ||
+    normalizedReply.includes("saldo") && normalizedReply.includes("r$ 0,00") ||
+    normalizedReply.includes("fluxo zerado");
+
+  if (!looksEmptyDataReply) return agentReply;
+
+  const now = brNow();
+  const month = now.getMonth() + 1;
+  const year = now.getFullYear();
+
+  const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
+    supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("expenses").select("name, amount, paid").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("wallets").select("name, balance").eq("user_id", userId),
+    supabase.from("savings_goals").select("name, target_amount, current_amount").eq("user_id", userId),
+  ]);
+
+  const incomes = incomesRes.data || [];
+  const expenses = expensesRes.data || [];
+  const wallets = walletsRes.data || [];
+  const goals = goalsRes.data || [];
+
+  const hasData = incomes.length > 0 || expenses.length > 0 || wallets.length > 0 || goals.length > 0;
+  if (!hasData) return agentReply;
+
+  const totalIncome = incomes.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
+  const totalExpenses = expenses.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
+  const totalWallets = wallets.reduce((sum: number, row: any) => sum + Number(row.balance || 0), 0);
+  const maiorGasto = [...expenses].sort((a: any, b: any) => Number(b.amount || 0) - Number(a.amount || 0))[0] || null;
+  const mainGoal = goals.find((g: any) => Number(g.target_amount || 0) >= 10000) || goals[0] || null;
+
+  const lines: string[] = [];
+  lines.push(`Revisei seus dados reais de ${month}/${year} e encontrei movimentações no sistema.`);
+
+  if (maiorGasto) {
+    lines.push(`📌 Maior gasto do mês: *${maiorGasto.name}* (${fmtBRL(Number(maiorGasto.amount || 0))}).`);
+  }
+
+  lines.push(`💰 Renda: ${fmtBRL(totalIncome)} | Gastos: ${fmtBRL(totalExpenses)} | Saldo em carteiras: ${fmtBRL(totalWallets)}.`);
+
+  if (mainGoal) {
+    const target = Number(mainGoal.target_amount || 0);
+    const current = Number(mainGoal.current_amount || 0);
+    const missing = Math.max(target - current, 0);
+    lines.push(`🎯 Meta *${mainGoal.name}*: ${fmtBRL(current)} de ${fmtBRL(target)} (faltam ${fmtBRL(missing)}).`);
+  }
+
+  if (normalizeText(userMessage).includes("economizar") || normalizeText(userMessage).includes("meta")) {
+    const potentialCut = maiorGasto ? Math.round(Number(maiorGasto.amount || 0) * 0.15 * 100) / 100 : 0;
+    if (potentialCut > 0) {
+      lines.push(`✅ Corte inicial sugerido: reduzir ~15% do maior gasto já libera cerca de ${fmtBRL(potentialCut)}/mês para acelerar sua meta.`);
+    }
+  }
+
+  console.warn("Finance empty-reply overridden with factual DB summary", {
+    userId,
+    month,
+    year,
+    incomes: incomes.length,
+    expenses: expenses.length,
+    wallets: wallets.length,
+    goals: goals.length,
+  });
+
+  return lines.join("\n");
+}
+
 // ========== ACTION EXECUTORS ==========
 
 async function executeAction(supabase: any, userId: string, intent: any, originalText = ""): Promise<string> {
