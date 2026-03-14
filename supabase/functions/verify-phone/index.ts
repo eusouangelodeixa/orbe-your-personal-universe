@@ -163,17 +163,30 @@ serve(async (req) => {
       }
 
       // Update profile: set phone and phone_verified
-      const { error: profileErr, count } = await adminClient
+      const { data: updatedRows, error: profileErr } = await adminClient
         .from("profiles")
         .update({ phone, phone_verified: true, updated_at: new Date().toISOString() })
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .select("id, user_id, phone_verified");
 
       if (profileErr) {
         console.error("[verify-phone] Error updating profile:", JSON.stringify(profileErr));
         return jsonResponse({ error: "Telefone verificado mas erro ao atualizar perfil. Tente recarregar." }, 500);
       }
       
-      console.log(`[verify-phone] Profile updated for user ${userId}, phone_verified=true`);
+      if (!updatedRows || updatedRows.length === 0) {
+        console.error(`[verify-phone] Profile update matched 0 rows for user ${userId}. Creating profile.`);
+        // Profile might not exist yet - create it
+        const { error: insertErr } = await adminClient
+          .from("profiles")
+          .insert({ user_id: userId, phone, phone_verified: true });
+        if (insertErr) {
+          console.error("[verify-phone] Profile insert error:", JSON.stringify(insertErr));
+          return jsonResponse({ error: "Erro ao criar perfil com telefone verificado." }, 500);
+        }
+        console.log(`[verify-phone] Created profile for user ${userId} with phone_verified=true`);
+      } else {
+        console.log(`[verify-phone] Profile updated for user ${userId}, rows=${updatedRows.length}, phone_verified=${updatedRows[0]?.phone_verified}`);
 
       return jsonResponse({ success: true, message: "Telefone verificado com sucesso!" });
     }
