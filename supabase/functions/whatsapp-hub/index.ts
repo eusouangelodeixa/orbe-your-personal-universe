@@ -384,6 +384,7 @@ REGRAS:
 - Se o usuário pedir resumo do dia, use "daily_summary"
 - Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente
 - IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".
+- IMPORTANTE: Para gastos (add_expense), se o usuário mencionar de qual carteira/banco o dinheiro saiu, preencha params.wallet_name. Se NÃO mencionar, deixe wallet_name VAZIO — o sistema vai perguntar automaticamente de qual carteira saiu. NÃO invente o nome da carteira.
 - IMPORTANTE: DIFERENCIE entre EVENTOS ACADÊMICOS e TAREFAS GENÉRICAS:
   • Provas, trabalhos, seminários, apresentações, entregas de disciplina, atividades acadêmicas → use "add_event" (módulo estudos). Preencha params.subject_name com a disciplina, params.type com "prova", "trabalho" ou "seminario", e params.due_date com a data.
   • Tarefas do dia-a-dia (comprar algo, ligar, pagar, resolver algo pessoal) → use "add_task" (módulo tarefas).
@@ -478,19 +479,58 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
             categoryId = cats[0].id;
           }
         }
+
+        // Fetch user's wallets
+        const { data: userWallets } = await supabase.from("wallets")
+          .select("id, name, balance")
+          .eq("user_id", userId)
+          .order("is_default", { ascending: false });
+
         // Look up wallet by name if provided
         let walletId: string | null = null;
-        if (params.wallet_name) {
-          const { data: wallets } = await supabase.from("wallets")
-            .select("id, name")
-            .eq("user_id", userId)
-            .ilike("name", `%${params.wallet_name}%`)
-            .limit(1);
-          if (wallets?.length) {
-            walletId = wallets[0].id;
+        let walletName: string | null = null;
+        if (params.wallet_name && userWallets?.length) {
+          const normalizedInput = normalizeText(params.wallet_name);
+          const found = userWallets.find((w: any) =>
+            normalizeText(w.name).includes(normalizedInput) || normalizedInput.includes(normalizeText(w.name))
+          );
+          if (found) {
+            walletId = found.id;
+            walletName = found.name;
           }
         }
-        const shouldAutoPay = !!walletId;
+
+        // If no wallet specified, ask the user which wallet to use
+        if (!walletId && userWallets?.length) {
+          let walletList = userWallets.map((w: any, i: number) =>
+            `${i + 1}. ${w.name} (${fmtBRL(w.balance)})`
+          ).join("\n");
+
+          await supabase.from("whatsapp_pending_actions").insert({
+            user_id: userId,
+            action_type: "select_expense_wallet",
+            action_data: {
+              name: params.name || "Gasto WhatsApp",
+              amount: params.amount || 0,
+              due_date: dueDate,
+              category_id: categoryId,
+              type: params.type || "variavel",
+              wallets: userWallets.map((w: any) => ({ id: w.id, name: w.name, balance: w.balance })),
+            },
+            expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          });
+
+          return `💸 Percebi que você gastou *${fmtBRL(params.amount || 0)}* com *${params.name || "despesa"}*.\n\nDe qual carteira/banco saiu o dinheiro?\n\n${walletList}\n\nResponda com o número ou nome.`;
+        }
+
+        // Check wallet balance before registering
+        if (walletId && userWallets?.length) {
+          const wallet = userWallets.find((w: any) => w.id === walletId);
+          if (wallet && wallet.balance < (params.amount || 0)) {
+            return `❌ Saldo insuficiente na carteira *${wallet.name}*.\n\n💰 Saldo atual: ${fmtBRL(wallet.balance)}\n💸 Valor do gasto: ${fmtBRL(params.amount || 0)}\n\nTente outra carteira ou adicione saldo primeiro.`;
+          }
+        }
+
         const { data: expenseData, error } = await supabase.from("expenses").insert({
           user_id: userId,
           name: params.name || "Gasto WhatsApp",
@@ -499,13 +539,13 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           month: new Date(dueDate).getMonth() + 1,
           year: new Date(dueDate).getFullYear(),
           type: params.type || "variavel",
-          paid: shouldAutoPay,
+          paid: !!walletId,
           category_id: categoryId,
           wallet_id: walletId,
         }).select("id").single();
         if (error) throw error;
         // If wallet specified, create debit transaction
-        if (shouldAutoPay && expenseData) {
+        if (walletId && expenseData) {
           const { error: txError } = await supabase.from("wallet_transactions").insert({
             wallet_id: walletId,
             user_id: userId,
@@ -1554,6 +1594,87 @@ serve(async (req) => {
           await supabase.from("whatsapp_pending_actions").insert({
             user_id: userId,
             action_type: "select_cofrinho_goal",
+            action_data: data,
+            expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          });
+          skipNormalFlow = true;
+        }
+      }
+
+      // Handle pending expense wallet selection
+      if (pending.action_type === "select_expense_wallet") {
+        const data = pending.action_data as any;
+        const wallets = data.wallets || [];
+        const input = userText.trim();
+
+        // Match by number or name
+        let selectedWallet: any = null;
+        const numMatch = input.match(/\d+/);
+        const num = numMatch ? Number(numMatch[0]) : Number.NaN;
+        if (!Number.isNaN(num) && num >= 1 && num <= wallets.length) {
+          selectedWallet = wallets[num - 1];
+        } else {
+          const normalized = normalizeText(input);
+          selectedWallet = wallets.find((w: any) =>
+            normalizeText(w.name).includes(normalized) || normalized.includes(normalizeText(w.name))
+          );
+        }
+
+        if (selectedWallet) {
+          // Check balance
+          if (selectedWallet.balance < data.amount) {
+            responseText = `❌ Saldo insuficiente na carteira *${selectedWallet.name}*.\n\n💰 Saldo atual: ${fmtBRL(selectedWallet.balance)}\n💸 Valor do gasto: ${fmtBRL(data.amount)}\n\nEscolha outra carteira ou adicione saldo primeiro.\n\n${wallets.map((w: any, i: number) => `${i + 1}. ${w.name} (${fmtBRL(w.balance)})`).join("\n")}`;
+            // Re-store pending action
+            await supabase.from("whatsapp_pending_actions").insert({
+              user_id: userId,
+              action_type: "select_expense_wallet",
+              action_data: data,
+              expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+            });
+            skipNormalFlow = true;
+          } else {
+            // Register the expense with the selected wallet
+            const dueDate = data.due_date || brNow().toISOString().split("T")[0];
+            const { data: expenseData, error: expError } = await supabase.from("expenses").insert({
+              user_id: userId,
+              name: data.name,
+              amount: data.amount,
+              due_date: dueDate,
+              month: new Date(dueDate).getMonth() + 1,
+              year: new Date(dueDate).getFullYear(),
+              type: data.type || "variavel",
+              paid: true,
+              category_id: data.category_id,
+              wallet_id: selectedWallet.id,
+            }).select("id").single();
+
+            if (expError) throw expError;
+
+            // Create debit transaction
+            if (expenseData) {
+              const { error: txError } = await supabase.from("wallet_transactions").insert({
+                wallet_id: selectedWallet.id,
+                user_id: userId,
+                amount: data.amount,
+                type: "debit",
+                description: `Gasto: ${data.name}`,
+                reference_type: "expense",
+                reference_id: expenseData.id,
+              });
+              if (txError) {
+                await supabase.from("expenses").delete().eq("id", expenseData.id);
+                throw txError;
+              }
+            }
+
+            responseText = `✅ Gasto registrado!\n\n💸 *${data.name}*: ${fmtBRL(data.amount)}\n💳 Carteira: ${selectedWallet.name}\n💰 Novo saldo: ${fmtBRL(selectedWallet.balance - data.amount)}`;
+            skipNormalFlow = true;
+          }
+        } else {
+          responseText = "❌ Não entendi. Responda com o número da carteira (ex: 1).";
+          await supabase.from("whatsapp_pending_actions").insert({
+            user_id: userId,
+            action_type: "select_expense_wallet",
             action_data: data,
             expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
           });
