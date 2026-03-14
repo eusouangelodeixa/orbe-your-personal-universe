@@ -109,6 +109,36 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_chat_messages: {
+        Row: {
+          agent: string
+          content: string
+          created_at: string
+          id: string
+          role: string
+          source: string
+          user_id: string
+        }
+        Insert: {
+          agent?: string
+          content: string
+          created_at?: string
+          id?: string
+          role?: string
+          source?: string
+          user_id: string
+        }
+        Update: {
+          agent?: string
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          source?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_resolutions: {
         Row: {
           created_at: string
