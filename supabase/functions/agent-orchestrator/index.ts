@@ -218,23 +218,68 @@ async function executeTool(
       const now = new Date();
       const month = now.getMonth() + 1;
       const year = now.getFullYear();
-      const [incomesRes, expensesRes, walletsRes] = await Promise.all([
-        supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
-        supabase.from("expenses").select("name, amount, paid, due_date").eq("user_id", userId).eq("month", month).eq("year", year),
+      const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
+        supabase.from("incomes").select("description, amount, month, year").eq("user_id", userId).eq("month", month).eq("year", year),
+        supabase.from("expenses").select("name, amount, paid, due_date, month, year").eq("user_id", userId).eq("month", month).eq("year", year),
         supabase.from("wallets").select("name, balance, is_default").eq("user_id", userId),
+        supabase.from("savings_goals").select("name, target_amount, current_amount, deadline").eq("user_id", userId),
       ]);
+
       const incomes = incomesRes.data || [];
       const expenses = expensesRes.data || [];
       const wallets = walletsRes.data || [];
+      const goals = goalsRes.data || [];
+
       const totalIncome = incomes.reduce((a: number, i: any) => a + Number(i.amount), 0);
       const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.amount), 0);
       const totalWallets = wallets.reduce((a: number, w: any) => a + Number(w.balance), 0);
       const pendingExpenses = expenses.filter((e: any) => !e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
+
+      const topExpenses = [...expenses]
+        .sort((a: any, b: any) => Number(b.amount) - Number(a.amount))
+        .slice(0, 5)
+        .map((e: any) => ({
+          nome: e.name,
+          valor: Number(e.amount),
+          pago: !!e.paid,
+          vencimento: e.due_date,
+        }));
+
+      const largestExpense = topExpenses.length
+        ? topExpenses[0]
+        : null;
+
+      const totalGoalTarget = goals.reduce((sum: number, g: any) => sum + Number(g.target_amount || 0), 0);
+      const totalGoalCurrent = goals.reduce((sum: number, g: any) => sum + Number(g.current_amount || 0), 0);
+
       return JSON.stringify({
-        mes: `${month}/${year}`, renda_total: totalIncome, gastos_total: totalExpenses,
-        saldo_carteiras: totalWallets, gastos_pendentes: pendingExpenses,
-        disponivel: totalWallets - pendingExpenses, fluxo_mensal: totalIncome - totalExpenses,
-        carteiras: wallets.map((w: any) => ({ nome: w.name, saldo: Number(w.balance) })),
+        mes: `${month}/${year}`,
+        tem_dados_no_mes: incomes.length > 0 || expenses.length > 0,
+        renda_total: totalIncome,
+        gastos_total: totalExpenses,
+        saldo_carteiras: totalWallets,
+        gastos_pendentes: pendingExpenses,
+        disponivel: totalWallets - pendingExpenses,
+        fluxo_mensal: totalIncome - totalExpenses,
+        maior_gasto: largestExpense,
+        top_gastos: topExpenses,
+        rendas_registradas: incomes.map((i: any) => ({
+          descricao: i.description,
+          valor: Number(i.amount),
+        })),
+        carteiras: wallets.map((w: any) => ({
+          nome: w.name,
+          saldo: Number(w.balance),
+          principal: !!w.is_default,
+        })),
+        metas: goals.map((g: any) => ({
+          nome: g.name,
+          valor_alvo: Number(g.target_amount),
+          valor_atual: Number(g.current_amount),
+          prazo: g.deadline,
+        })),
+        total_metas_alvo: totalGoalTarget,
+        total_metas_atual: totalGoalCurrent,
       });
     }
 
