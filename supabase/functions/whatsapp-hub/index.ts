@@ -254,47 +254,50 @@ async function downloadMediaDirect(url: string): Promise<{ base64: string; mimeT
   return { base64: uint8ToBase64(buffer), mimeType: ct.split(";")[0].trim() };
 }
 
-async function transcribeAudio(apiKey: string, audioBase64: string, mimeType = "audio/ogg"): Promise<string> {
-  // Normalize mime type for Gemini (must be a clean audio/* type)
+async function transcribeAudio(_apiKey: string, audioBase64: string, mimeType = "audio/ogg"): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+
+  // Determine file extension from mime type
   let cleanMime = mimeType.split(";")[0].trim();
-  // If mime is not audio/*, force it to audio/ogg (WhatsApp default)
-  if (!cleanMime.startsWith("audio/")) {
-    console.warn(`Non-audio mime "${cleanMime}", forcing to audio/ogg`);
-    cleanMime = "audio/ogg";
-  }
+  if (!cleanMime.startsWith("audio/")) cleanMime = "audio/ogg";
+  const extMap: Record<string, string> = {
+    "audio/ogg": "ogg",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/wav": "wav",
+    "audio/webm": "webm",
+    "audio/x-m4a": "m4a",
+  };
+  const ext = extMap[cleanMime] || "ogg";
 
-  console.log(`Transcribing audio: mime=${cleanMime}, base64_length=${audioBase64.length}`);
+  console.log(`Transcribing audio via OpenAI Whisper: mime=${cleanMime}, ext=${ext}, base64_length=${audioBase64.length}`);
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  // Convert base64 to binary
+  const binaryStr = atob(audioBase64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  // Build multipart form data for OpenAI Whisper API
+  const formData = new FormData();
+  formData.append("file", new Blob([bytes], { type: cleanMime }), `audio.${ext}`);
+  formData.append("model", "whisper-1");
+  formData.append("language", "pt");
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: "Transcreva o áudio a seguir em texto em português brasileiro. Retorne APENAS a transcrição, sem comentários." },
-        {
-          role: "user",
-          content: [
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${cleanMime};base64,${audioBase64}`,
-              },
-            },
-          ],
-        },
-      ],
-    }),
+    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+    body: formData,
   });
 
   if (!res.ok) {
     const t = await res.text();
-    console.error("Audio transcription error:", res.status, t);
+    console.error("OpenAI Whisper transcription error:", res.status, t);
     throw new Error(`Não consegui transcrever o áudio [${res.status}]`);
   }
 
   const data = await res.json();
-  const transcription = (data.choices?.[0]?.message?.content || "").trim();
+  const transcription = (data.text || "").trim();
   console.log(`Transcription result: "${transcription.slice(0, 100)}"`);
   return transcription;
 }
