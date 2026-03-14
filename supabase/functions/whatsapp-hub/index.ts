@@ -1425,10 +1425,15 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
         if (!commandContext.isActivationCommand && inlineQuery.length > 2) {
           try {
-            const agentResponse = await withTimeout(
+            let agentResponse = await withTimeout(
               callAgentOrchestrator(supabase, userId, agentType, inlineQuery),
-              25000, "agent_first_msg"
+              25000,
+              "agent_first_msg"
             );
+
+            if (agentType === "finance") {
+              agentResponse = await maybeOverrideFinanceEmptyReply(supabase, userId, inlineQuery, agentResponse);
+            }
 
             await supabase.from("agent_chat_messages").insert([
               { user_id: userId, agent: agentType, role: "user", content: inlineQuery, source: "whatsapp" },
