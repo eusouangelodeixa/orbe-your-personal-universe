@@ -319,7 +319,8 @@ export default function Admin() {
                       <TableHead className="text-muted-foreground">Plano</TableHead>
                       <TableHead className="text-muted-foreground">Cadastro</TableHead>
                       <TableHead className="text-muted-foreground">Último Acesso</TableHead>
-                      <TableHead className="text-muted-foreground">Verificação</TableHead>
+                       <TableHead className="text-muted-foreground">Verificação</TableHead>
+                       <TableHead className="text-muted-foreground text-right">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
