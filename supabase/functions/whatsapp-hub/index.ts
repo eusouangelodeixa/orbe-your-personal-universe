@@ -387,6 +387,7 @@ const INTENT_TOOLS = [
               paid: { type: "boolean" },
               goal_name: { type: "string", description: "Name of a savings goal (cofrinho/meta). E.g. 'reserva emergência', 'viagem'." },
               show_exercises: { type: "boolean", description: "Set to true when the user explicitly asks to see the exercises of a workout. Default false — just confirm which workout it is." },
+              agent: { type: "string", enum: ["fit", "finance", "studies_central"], description: "Which agent to connect for agent_chat. fit=Personal/Nutricionista, finance=Consultor Financeiro, studies_central=Tutor de Estudos" },
             },
           },
           reply_text: { type: "string", description: "Friendly reply message to send back to user via WhatsApp. Portuguese Brazilian." },
