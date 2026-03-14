@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     // Get all profiles with WhatsApp notifications enabled and verified phone
     const { data: profiles, error: pErr } = await supabase
       .from("profiles")
-      .select("user_id, phone, display_name")
+      .select("user_id, phone, display_name, currency")
       .eq("whatsapp_notifications", true)
       .eq("phone_verified", true)
       .not("phone", "is", null);
