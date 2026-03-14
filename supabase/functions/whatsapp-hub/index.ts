@@ -1563,7 +1563,28 @@ serve(async (req) => {
     if (!skipNormalFlow) {
       // Build context for AI
       const nome = profile.display_name?.split(" ")[0] || "Usuário";
-      const context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
+      let context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
+
+      // Add today's pending tasks as context so the AI knows about them
+      try {
+        const todayStr = brNow().toISOString().split("T")[0];
+        const { data: pendingTasks } = await supabase
+          .from("tasks")
+          .select("id, title, due_date, category")
+          .eq("user_id", userId)
+          .eq("status", "pendente")
+          .lte("due_date", todayStr + "T23:59:59")
+          .order("due_date", { ascending: true })
+          .limit(10);
+        if (pendingTasks?.length) {
+          context += `\n\nTAREFAS PENDENTES DO USUÁRIO HOJE:`;
+          for (const t of pendingTasks) {
+            context += `\n- "${t.title}" (categoria: ${t.category || "geral"})`;
+          }
+        }
+      } catch (taskCtxErr) {
+        console.warn("Failed to fetch pending tasks context:", taskCtxErr);
+      }
 
       // Fetch recent chat history (last 10 messages within 30 min)
       let chatHistory: Array<{role: string, content: string}> = [];
