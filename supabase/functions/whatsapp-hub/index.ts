@@ -499,6 +499,7 @@ function parseFallbackIntent(text: string) {
 async function callAgentOrchestrator(supabase: any, userId: string, agent: string, userMessage: string): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
 
   if (!serviceRoleKey) {
     throw new Error("SUPABASE_SERVICE_ROLE_KEY ausente no whatsapp-hub");
@@ -526,9 +527,9 @@ async function callAgentOrchestrator(supabase: any, userId: string, agent: strin
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Use service key in BOTH headers to avoid gateway rewriting auth as anon
       Authorization: `Bearer ${serviceRoleKey}`,
-      apikey: serviceRoleKey,
+      apikey: anonKey || serviceRoleKey,
+      "x-internal-service-key": serviceRoleKey,
     },
     body: JSON.stringify({
       messages: history,
