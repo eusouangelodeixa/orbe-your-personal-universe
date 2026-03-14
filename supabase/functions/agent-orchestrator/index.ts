@@ -625,10 +625,16 @@ serve(async (req) => {
     );
 
     // ── Step 3: Final AI call with tool results ──
+    // Ensure assistantMessage.content is a string (some models return null)
+    const sanitizedAssistant = {
+      ...assistantMessage,
+      content: assistantMessage.content || "",
+    };
+    console.log(`Orchestrator [${agentType}]: making final call with ${toolResults.length} tool result(s), stream=${shouldStream}`);
     return await makeFinalCall([
       { role: "system", content: systemPrompt },
       ...messages,
-      assistantMessage,
+      sanitizedAssistant,
       ...toolResults,
     ]);
   } catch (e) {
