@@ -384,6 +384,7 @@ REGRAS:
 - Se o usuário pedir resumo do dia, use "daily_summary"
 - Para qualquer pergunta conversacional, use action "chat" com reply_text respondendo diretamente
 - IMPORTANTE: Ao registrar gastos (add_expense), SEMPRE preencha params.category com a categoria mais adequada entre: Alimentação, Educação, Lazer, Moradia, Saúde, Transporte, Vestuário, Outros. Ex: supermercado → "Alimentação", uber → "Transporte", farmácia → "Saúde".
+- IMPORTANTE: Para gastos (add_expense), se o usuário mencionar de qual carteira/banco o dinheiro saiu, preencha params.wallet_name. Se NÃO mencionar, deixe wallet_name VAZIO — o sistema vai perguntar automaticamente de qual carteira saiu. NÃO invente o nome da carteira.
 - IMPORTANTE: DIFERENCIE entre EVENTOS ACADÊMICOS e TAREFAS GENÉRICAS:
   • Provas, trabalhos, seminários, apresentações, entregas de disciplina, atividades acadêmicas → use "add_event" (módulo estudos). Preencha params.subject_name com a disciplina, params.type com "prova", "trabalho" ou "seminario", e params.due_date com a data.
   • Tarefas do dia-a-dia (comprar algo, ligar, pagar, resolver algo pessoal) → use "add_task" (módulo tarefas).
