@@ -94,6 +94,10 @@ export default function Admin() {
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [settingEdits, setSettingEdits] = useState<Record<string, Record<string, any>>>({});
   const [savingSettings, setSavingSettings] = useState<Record<string, boolean>>({});
+  const [showPlanDialog, setShowPlanDialog] = useState(false);
+  const [planTargetUser, setPlanTargetUser] = useState<{ id: string; email: string } | null>(null);
+  const [planForm, setPlanForm] = useState({ plan: "full", period: "mensal", days: "30" });
+  const [assigningPlan, setAssigningPlan] = useState(false);
 
   const fetchData = async () => {
     try {
