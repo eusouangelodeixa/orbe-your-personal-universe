@@ -537,6 +537,36 @@ serve(async (req) => {
       systemPrompt += `\n\nCONTEXTO ADICIONAL:\n${extraSystemPrompt}`;
     }
 
+    // ── Helper: normalize AI message content to plain text ──
+    function extractTextContent(message: any): string {
+      const content = message?.content;
+
+      if (typeof content === "string") return content;
+
+      if (Array.isArray(content)) {
+        return content
+          .map((part: any) => {
+            if (typeof part === "string") return part;
+            if (part && typeof part === "object") {
+              if (typeof part.text === "string") return part.text;
+              if (typeof part.content === "string") return part.content;
+              if (typeof part.value === "string") return part.value;
+            }
+            return "";
+          })
+          .join("")
+          .trim();
+      }
+
+      if (content && typeof content === "object") {
+        if (typeof content.text === "string") return content.text;
+        if (typeof content.content === "string") return content.content;
+        if (typeof content.value === "string") return content.value;
+      }
+
+      return "";
+    }
+
     // ── Helper: make AI call (streaming or JSON) ──
     async function makeFinalCall(msgs: any[]) {
       const finalResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -562,7 +592,17 @@ serve(async (req) => {
         });
       } else {
         const result = await finalResp.json();
-        const content = result.choices?.[0]?.message?.content || "";
+        const message = result?.choices?.[0]?.message;
+        const content = extractTextContent(message);
+
+        if (!content) {
+          console.warn("Orchestrator final call returned empty content", {
+            agentType,
+            resultKeys: Object.keys(result || {}),
+            messageKeys: message ? Object.keys(message) : [],
+          });
+        }
+
         return new Response(JSON.stringify({ content }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
