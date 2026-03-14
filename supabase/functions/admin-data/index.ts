@@ -136,6 +136,26 @@ Deno.serve(async (req) => {
 
       const TRIAL_DAYS = 3;
 
+      // Fetch local subscriptions (Lojou + manual) to complement Stripe data
+      const { data: localSubs } = await adminClient
+        .from("subscriptions")
+        .select("user_id, plan, plan_period, status, ends_at, provider")
+        .in("status", ["active"])
+        .gt("ends_at", new Date().toISOString());
+
+      const localSubMap: Record<string, { status: string; plan: string; ends_at: string; provider: string }> = {};
+      for (const sub of (localSubs || [])) {
+        // Keep the most recent / active one per user
+        if (!localSubMap[sub.user_id] || new Date(sub.ends_at) > new Date(localSubMap[sub.user_id].ends_at)) {
+          localSubMap[sub.user_id] = {
+            status: sub.status,
+            plan: sub.plan,
+            ends_at: sub.ends_at,
+            provider: sub.provider,
+          };
+        }
+      }
+
       // Merge users + profiles + subscription status
       const userList = (users || []).map((u) => {
         const profile = profiles?.find((p) => p.user_id === u.id);
@@ -147,6 +167,7 @@ Deno.serve(async (req) => {
         const isInTrial = new Date() < trialEndsAt;
 
         const stripeSub = stripeStatusMap[email];
+        const dbSub = localSubMap[u.id];
         let subscriptionStatus = "free";
         let planName: string | null = null;
         let subscriptionEnd: string | null = null;
@@ -154,9 +175,13 @@ Deno.serve(async (req) => {
         if (isAdmin) {
           subscriptionStatus = "admin";
         } else if (stripeSub) {
-          subscriptionStatus = stripeSub.status; // "active" or "trialing"
+          subscriptionStatus = stripeSub.status;
           planName = stripeSub.plan;
           subscriptionEnd = stripeSub.ends_at;
+        } else if (dbSub) {
+          subscriptionStatus = dbSub.status;
+          planName = `${dbSub.plan.charAt(0).toUpperCase() + dbSub.plan.slice(1)} (${dbSub.provider})`;
+          subscriptionEnd = dbSub.ends_at;
         } else if (isInTrial) {
           subscriptionStatus = "trial";
         }
