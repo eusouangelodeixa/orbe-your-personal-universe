@@ -58,25 +58,25 @@ serve(async (req) => {
     const now = new Date();
     const isInTrial = now < trialEndsAt;
 
-    // Check Lojou subscription first
-    const { data: lojouSubs } = await supabaseClient
+    // Check internal subscriptions first (Lojou + manual)
+    const { data: internalSubs } = await supabaseClient
       .from("subscriptions")
       .select("*")
       .eq("user_id", user.id)
-      .eq("provider", "lojou")
+      .in("provider", ["lojou", "manual"])
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(1);
 
-    const lojouSub = lojouSubs && lojouSubs.length > 0 ? lojouSubs[0] : null;
-    if (lojouSub && new Date(lojouSub.ends_at) > now) {
+    const internalSub = internalSubs && internalSubs.length > 0 ? internalSubs[0] : null;
+    if (internalSub && new Date(internalSub.ends_at) > now) {
       return new Response(JSON.stringify({
         subscribed: true,
         is_admin: false,
         product_id: null,
-        plan: lojouSub.plan,
-        provider: "lojou",
-        subscription_end: lojouSub.ends_at,
+        plan: internalSub.plan,
+        provider: internalSub.provider,
+        subscription_end: internalSub.ends_at,
         trial: false,
         trial_ends_at: trialEndsAt.toISOString(),
       }), {
