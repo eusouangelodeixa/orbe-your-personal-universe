@@ -580,6 +580,121 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   return lines.join("\n");
 }
 
+async function buildFitExtraPrompt(supabase: any, userId: string): Promise<string> {
+  const [profileRes, workoutRes, mealRes, progressRes, logsRes] = await Promise.all([
+    supabase.from("fit_profiles").select("*").eq("user_id", userId).maybeSingle(),
+    supabase.from("fit_workout_plans").select("title, plan_data, created_at").eq("user_id", userId).eq("active", true).maybeSingle(),
+    supabase.from("fit_meal_plans").select("title, plan_data, shopping_list, created_at").eq("user_id", userId).eq("active", true).maybeSingle(),
+    supabase.from("fit_progress").select("record_date, weight, body_fat_pct, measurements").eq("user_id", userId).order("record_date", { ascending: false }).limit(5),
+    supabase.from("fit_workout_logs").select("workout_name, workout_date, duration_minutes, mood").eq("user_id", userId).order("workout_date", { ascending: false }).limit(5),
+  ]);
+
+  const profile = profileRes.data;
+  const workout = workoutRes.data;
+  const meal = mealRes.data;
+  const progress = progressRes.data || [];
+  const logs = logsRes.data || [];
+
+  const lines: string[] = [];
+  lines.push("DADOS FITNESS REAIS DO USUÁRIO — USE ESTES DADOS, NÃO DIGA QUE NÃO TEM DADOS:");
+
+  if (profile) {
+    lines.push(`Perfil: ${profile.sex || "?"}, ${profile.age || "?"}a, ${profile.weight || "?"}kg, ${profile.height || "?"}cm, IMC=${profile.bmi || "?"}`);
+    lines.push(`Objetivo: ${profile.goal || "não definido"}, Nível: ${profile.experience_level || "?"}, Dieta: ${profile.diet_type || "?"}`);
+    if (profile.food_allergies?.length) lines.push(`Alergias: ${JSON.stringify(profile.food_allergies)}`);
+    if (profile.medical_conditions?.length) lines.push(`Condições médicas: ${JSON.stringify(profile.medical_conditions)}`);
+    lines.push(`Local treino: ${profile.training_location || "?"}, Orçamento alimentar: ${profile.monthly_food_budget || "?"}`);
+  } else {
+    lines.push("Perfil fitness não cadastrado.");
+  }
+
+  if (workout) {
+    lines.push(`Plano de treino ativo: "${workout.title}" (criado ${workout.created_at})`);
+    const planData = workout.plan_data;
+    if (planData?.workouts?.length) {
+      planData.workouts.forEach((w: any) => {
+        const exNames = (w.exercises || []).map((e: any) => e.name).join(", ");
+        lines.push(`  ${w.day || w.name}: ${exNames}`);
+      });
+    }
+  } else {
+    lines.push("Nenhum plano de treino ativo.");
+  }
+
+  if (meal) {
+    lines.push(`Plano alimentar ativo: "${meal.title}"`);
+  }
+
+  if (logs.length) {
+    lines.push(`Últimos treinos:`);
+    logs.forEach((l: any) => lines.push(`  - ${l.workout_date}: ${l.workout_name} (${l.duration_minutes || "?"}min, humor: ${l.mood || "?"})`));
+  }
+
+  if (progress.length) {
+    lines.push(`Evolução recente:`);
+    progress.forEach((p: any) => lines.push(`  - ${p.record_date}: ${p.weight || "?"}kg, gordura: ${p.body_fat_pct || "?"}%`));
+  }
+
+  return lines.join("\n");
+}
+
+async function buildStudiesExtraPrompt(supabase: any, userId: string): Promise<string> {
+  const now = brNow();
+  const [subjectsRes, eventsRes, pomodoroRes, tasksRes] = await Promise.all([
+    supabase.from("subjects").select("id, name, teacher, course, semester, type, weekly_hours, schedule").eq("user_id", userId),
+    supabase.from("academic_events").select("title, type, event_date, due_date, status, grade, weight, subject_id").eq("user_id", userId).order("event_date", { ascending: true }).limit(30),
+    supabase.from("pomodoro_sessions").select("subject_id, completed_pomodoros, total_focus_seconds, session_date").eq("user_id", userId).gte("session_date", new Date(now.getTime() - 30 * 86400000).toISOString().split("T")[0]).order("session_date", { ascending: false }),
+    supabase.from("tasks").select("title, category, priority, status, due_date").eq("user_id", userId).in("status", ["pendente", "em_andamento"]).order("due_date", { ascending: true }).limit(10),
+  ]);
+
+  const subjects = subjectsRes.data || [];
+  const events = eventsRes.data || [];
+  const pomodoro = pomodoroRes.data || [];
+  const tasks = tasksRes.data || [];
+  const subjectMap = Object.fromEntries(subjects.map((s: any) => [s.id, s.name]));
+
+  const lines: string[] = [];
+  lines.push("DADOS ACADÊMICOS REAIS DO USUÁRIO — USE ESTES DADOS, NÃO DIGA QUE NÃO TEM DADOS:");
+
+  if (subjects.length) {
+    lines.push(`Disciplinas (${subjects.length}):`);
+    subjects.forEach((s: any) => {
+      lines.push(`  - ${s.name} (${s.type}, ${s.weekly_hours || 0}h/sem, prof: ${s.teacher || "?"})`);
+    });
+  } else {
+    lines.push("Nenhuma disciplina cadastrada.");
+  }
+
+  const pendingEvents = events.filter((e: any) => e.status === "pendente" || e.status === "em_andamento");
+  if (pendingEvents.length) {
+    lines.push(`Próximos eventos/entregas pendentes:`);
+    pendingEvents.slice(0, 10).forEach((e: any) => {
+      lines.push(`  - ${e.title} (${e.type}, ${e.event_date}, disciplina: ${subjectMap[e.subject_id] || "?"})`);
+    });
+  }
+
+  const gradedEvents = events.filter((e: any) => e.grade != null);
+  if (gradedEvents.length) {
+    lines.push(`Notas registradas:`);
+    gradedEvents.forEach((e: any) => {
+      lines.push(`  - ${e.title}: nota ${e.grade}${e.weight ? ` (peso ${e.weight})` : ""} — ${subjectMap[e.subject_id] || "?"}`);
+    });
+  }
+
+  if (pomodoro.length) {
+    const totalPomodoros = pomodoro.reduce((a: number, p: any) => a + (p.completed_pomodoros || 0), 0);
+    const totalMinutes = pomodoro.reduce((a: number, p: any) => a + Math.floor((p.total_focus_seconds || 0) / 60), 0);
+    lines.push(`Pomodoro (últimos 30 dias): ${totalPomodoros} pomodoros, ${Math.round(totalMinutes / 60 * 10) / 10}h de foco`);
+  }
+
+  if (tasks.length) {
+    lines.push(`Tarefas pendentes:`);
+    tasks.forEach((t: any) => lines.push(`  - ${t.title} (${t.priority}, vence: ${t.due_date || "sem data"})`));
+  }
+
+  return lines.join("\n");
+}
+
 async function callAgentOrchestrator(supabase: any, userId: string, agent: string, userMessage: string): Promise<string> {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -589,15 +704,21 @@ async function callAgentOrchestrator(supabase: any, userId: string, agent: strin
     throw new Error("SUPABASE_SERVICE_ROLE_KEY ausente no whatsapp-hub");
   }
 
-  // Build extra context for finance agent — inject data directly so AI can't miss it
+  // Build extra context for each agent — inject data directly so AI can't miss it
   let extraSystemPrompt: string | undefined;
-  if (agent === "finance") {
-    try {
+  try {
+    if (agent === "finance") {
       extraSystemPrompt = await buildFinanceExtraPrompt(supabase, userId);
-      console.log("Finance extraSystemPrompt built:", extraSystemPrompt.slice(0, 200));
-    } catch (err) {
-      console.warn("Failed to build finance extra prompt:", err);
+    } else if (agent === "fit") {
+      extraSystemPrompt = await buildFitExtraPrompt(supabase, userId);
+    } else if (agent === "studies_central" || agent === "studies") {
+      extraSystemPrompt = await buildStudiesExtraPrompt(supabase, userId);
     }
+    if (extraSystemPrompt) {
+      console.log(`${agent} extraSystemPrompt built (${extraSystemPrompt.length} chars):`, extraSystemPrompt.slice(0, 200));
+    }
+  } catch (err) {
+    console.warn(`Failed to build ${agent} extra prompt:`, err);
   }
 
   // Load recent chat history for context continuity
