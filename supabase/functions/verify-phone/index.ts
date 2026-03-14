@@ -187,6 +187,7 @@ serve(async (req) => {
         console.log(`[verify-phone] Created profile for user ${userId} with phone_verified=true`);
       } else {
         console.log(`[verify-phone] Profile updated for user ${userId}, rows=${updatedRows.length}, phone_verified=${updatedRows[0]?.phone_verified}`);
+      }
 
       return jsonResponse({ success: true, message: "Telefone verificado com sucesso!" });
     }
