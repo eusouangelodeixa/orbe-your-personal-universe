@@ -1342,18 +1342,18 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
         });
 
-        // Check if message has a real question beyond activation
-        const justActivation = /^(falar|quero|conectar|chamar|abrir|iniciar)\s+(com\s+)?(o\s+)?(personal|nutricionista|consultor|financeiro|tutor|estudos)/i.test(originalText.trim());
+        const commandContext = extractAgentCommandContext(originalText);
+        const inlineQuery = commandContext.queryText;
 
-        if (!justActivation && originalText.trim().length > 15) {
+        if (!commandContext.isActivationCommand && inlineQuery.length > 2) {
           try {
             const agentResponse = await withTimeout(
-              callAgentOrchestrator(supabase, userId, agentType, originalText),
+              callAgentOrchestrator(supabase, userId, agentType, inlineQuery),
               25000, "agent_first_msg"
             );
 
             await supabase.from("agent_chat_messages").insert([
-              { user_id: userId, agent: agentType, role: "user", content: originalText, source: "whatsapp" },
+              { user_id: userId, agent: agentType, role: "user", content: inlineQuery, source: "whatsapp" },
               { user_id: userId, agent: agentType, role: "assistant", content: agentResponse, source: "whatsapp" },
             ]);
 
