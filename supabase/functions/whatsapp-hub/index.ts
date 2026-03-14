@@ -494,6 +494,55 @@ function parseFallbackIntent(text: string) {
   };
 }
 
+// ========== AGENT ORCHESTRATOR CALLER ==========
+
+async function callAgentOrchestrator(supabase: any, userId: string, agent: string, userMessage: string): Promise<string> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  // Load recent chat history for context continuity
+  const { data: recentMsgs } = await supabase
+    .from("agent_chat_messages")
+    .select("role, content")
+    .eq("user_id", userId)
+    .eq("agent", agent)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  const history = (recentMsgs || []).reverse().map((m: any) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: m.content,
+  }));
+
+  // Add current message
+  history.push({ role: "user", content: userMessage });
+
+  const orchestratorUrl = `${supabaseUrl}/functions/v1/agent-orchestrator`;
+  const resp = await fetch(orchestratorUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceRoleKey}`,
+      apikey: Deno.env.get("SUPABASE_ANON_KEY")!,
+    },
+    body: JSON.stringify({
+      messages: history,
+      agent,
+      user_id: userId,
+      stream: false,
+    }),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    console.error(`Agent orchestrator error [${resp.status}]:`, errText.slice(0, 300));
+    throw new Error(`Erro no agente [${resp.status}]`);
+  }
+
+  const data = await resp.json();
+  return data.content || "Desculpe, não consegui gerar uma resposta.";
+}
+
 // ========== ACTION EXECUTORS ==========
 
 async function executeAction(supabase: any, userId: string, intent: any, originalText = ""): Promise<string> {
