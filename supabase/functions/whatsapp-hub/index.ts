@@ -1717,7 +1717,9 @@ serve(async (req) => {
     if (!skipNormalFlow) {
       // Build context for AI
       const nome = profile.display_name?.split(" ")[0] || "Usuário";
-      let context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}`;
+      const userCurrencyCode = profile.currency || "BRL";
+      const userCurrencySymbol = CURRENCY_CONFIG[userCurrencyCode]?.symbol || "R$";
+      let context = `Usuário: ${nome}\nHoje: ${brNow().toLocaleDateString("pt-BR")}\nMoeda do usuário: ${userCurrencyCode} (${userCurrencySymbol}). Use SEMPRE esta moeda ao falar de valores financeiros.`;
 
       // Add today's pending tasks as context so the AI knows about them
       try {
