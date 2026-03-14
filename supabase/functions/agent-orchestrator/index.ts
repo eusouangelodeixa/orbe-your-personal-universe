@@ -568,45 +568,105 @@ serve(async (req) => {
     }
 
     // ── Helper: make AI call (streaming or JSON) ──
-    async function makeFinalCall(msgs: any[]) {
+    async function makeFinalCall(msgs: any[], depth = 0): Promise<Response> {
+      const finalRequestBody: Record<string, unknown> = {
+        model: "google/gemini-3-flash-preview",
+        messages: msgs,
+        stream: shouldStream,
+      };
+
+      // Non-streaming mode can require multiple tool rounds (WhatsApp agent sessions)
+      if (!shouldStream) {
+        finalRequestBody.tools = TOOLS;
+      }
+
       const finalResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${LOVABLE_API_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: msgs,
-          stream: shouldStream,
-        }),
+        body: JSON.stringify(finalRequestBody),
       });
+
       if (!finalResp.ok) {
         const t = await finalResp.text();
         console.error("AI gateway error (final):", finalResp.status, t);
         throw new Error("Erro na resposta final");
       }
+
       if (shouldStream) {
         return new Response(finalResp.body, {
           headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
         });
-      } else {
-        const result = await finalResp.json();
-        const message = result?.choices?.[0]?.message;
-        const content = extractTextContent(message);
+      }
 
-        if (!content) {
-          console.warn("Orchestrator final call returned empty content", {
-            agentType,
-            resultKeys: Object.keys(result || {}),
-            messageKeys: message ? Object.keys(message) : [],
-          });
-        }
+      const result = await finalResp.json();
+      const message = result?.choices?.[0]?.message;
+      const content = extractTextContent(message);
+      const toolCalls = Array.isArray(message?.tool_calls) ? message.tool_calls : [];
 
-        return new Response(JSON.stringify({ content }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      if (!content) {
+        console.warn("Orchestrator final call returned empty content", {
+          agentType,
+          depth,
+          toolCallCount: toolCalls.length,
+          resultKeys: Object.keys(result || {}),
+          messageKeys: message ? Object.keys(message) : [],
         });
       }
+
+      if (!content && toolCalls.length && depth < 2) {
+        const followupAssistant = {
+          ...message,
+          content: message?.content || "",
+        };
+
+        const followupToolResults = await Promise.all(
+          toolCalls.map(async (tc: any) => {
+            let args: Record<string, unknown> = {};
+            try {
+              args = typeof tc?.function?.arguments === "string"
+                ? JSON.parse(tc.function.arguments || "{}")
+                : (tc?.function?.arguments || {});
+            } catch (argErr) {
+              console.warn("Invalid tool call args in final round", { tool: tc?.function?.name, argErr });
+            }
+
+            const toolName = tc?.function?.name;
+            const toolResult = toolName
+              ? await executeTool(toolName, args, supabase, userId)
+              : JSON.stringify({ error: "tool_name_missing" });
+
+            return {
+              role: "tool",
+              tool_call_id: tc?.id,
+              content: toolResult,
+            };
+          })
+        );
+
+        return await makeFinalCall([
+          ...msgs,
+          followupAssistant,
+          ...followupToolResults,
+        ], depth + 1);
+      }
+
+      if (!content && depth < 1) {
+        return await makeFinalCall([
+          ...msgs,
+          {
+            role: "user",
+            content:
+              "Agora responda APENAS com texto em português do Brasil, de forma direta, sem chamar ferramentas e sem JSON.",
+          },
+        ], depth + 1);
+      }
+
+      return new Response(JSON.stringify({ content: content || "" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── Step 1: First AI call with tools ──
