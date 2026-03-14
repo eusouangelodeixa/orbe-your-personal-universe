@@ -190,19 +190,21 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-3 border-t border-border">
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild>
-              <NavLink
-                to="/admin"
-                end
-                className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
-              >
-                <Shield className="mr-2 h-4 w-4" />
-                {!collapsed && <span className="font-syne text-xs tracking-wide">Admin</span>}
-              </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {isAdmin && (
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild>
+                <NavLink
+                  to="/admin"
+                  end
+                  className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
+                >
+                  <Shield className="mr-2 h-4 w-4" />
+                  {!collapsed && <span className="font-syne text-xs tracking-wide">Admin</span>}
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <NavLink
