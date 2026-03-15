@@ -197,13 +197,14 @@ export function useAddWalletTransaction() {
       if (tx.type === "debit") {
         const { data: wallet, error: wErr } = await supabase
           .from("wallets")
-          .select("balance, name")
+          .select("balance, name, currency")
           .eq("id", tx.wallet_id)
           .single();
         if (wErr) throw wErr;
+        const wCur = (wallet as any).currency || "BRL";
         if (Number(wallet.balance) < tx.amount) {
           throw new Error(
-            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}.`
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${wCur}.`
           );
         }
       }
