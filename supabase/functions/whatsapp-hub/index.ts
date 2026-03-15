@@ -1254,10 +1254,15 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         }
         if (!subjectId) return "❌ Nenhuma disciplina cadastrada. Cadastre primeiro no app.";
 
+        // Build event_date preserving user's local timezone
+        const eventDateRaw = params.due_date || now.toISOString().split("T")[0];
+        const eventTime = params.due_time || "12:00";
+        const eventDateStr = `${eventDateRaw}T${eventTime}:00-03:00`;
+
         const { error } = await supabase.from("academic_events").insert({
           user_id: userId,
           title: params.name || params.task_title || params.description || "Evento WhatsApp",
-          event_date: params.due_date || now.toISOString(),
+          event_date: eventDateStr,
           type: params.type || "prova",
           subject_id: subjectId,
         });
