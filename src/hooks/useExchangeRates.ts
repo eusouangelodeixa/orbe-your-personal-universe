@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface ExchangeRates {
   base: string;
   date: string;
+  source?: string;
   rates: Record<string, number>;
 }
 
@@ -11,26 +12,28 @@ export interface ExchangeRates {
  * Fetches exchange rates relative to BRL.
  * Returns rates like { USD: 0.18, EUR: 0.16, MZN: 11.5 }
  * meaning 1 BRL = X foreign currency.
- * 
+ *
  * To convert foreign → BRL: amount / rate
  * To convert BRL → foreign: amount * rate
  */
 export function useExchangeRates(currencies?: string[]) {
+  const normalizedSymbols = currencies ? [...currencies].map((c) => c.toUpperCase()).sort() : undefined;
+
   return useQuery({
-    queryKey: ["exchange_rates", currencies?.sort().join(",")],
+    queryKey: ["exchange_rates", normalizedSymbols?.join(",")],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("exchange-rates", {
         body: {
           base: "BRL",
-          symbols: currencies?.join(","),
+          symbols: normalizedSymbols?.join(","),
         },
       });
       if (error) throw error;
       if (data.error) throw new Error(data.error);
       return data as ExchangeRates;
     },
-    staleTime: 10 * 60 * 1000, // 10 min cache
-    refetchInterval: 15 * 60 * 1000, // refresh every 15 min
+    staleTime: 2 * 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
   });
 }
 
