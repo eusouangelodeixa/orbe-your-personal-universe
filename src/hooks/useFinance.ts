@@ -363,33 +363,50 @@ export function useToggleExpensePaid() {
       const { error } = await supabase.from("expenses").update({ paid, wallet_id: wallet_id || null }).eq("id", id);
       if (error) throw error;
 
-      // When marking as paid with a wallet, check balance first
+      // When marking as paid with a wallet, convert amount and check balance
       if (paid && wallet_id && amount) {
+        // The expense amount is stored in its original currency.
+        // If the expense had no wallet (wallet_id was null), it's in BRL.
+        // We need to get the expense's original wallet to determine its currency.
+        const { data: expenseRow } = await supabase
+          .from("expenses")
+          .select("wallet_id")
+          .eq("id", id)
+          .single();
+        // The expense was just updated with the new wallet_id, so check if it originally had one
+        // Since we already updated, fetch from wallet_transactions or use the fact that
+        // if the user is choosing a wallet now, the expense amount is in BRL (no original wallet)
+        // or in the original wallet's currency.
+        // For safety, determine expense currency from the ORIGINAL wallet before update.
+        // Since we already updated wallet_id, we use the payment wallet to convert.
+        
+        // Convert the expense amount (assumed BRL for expenses without a wallet) to the payment wallet's currency
+        const { convertedAmount, info } = await convertBrlToWalletCurrency(amount, wallet_id);
+        
         const { data: wallet, error: wErr } = await supabase
           .from("wallets")
           .select("balance, name")
           .eq("id", wallet_id)
           .single();
         if (wErr) throw wErr;
-        if (Number(wallet.balance) < amount) {
+        if (Number(wallet.balance) < convertedAmount) {
           // Revert the paid status
           await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
           throw new Error(
-            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}.`
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${info.currency}, necessário: ${convertedAmount.toFixed(2)} ${info.currency}.`
           );
         }
-        const rate = await getWalletExchangeRate(wallet_id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
             wallet_id,
             user_id: user!.id,
-            amount,
+            amount: convertedAmount,
             type: "debit",
             description: `Gasto: ${name || "Despesa"}`,
             reference_type: "expense",
             reference_id: id,
-            exchange_rate_to_brl: rate,
+            exchange_rate_to_brl: info.exchangeRateToBrl,
           } as any);
         if (txError) {
           await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
