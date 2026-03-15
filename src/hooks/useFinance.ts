@@ -472,18 +472,26 @@ export function useWalletTransfer() {
       const { data: to } = await supabase.from("wallets").select("name").eq("id", toId).single();
       const desc = description || `Transferência para ${to?.name || "outra carteira"}`;
 
+      // Fetch rates for both wallets
+      const [rateFrom, rateTo] = await Promise.all([
+        getWalletExchangeRate(fromId),
+        getWalletExchangeRate(toId),
+      ]);
+
       // Debit from source
       const { error: e1 } = await supabase.from("wallet_transactions").insert({
         wallet_id: fromId, user_id: user!.id, amount, type: "debit",
         description: `Transferência → ${to?.name}`, reference_type: "transfer",
-      });
+        exchange_rate_to_brl: rateFrom,
+      } as any);
       if (e1) throw e1;
 
       // Credit to destination
       const { error: e2 } = await supabase.from("wallet_transactions").insert({
         wallet_id: toId, user_id: user!.id, amount, type: "credit",
         description: `Transferência ← ${from.name}`, reference_type: "transfer",
-      });
+        exchange_rate_to_brl: rateTo,
+      } as any);
       if (e2) throw e2;
     },
     onSuccess: () => {
