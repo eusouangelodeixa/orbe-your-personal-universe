@@ -989,9 +989,23 @@ export default function Planilha() {
                       </p>
                     </div>
                   </div>
-                  <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
-                    {tx.type === "credit" ? "+" : "-"} {formatMoney(Number(tx.amount))}
-                  </span>
+                  <div className="text-right">
+                    {(() => {
+                      const txCur = getWalletCurrency(tx.wallet_id);
+                      const isForeign = txCur !== currency.code;
+                      const txConverted = convertItem(Number(tx.amount), tx.wallet_id);
+                      return (
+                        <>
+                          <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
+                            {tx.type === "credit" ? "+" : "-"} {isForeign ? formatNative(Number(tx.amount), txCur) : formatMoney(Number(tx.amount))}
+                          </span>
+                          {isForeign && (
+                            <p className="text-xs text-muted-foreground">≈ {formatMoney(txConverted)}</p>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               ))}
             </CardContent>
