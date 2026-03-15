@@ -45,6 +45,8 @@ export default function Planilha() {
   const { data: incomes = [], isLoading: loadingIncomes } = useIncomes(month, year);
   const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(month, year);
   const { data: wallets = [], isLoading: loadingWallets } = useWallets();
+  const walletCurrencies = wallets.map((w: any) => w.currency || "BRL").filter((c: string) => c !== "BRL");
+  const { data: exchangeRates } = useExchangeRates(walletCurrencies.length > 0 ? [...new Set(walletCurrencies)] as string[] : undefined);
   const { data: transactions = [] } = useWalletTransactions();
   const { data: savingsGoals = [] } = useSavingsGoals();
   const updateSavingsGoal = useUpdateSavingsGoal();
