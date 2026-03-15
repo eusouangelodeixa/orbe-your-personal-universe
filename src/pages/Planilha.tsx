@@ -142,7 +142,7 @@ export default function Planilha() {
         amount: parseFloat(novoGasto.valor),
         due_date: format(dueDate, "yyyy-MM-dd"),
         type: novoGasto.tipo,
-        wallet_id: novoGasto.walletId || null,
+        wallet_id: novoGasto.walletId && novoGasto.walletId !== "none" ? novoGasto.walletId : null,
         month,
         year,
         recurring: novoGasto.recurring,
@@ -163,7 +163,7 @@ export default function Planilha() {
     addIncome.mutate({
       description: novaRenda.descricao.trim(),
       amount: parseFloat(novaRenda.valor),
-      wallet_id: novaRenda.walletId || null,
+      wallet_id: novaRenda.walletId && novaRenda.walletId !== "none" ? novaRenda.walletId : null,
       recurring: novaRenda.recurring,
       month,
       year,
@@ -195,7 +195,7 @@ export default function Planilha() {
     togglePaid.mutate({
       id: expense.id,
       paid: true,
-      wallet_id: payWalletId || null,
+      wallet_id: payWalletId && payWalletId !== "none" ? payWalletId : null,
       amount: Number(expense.amount),
       name: expense.name,
     });
@@ -668,7 +668,14 @@ export default function Planilha() {
                     <SelectTrigger><SelectValue placeholder="Nenhuma carteira" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhuma</SelectItem>
-                      {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                      {wallets.map((w) => {
+                        const wCur = (w as any).currency || "BRL";
+                        return (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name} • {formatNative(Number(w.balance), wCur)}{wCur !== "BRL" ? ` (${wCur})` : ""}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -746,7 +753,14 @@ export default function Planilha() {
                     <SelectTrigger><SelectValue placeholder="Nenhuma" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhuma</SelectItem>
-                      {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                      {wallets.map((w) => {
+                        const wCur = (w as any).currency || "BRL";
+                        return (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name} • {formatNative(Number(w.balance), wCur)}{wCur !== "BRL" ? ` (${wCur})` : ""}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -882,11 +896,14 @@ export default function Planilha() {
                               <SelectTrigger><SelectValue placeholder="Sem débito automático" /></SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">Nenhuma</SelectItem>
-                                {wallets.map((w) => (
-                                  <SelectItem key={w.id} value={w.id}>
-                                    {w.name} ({formatMoney(Number(w.balance))})
-                                  </SelectItem>
-                                ))}
+                                {wallets.map((w) => {
+                                  const wCur = (w as any).currency || "BRL";
+                                  return (
+                                    <SelectItem key={w.id} value={w.id}>
+                                      {w.name} • {formatNative(Number(w.balance), wCur)}{wCur !== "BRL" ? ` (${wCur})` : ""}
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                           </div>
