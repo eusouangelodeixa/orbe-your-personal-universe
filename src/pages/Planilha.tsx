@@ -121,6 +121,15 @@ export default function Planilha() {
   const [editExpense, setEditExpense] = useState<any>(null);
   const [editForm, setEditForm] = useState({ nome: "", valor: "", dueDate: undefined as Date | undefined, tipo: "variavel" as string, categoria: "", walletId: "", recurring: false, recurringDay: "" });
 
+  const transferFromWallet = wallets.find((w) => w.id === transferForm.fromId);
+  const transferFromCurrency = transferFromWallet ? ((transferFromWallet as any).currency || "BRL") : null;
+  const compatibleTargetWallets = wallets.filter((w) => {
+    if (w.id === transferForm.fromId) return false;
+    if (!transferFromCurrency) return true;
+    return (((w as any).currency || "BRL") === transferFromCurrency);
+  });
+  const hasCompatibleTransferTarget = compatibleTargetWallets.length > 0;
+
   // ── Converted totals (all in system currency) ──
   const totalRenda = incomes.reduce((a, i) => a + convertItem(Number(i.amount), i.wallet_id), 0);
   const totalGastos = expenses.reduce((a, e) => a + convertItem(Number(e.amount), e.wallet_id), 0);
@@ -537,7 +546,16 @@ export default function Planilha() {
                     <div className="space-y-3 py-2">
                       <div className="space-y-1">
                         <Label>De</Label>
-                        <Select value={transferForm.fromId} onValueChange={(v) => setTransferForm({ ...transferForm, fromId: v })}>
+                        <Select value={transferForm.fromId} onValueChange={(v) => {
+                          const nextSourceCurrency = ((wallets.find((w) => w.id === v) as any)?.currency || "BRL");
+                          const currentTargetCurrency = ((wallets.find((w) => w.id === transferForm.toId) as any)?.currency || "BRL");
+
+                          setTransferForm({
+                            ...transferForm,
+                            fromId: v,
+                            toId: transferForm.toId && currentTargetCurrency === nextSourceCurrency ? transferForm.toId : "",
+                          });
+                        }}>
                           <SelectTrigger><SelectValue placeholder="Carteira de origem" /></SelectTrigger>
                           <SelectContent>
                             {wallets.map((w) => {
@@ -554,9 +572,9 @@ export default function Planilha() {
                       <div className="space-y-1">
                         <Label>Para</Label>
                         <Select value={transferForm.toId} onValueChange={(v) => setTransferForm({ ...transferForm, toId: v })}>
-                          <SelectTrigger><SelectValue placeholder="Carteira de destino" /></SelectTrigger>
+                          <SelectTrigger><SelectValue placeholder={transferFromCurrency ? `Destino em ${transferFromCurrency}` : "Carteira de destino"} /></SelectTrigger>
                           <SelectContent>
-                            {wallets.filter(w => w.id !== transferForm.fromId).map((w) => {
+                            {compatibleTargetWallets.map((w) => {
                               const wCur = (w as any).currency || "BRL";
                               return (
                                 <SelectItem key={w.id} value={w.id}>
@@ -566,6 +584,11 @@ export default function Planilha() {
                             })}
                           </SelectContent>
                         </Select>
+                        {transferFromCurrency && !hasCompatibleTransferTarget && (
+                          <p className="text-xs text-destructive">
+                            Não há carteira de destino compatível com a moeda {transferFromCurrency}.
+                          </p>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <Label>Valor (R$)</Label>
@@ -576,10 +599,10 @@ export default function Planilha() {
                       <DialogClose asChild><Button variant="outline">Cancelar</Button></DialogClose>
                       <DialogClose asChild>
                         <Button onClick={() => {
-                          if (transferForm.fromId && transferForm.toId && transferForm.valor) {
+                          if (transferForm.fromId && transferForm.toId && transferForm.valor && hasCompatibleTransferTarget) {
                             walletTransfer.mutate({ fromId: transferForm.fromId, toId: transferForm.toId, amount: parseFloat(transferForm.valor) });
                           }
-                        }} disabled={!transferForm.fromId || !transferForm.toId || !transferForm.valor}>Transferir</Button>
+                        }} disabled={!transferForm.fromId || !transferForm.toId || !transferForm.valor || !hasCompatibleTransferTarget}>Transferir</Button>
                       </DialogClose>
                     </DialogFooter>
                   </DialogContent>
