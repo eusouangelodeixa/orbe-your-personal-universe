@@ -36,7 +36,7 @@ import {
 } from "@/lib/pdfTemplate";
 
 export default function Planilha() {
-  const { formatMoney } = useCurrency();
+  const { formatMoney, currency } = useCurrency();
   const formatMoneyBRL = (value: number) =>
     Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const now = new Date();
@@ -52,6 +52,45 @@ export default function Planilha() {
   const { data: transactions = [] } = useWalletTransactions();
   const { data: savingsGoals = [] } = useSavingsGoals();
   const updateSavingsGoal = useUpdateSavingsGoal();
+
+  // ── Multi-currency helpers ──
+  /** Convert amount from a given currency to the user's system currency */
+  const toSystemCurrency = (amount: number, fromCurrency: string): number => {
+    const sysCur = currency.code;
+    if (fromCurrency === sysCur) return amount;
+    // Step 1: convert to BRL
+    const inBRL = convertToBRL(amount, fromCurrency, exchangeRates?.rates);
+    if (sysCur === "BRL") return inBRL;
+    // Step 2: BRL to system currency
+    const sysRate = exchangeRates?.rates?.[sysCur];
+    if (!sysRate || sysRate === 0) return inBRL;
+    return inBRL * sysRate;
+  };
+
+  /** Get the currency code of a wallet */
+  const getWalletCurrency = (walletId?: string | null): string => {
+    if (!walletId) return currency.code;
+    const w = wallets.find((w) => w.id === walletId);
+    return (w as any)?.currency || "BRL";
+  };
+
+  /** Convert an income/expense amount to system currency based on its wallet */
+  const convertItem = (amount: number, walletId?: string | null): number => {
+    return toSystemCurrency(amount, getWalletCurrency(walletId));
+  };
+
+  /** Format an amount in its wallet's native currency */
+  const formatNative = (amount: number, walletCurrency: string): string => {
+    const info = SUPPORTED_CURRENCIES.find((c) => c.code === walletCurrency);
+    if (!info) return formatMoney(amount);
+    return Number(amount)
+      .toLocaleString(info.locale, {
+        style: "currency",
+        currency: walletCurrency,
+        minimumFractionDigits: walletCurrency === "JPY" ? 0 : 2,
+      })
+      .replace(/MTn|MTN/g, "MT");
+  };
 
   const addIncome = useAddIncome();
   const addExpense = useAddExpense();
@@ -82,15 +121,16 @@ export default function Planilha() {
   const [editExpense, setEditExpense] = useState<any>(null);
   const [editForm, setEditForm] = useState({ nome: "", valor: "", dueDate: undefined as Date | undefined, tipo: "variavel" as string, categoria: "", walletId: "", recurring: false, recurringDay: "" });
 
-  const totalRenda = incomes.reduce((a, i) => a + Number(i.amount), 0);
-  const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
-  const gastosPagos = expenses.filter((e) => e.paid).reduce((a, e) => a + Number(e.amount), 0);
+  // ── Converted totals (all in system currency) ──
+  const totalRenda = incomes.reduce((a, i) => a + convertItem(Number(i.amount), i.wallet_id), 0);
+  const totalGastos = expenses.reduce((a, e) => a + convertItem(Number(e.amount), e.wallet_id), 0);
+  const gastosPagos = expenses.filter((e) => e.paid).reduce((a, e) => a + convertItem(Number(e.amount), e.wallet_id), 0);
   const gastosPendentes = totalGastos - gastosPagos;
   const saldo = totalRenda - totalGastos;
   const percentual = totalRenda > 0 ? Math.round((totalGastos / totalRenda) * 100) : 0;
   const totalCarteiras = wallets.reduce((a, w) => {
     const wCurrency = (w as any).currency || "BRL";
-    return a + convertToBRL(Number(w.balance), wCurrency, exchangeRates?.rates);
+    return a + toSystemCurrency(Number(w.balance), wCurrency);
   }, 0);
 
   const handleAddExpense = () => {
