@@ -388,67 +388,79 @@ export function useToggleExpensePaid() {
     mutationFn: async ({ id, paid, wallet_id, amount, name }: {
       id: string; paid: boolean; wallet_id?: string | null; amount?: number; name?: string;
     }) => {
-      const { error } = await supabase.from("expenses").update({ paid, wallet_id: wallet_id || null }).eq("id", id);
-      if (error) throw error;
+      const { data: expense, error: expenseError } = await supabase
+        .from("expenses")
+        .select("wallet_id, amount")
+        .eq("id", id)
+        .single();
+      if (expenseError) throw expenseError;
 
-      // When marking as paid with a wallet, convert amount and check balance
-      if (paid && wallet_id && amount) {
-        // The expense amount is stored in its original currency.
-        // If the expense had no wallet (wallet_id was null), it's in BRL.
-        // We need to get the expense's original wallet to determine its currency.
-        const { data: expenseRow } = await supabase
-          .from("expenses")
-          .select("wallet_id")
-          .eq("id", id)
-          .single();
-        // The expense was just updated with the new wallet_id, so check if it originally had one
-        // Since we already updated, fetch from wallet_transactions or use the fact that
-        // if the user is choosing a wallet now, the expense amount is in BRL (no original wallet)
-        // or in the original wallet's currency.
-        // For safety, determine expense currency from the ORIGINAL wallet before update.
-        // Since we already updated wallet_id, we use the payment wallet to convert.
-        
-        // Convert the expense amount (assumed BRL for expenses without a wallet) to the payment wallet's currency
-        const { convertedAmount, info } = await convertBrlToWalletCurrency(amount, wallet_id);
-        
-        const { data: wallet, error: wErr } = await supabase
-          .from("wallets")
-          .select("balance, name")
-          .eq("id", wallet_id)
-          .single();
-        if (wErr) throw wErr;
-        if (Number(wallet.balance) < convertedAmount) {
-          // Revert the paid status
-          await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
-          throw new Error(
-            `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${info.currency}, necessário: ${convertedAmount.toFixed(2)} ${info.currency}.`
-          );
-        }
-        const { error: txError } = await supabase
-          .from("wallet_transactions")
-          .insert({
-            wallet_id,
-            user_id: user!.id,
-            amount: convertedAmount,
-            type: "debit",
-            description: `Gasto: ${name || "Despesa"}`,
-            reference_type: "expense",
-            reference_id: id,
-            exchange_rate_to_brl: info.exchangeRateToBrl,
-          } as any);
-        if (txError) {
-          await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
-          throw new Error(txError.message);
-        }
-      }
+      const originalWalletId = expense.wallet_id;
+      const expenseAmount = amount ?? Number(expense.amount);
 
-      // When unmarking as paid, remove the related transaction
       if (!paid) {
         await supabase
           .from("wallet_transactions")
           .delete()
           .eq("reference_type", "expense")
           .eq("reference_id", id);
+
+        const { error } = await supabase
+          .from("expenses")
+          .update({ paid: false })
+          .eq("id", id);
+        if (error) throw error;
+        return;
+      }
+
+      const paymentWalletId = wallet_id || originalWalletId || null;
+
+      const { error: updateError } = await supabase
+        .from("expenses")
+        .update({ paid: true })
+        .eq("id", id);
+      if (updateError) throw updateError;
+
+      if (!paymentWalletId) return;
+
+      const { convertedAmount, targetInfo } = await convertAmountBetweenWalletCurrencies(
+        expenseAmount,
+        originalWalletId,
+        paymentWalletId,
+      );
+
+      const { data: wallet, error: wErr } = await supabase
+        .from("wallets")
+        .select("balance, name")
+        .eq("id", paymentWalletId)
+        .single();
+      if (wErr) {
+        await supabase.from("expenses").update({ paid: false }).eq("id", id);
+        throw wErr;
+      }
+
+      if (Number(wallet.balance) < convertedAmount) {
+        await supabase.from("expenses").update({ paid: false }).eq("id", id);
+        throw new Error(
+          `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${targetInfo.currency}, necessário: ${convertedAmount.toFixed(2)} ${targetInfo.currency}.`
+        );
+      }
+
+      const { error: txError } = await supabase
+        .from("wallet_transactions")
+        .insert({
+          wallet_id: paymentWalletId,
+          user_id: user!.id,
+          amount: convertedAmount,
+          type: "debit",
+          description: `Gasto: ${name || "Despesa"}`,
+          reference_type: "expense",
+          reference_id: id,
+          exchange_rate_to_brl: targetInfo.currency === "BRL" ? null : targetInfo.exchangeRateToBrl,
+        } as any);
+      if (txError) {
+        await supabase.from("expenses").update({ paid: false }).eq("id", id);
+        throw new Error(txError.message);
       }
     },
     onSuccess: () => {
