@@ -28,12 +28,12 @@ export default function Dashboard() {
   const { data: transactions = [] } = useWalletTransactions();
   const { data: history = [] } = useFinancialHistory();
 
-  // Gather all foreign currencies from wallets
-  const walletCurrencies = wallets
-    .map((w: any) => w.currency || "BRL")
-    .filter((c: string) => c !== "BRL");
-  const uniqueCurrencies = [...new Set(walletCurrencies)] as string[];
-  const { data: exchangeRates } = useExchangeRates(uniqueCurrencies.length > 0 ? uniqueCurrencies : undefined);
+  // Gather every currency required for dashboard conversion
+  const requiredCurrencies = [...new Set([
+    ...wallets.map((w: any) => w.currency || "BRL"),
+    currency.code,
+  ].filter((code) => code !== "BRL"))] as string[];
+  const { data: exchangeRates } = useExchangeRates(requiredCurrencies.length > 0 ? requiredCurrencies : undefined);
 
   /** Convert any amount from a wallet's currency to the user's system currency via BRL as pivot */
   const toSystemCurrency = (amount: number, fromCurrency: string): number => {
