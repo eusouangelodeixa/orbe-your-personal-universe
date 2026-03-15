@@ -121,6 +121,15 @@ export default function Planilha() {
   const [editExpense, setEditExpense] = useState<any>(null);
   const [editForm, setEditForm] = useState({ nome: "", valor: "", dueDate: undefined as Date | undefined, tipo: "variavel" as string, categoria: "", walletId: "", recurring: false, recurringDay: "" });
 
+  const transferFromWallet = wallets.find((w) => w.id === transferForm.fromId);
+  const transferFromCurrency = transferFromWallet ? ((transferFromWallet as any).currency || "BRL") : null;
+  const compatibleTargetWallets = wallets.filter((w) => {
+    if (w.id === transferForm.fromId) return false;
+    if (!transferFromCurrency) return true;
+    return (((w as any).currency || "BRL") === transferFromCurrency);
+  });
+  const hasCompatibleTransferTarget = compatibleTargetWallets.length > 0;
+
   // ── Converted totals (all in system currency) ──
   const totalRenda = incomes.reduce((a, i) => a + convertItem(Number(i.amount), i.wallet_id), 0);
   const totalGastos = expenses.reduce((a, e) => a + convertItem(Number(e.amount), e.wallet_id), 0);
