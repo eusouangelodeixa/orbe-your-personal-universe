@@ -357,6 +357,7 @@ export function useToggleExpensePaid() {
             `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}.`
           );
         }
+        const rate = await getWalletExchangeRate(wallet_id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
@@ -367,7 +368,8 @@ export function useToggleExpensePaid() {
             description: `Gasto: ${name || "Despesa"}`,
             reference_type: "expense",
             reference_id: id,
-          });
+            exchange_rate_to_brl: rate,
+          } as any);
         if (txError) {
           await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
           throw new Error(txError.message);
