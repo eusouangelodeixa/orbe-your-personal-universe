@@ -334,7 +334,7 @@ export default function Planilha() {
                       </p>
                       {isForex && (
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          ≈ {formatMoney(balanceBRL)}
+                          ≈ {formatMoneyBRL(balanceBRL)}
                         </p>
                       )}
                     </div>
