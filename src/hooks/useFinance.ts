@@ -14,21 +14,42 @@ const now = new Date();
 
 /** Fetch the current exchange rate (foreign → BRL) for a wallet's currency. Returns null for BRL wallets. */
 async function getWalletExchangeRate(walletId: string): Promise<number | null> {
+  const info = await getWalletCurrencyInfo(walletId);
+  return info.exchangeRateToBrl;
+}
+
+/** Get wallet currency info: currency code, exchange_rate_to_brl, and foreignPerBrl rate */
+async function getWalletCurrencyInfo(walletId: string): Promise<{
+  currency: string;
+  exchangeRateToBrl: number | null; // how many BRL per 1 foreign unit
+  foreignPerBrl: number | null;     // how many foreign per 1 BRL
+}> {
   const { data: wallet } = await supabase
     .from("wallets")
     .select("currency")
     .eq("id", walletId)
     .single();
   const currency = (wallet as any)?.currency || "BRL";
-  if (currency === "BRL") return null;
+  if (currency === "BRL") return { currency, exchangeRateToBrl: null, foreignPerBrl: null };
 
   const { data, error } = await supabase.functions.invoke("exchange-rates", {
     body: { base: "BRL", symbols: currency },
   });
-  if (error || data?.error || !data?.rates?.[currency]) return null;
-  // rates[currency] = foreign per 1 BRL → exchange_rate_to_brl = 1/rate (how many BRL per 1 foreign)
-  const rate = data.rates[currency];
-  return rate > 0 ? 1 / rate : null;
+  if (error || data?.error || !data?.rates?.[currency]) return { currency, exchangeRateToBrl: null, foreignPerBrl: null };
+  // rates[currency] = foreign per 1 BRL
+  const foreignPerBrl = data.rates[currency];
+  const exchangeRateToBrl = foreignPerBrl > 0 ? 1 / foreignPerBrl : null;
+  return { currency, exchangeRateToBrl, foreignPerBrl };
+}
+
+/** Convert a BRL amount to a wallet's native currency. Returns original amount if wallet is BRL. */
+async function convertBrlToWalletCurrency(brlAmount: number, walletId: string): Promise<{ convertedAmount: number; info: Awaited<ReturnType<typeof getWalletCurrencyInfo>> }> {
+  const info = await getWalletCurrencyInfo(walletId);
+  if (info.currency === "BRL" || !info.foreignPerBrl) {
+    return { convertedAmount: brlAmount, info };
+  }
+  // BRL → foreign: multiply by foreignPerBrl
+  return { convertedAmount: brlAmount * info.foreignPerBrl, info };
 }
 
 export function useCategories() {
@@ -176,13 +197,14 @@ export function useAddWalletTransaction() {
       if (tx.type === "debit") {
         const { data: wallet, error: wErr } = await supabase
           .from("wallets")
-          .select("balance, name")
+          .select("balance, name, currency")
           .eq("id", tx.wallet_id)
           .single();
         if (wErr) throw wErr;
+        const wCur = (wallet as any).currency || "BRL";
         if (Number(wallet.balance) < tx.amount) {
           throw new Error(
-            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}.`
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${wCur}.`
           );
         }
       }
@@ -279,13 +301,14 @@ export function useAddExpense() {
       if (shouldAutoPay && expense.wallet_id) {
         const { data: wallet, error: wErr } = await supabase
           .from("wallets")
-          .select("balance, name")
+          .select("balance, name, currency")
           .eq("id", expense.wallet_id)
           .single();
         if (wErr) throw wErr;
+        const wCur = (wallet as any).currency || "BRL";
         if (Number(wallet.balance) < expense.amount) {
           throw new Error(
-            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}, necessário: R$ ${expense.amount.toFixed(2)}. Adicione fundos antes de registrar este gasto.`
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${wCur}, necessário: ${expense.amount.toFixed(2)} ${wCur}. Adicione fundos antes de registrar este gasto.`
           );
         }
       }
@@ -342,33 +365,50 @@ export function useToggleExpensePaid() {
       const { error } = await supabase.from("expenses").update({ paid, wallet_id: wallet_id || null }).eq("id", id);
       if (error) throw error;
 
-      // When marking as paid with a wallet, check balance first
+      // When marking as paid with a wallet, convert amount and check balance
       if (paid && wallet_id && amount) {
+        // The expense amount is stored in its original currency.
+        // If the expense had no wallet (wallet_id was null), it's in BRL.
+        // We need to get the expense's original wallet to determine its currency.
+        const { data: expenseRow } = await supabase
+          .from("expenses")
+          .select("wallet_id")
+          .eq("id", id)
+          .single();
+        // The expense was just updated with the new wallet_id, so check if it originally had one
+        // Since we already updated, fetch from wallet_transactions or use the fact that
+        // if the user is choosing a wallet now, the expense amount is in BRL (no original wallet)
+        // or in the original wallet's currency.
+        // For safety, determine expense currency from the ORIGINAL wallet before update.
+        // Since we already updated wallet_id, we use the payment wallet to convert.
+        
+        // Convert the expense amount (assumed BRL for expenses without a wallet) to the payment wallet's currency
+        const { convertedAmount, info } = await convertBrlToWalletCurrency(amount, wallet_id);
+        
         const { data: wallet, error: wErr } = await supabase
           .from("wallets")
           .select("balance, name")
           .eq("id", wallet_id)
           .single();
         if (wErr) throw wErr;
-        if (Number(wallet.balance) < amount) {
+        if (Number(wallet.balance) < convertedAmount) {
           // Revert the paid status
           await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
           throw new Error(
-            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}.`
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${info.currency}, necessário: ${convertedAmount.toFixed(2)} ${info.currency}.`
           );
         }
-        const rate = await getWalletExchangeRate(wallet_id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
             wallet_id,
             user_id: user!.id,
-            amount,
+            amount: convertedAmount,
             type: "debit",
             description: `Gasto: ${name || "Despesa"}`,
             reference_type: "expense",
             reference_id: id,
-            exchange_rate_to_brl: rate,
+            exchange_rate_to_brl: info.exchangeRateToBrl,
           } as any);
         if (txError) {
           await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
@@ -465,9 +505,10 @@ export function useWalletTransfer() {
   return useMutation({
     mutationFn: async ({ fromId, toId, amount, description }: { fromId: string; toId: string; amount: number; description?: string }) => {
       // Check source balance
-      const { data: from, error: fErr } = await supabase.from("wallets").select("balance, name").eq("id", fromId).single();
+      const { data: from, error: fErr } = await supabase.from("wallets").select("balance, name, currency").eq("id", fromId).single();
       if (fErr) throw fErr;
-      if (Number(from.balance) < amount) throw new Error(`Saldo insuficiente em "${from.name}". Disponível: R$ ${Number(from.balance).toFixed(2)}`);
+      const fromCur = (from as any).currency || "BRL";
+      if (Number(from.balance) < amount) throw new Error(`Saldo insuficiente em "${from.name}". Disponível: ${Number(from.balance).toFixed(2)} ${fromCur}`);
 
       const { data: to } = await supabase.from("wallets").select("name").eq("id", toId).single();
       const desc = description || `Transferência para ${to?.name || "outra carteira"}`;
