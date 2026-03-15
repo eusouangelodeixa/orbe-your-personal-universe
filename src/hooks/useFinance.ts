@@ -12,6 +12,25 @@ type WalletTransaction = Tables<"wallet_transactions">;
 
 const now = new Date();
 
+/** Fetch the current exchange rate (foreign → BRL) for a wallet's currency. Returns null for BRL wallets. */
+async function getWalletExchangeRate(walletId: string): Promise<number | null> {
+  const { data: wallet } = await supabase
+    .from("wallets")
+    .select("currency")
+    .eq("id", walletId)
+    .single();
+  const currency = (wallet as any)?.currency || "BRL";
+  if (currency === "BRL") return null;
+
+  const { data, error } = await supabase.functions.invoke("exchange-rates", {
+    body: { base: "BRL", symbols: currency },
+  });
+  if (error || data?.error || !data?.rates?.[currency]) return null;
+  // rates[currency] = foreign per 1 BRL → exchange_rate_to_brl = 1/rate (how many BRL per 1 foreign)
+  const rate = data.rates[currency];
+  return rate > 0 ? 1 / rate : null;
+}
+
 export function useCategories() {
   return useQuery({
     queryKey: ["categories"],
@@ -98,6 +117,7 @@ export function useAddWallet() {
 
       // If there's an initial balance, record it as a transaction (trigger updates balance)
       if (initialBalance > 0) {
+        const rate = await getWalletExchangeRate(data.id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
@@ -107,6 +127,7 @@ export function useAddWallet() {
             type: "credit",
             description: "Saldo inicial",
             reference_type: "manual",
+            exchange_rate_to_brl: rate,
           } as any);
         if (txError) throw txError;
       }
@@ -165,9 +186,10 @@ export function useAddWalletTransaction() {
           );
         }
       }
+      const rate = await getWalletExchangeRate(tx.wallet_id);
       const { data, error } = await supabase
         .from("wallet_transactions")
-        .insert({ ...tx, user_id: user!.id })
+        .insert({ ...tx, user_id: user!.id, exchange_rate_to_brl: rate } as any)
         .select()
         .single();
       if (error) throw error;
@@ -219,6 +241,7 @@ export function useAddIncome() {
 
       // If linked to a wallet, create a credit transaction
       if (income.wallet_id) {
+        const rate = await getWalletExchangeRate(income.wallet_id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
@@ -229,7 +252,8 @@ export function useAddIncome() {
             description: `Renda: ${income.description}`,
             reference_type: "income",
             reference_id: data.id,
-          });
+            exchange_rate_to_brl: rate,
+          } as any);
         if (txError) throw txError;
       }
 
@@ -275,6 +299,7 @@ export function useAddExpense() {
 
       // If linked to a wallet, create a debit transaction
       if (shouldAutoPay && expense.wallet_id) {
+        const rate = await getWalletExchangeRate(expense.wallet_id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
@@ -285,7 +310,8 @@ export function useAddExpense() {
             description: `Gasto: ${expense.name}`,
             reference_type: "expense",
             reference_id: data.id,
-          });
+            exchange_rate_to_brl: rate,
+          } as any);
 
         if (txError) {
           // Safety rollback to avoid a paid expense without transaction
@@ -331,6 +357,7 @@ export function useToggleExpensePaid() {
             `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}.`
           );
         }
+        const rate = await getWalletExchangeRate(wallet_id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
@@ -341,7 +368,8 @@ export function useToggleExpensePaid() {
             description: `Gasto: ${name || "Despesa"}`,
             reference_type: "expense",
             reference_id: id,
-          });
+            exchange_rate_to_brl: rate,
+          } as any);
         if (txError) {
           await supabase.from("expenses").update({ paid: false, wallet_id: null }).eq("id", id);
           throw new Error(txError.message);
@@ -444,18 +472,26 @@ export function useWalletTransfer() {
       const { data: to } = await supabase.from("wallets").select("name").eq("id", toId).single();
       const desc = description || `Transferência para ${to?.name || "outra carteira"}`;
 
+      // Fetch rates for both wallets
+      const [rateFrom, rateTo] = await Promise.all([
+        getWalletExchangeRate(fromId),
+        getWalletExchangeRate(toId),
+      ]);
+
       // Debit from source
       const { error: e1 } = await supabase.from("wallet_transactions").insert({
         wallet_id: fromId, user_id: user!.id, amount, type: "debit",
         description: `Transferência → ${to?.name}`, reference_type: "transfer",
-      });
+        exchange_rate_to_brl: rateFrom,
+      } as any);
       if (e1) throw e1;
 
       // Credit to destination
       const { error: e2 } = await supabase.from("wallet_transactions").insert({
         wallet_id: toId, user_id: user!.id, amount, type: "credit",
         description: `Transferência ← ${from.name}`, reference_type: "transfer",
-      });
+        exchange_rate_to_brl: rateTo,
+      } as any);
       if (e2) throw e2;
     },
     onSuccess: () => {
