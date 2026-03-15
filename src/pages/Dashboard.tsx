@@ -61,9 +61,22 @@ export default function Dashboard() {
       .replace(/MTn|MTN/g, "MT");
   };
 
-  const renda = incomes.reduce((a, i) => a + Number(i.amount), 0);
-  const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
-  const gastosPendentes = expenses.filter(e => !e.paid).reduce((a, e) => a + Number(e.amount), 0);
+  /** Get the currency of a wallet by id */
+  const getWalletCurrency = (walletId?: string | null): string => {
+    if (!walletId) return currency.code; // no wallet = system currency
+    const w = wallets.find((w) => w.id === walletId);
+    return (w as any)?.currency || "BRL";
+  };
+
+  /** Convert an income/expense amount to system currency based on its wallet */
+  const convertItem = (amount: number, walletId?: string | null): number => {
+    const fromCur = getWalletCurrency(walletId);
+    return toSystemCurrency(amount, fromCur);
+  };
+
+  const renda = incomes.reduce((a, i) => a + convertItem(Number(i.amount), i.wallet_id), 0);
+  const totalGastos = expenses.reduce((a, e) => a + convertItem(Number(e.amount), e.wallet_id), 0);
+  const gastosPendentes = expenses.filter(e => !e.paid).reduce((a, e) => a + convertItem(Number(e.amount), e.wallet_id), 0);
   const fluxoMensal = renda - totalGastos;
   const percentual = renda > 0 ? Math.round((totalGastos / renda) * 100) : 0;
   const isCritical = percentual > 80;
@@ -78,7 +91,7 @@ export default function Dashboard() {
     const catName = (e as any).categories?.name || "Outros";
     const catColor = (e as any).categories?.color || "#607D8B";
     if (!acc[catName]) acc[catName] = { name: catName, value: 0, color: catColor };
-    acc[catName].value += Number(e.amount);
+    acc[catName].value += convertItem(Number(e.amount), e.wallet_id);
     return acc;
   }, {});
   const pieData = Object.values(byCat);
