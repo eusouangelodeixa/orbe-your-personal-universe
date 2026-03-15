@@ -304,20 +304,38 @@ export default function Planilha() {
           <CardContent className="space-y-4">
             {wallets.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {wallets.map((w) => (
+                {wallets.map((w) => {
+                  const wCurrency = (w as any).currency || "BRL";
+                  const currencyInfo = SUPPORTED_CURRENCIES.find(c => c.code === wCurrency);
+                  const isForex = wCurrency !== "BRL";
+                  const balanceBRL = isForex ? convertToBRL(Number(w.balance), wCurrency, exchangeRates?.rates) : Number(w.balance);
+                  const formatWalletMoney = (val: number) => {
+                    if (!currencyInfo) return formatMoney(val);
+                    return Number(val).toLocaleString(currencyInfo.locale, { style: "currency", currency: wCurrency, minimumFractionDigits: wCurrency === "JPY" ? 0 : 2 }).replace(/MTn|MTN/g, "MT");
+                  };
+                  return (
                   <div key={w.id} className="flex flex-col p-4 rounded-lg border border-border bg-card space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Wallet className="h-4 w-4 text-muted-foreground" />
                         <p className="font-medium text-sm">{w.name}</p>
                         {w.is_default && <Badge variant="outline" className="text-[10px]">Principal</Badge>}
+                        {isForex && <Badge variant="secondary" className="text-[10px]">{wCurrency}</Badge>}
                       </div>
                       <button onClick={() => deleteWallet.mutate(w.id)} className="text-muted-foreground hover:text-destructive">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
-                      {formatMoney(Number(w.balance))}
+                    <div>
+                      <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
+                        {formatWalletMoney(Number(w.balance))}
+                      </p>
+                      {isForex && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          ≈ {formatMoney(balanceBRL)}
+                        </p>
+                      )}
+                    </div>
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       <Dialog>
