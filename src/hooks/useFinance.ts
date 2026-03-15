@@ -299,6 +299,7 @@ export function useAddExpense() {
 
       // If linked to a wallet, create a debit transaction
       if (shouldAutoPay && expense.wallet_id) {
+        const rate = await getWalletExchangeRate(expense.wallet_id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
@@ -309,7 +310,8 @@ export function useAddExpense() {
             description: `Gasto: ${expense.name}`,
             reference_type: "expense",
             reference_id: data.id,
-          });
+            exchange_rate_to_brl: rate,
+          } as any);
 
         if (txError) {
           // Safety rollback to avoid a paid expense without transaction
