@@ -129,8 +129,9 @@ export default function Planilha() {
     addWallet.mutate({
       name: novaCarteira.nome.trim(),
       balance: novaCarteira.saldoInicial ? parseFloat(novaCarteira.saldoInicial) : 0,
+      currency: novaCarteira.currency,
     });
-    setNovaCarteira({ nome: "", saldoInicial: "" });
+    setNovaCarteira({ nome: "", saldoInicial: "", currency: "BRL" });
   };
 
   const handleTogglePaid = (e: any) => {
