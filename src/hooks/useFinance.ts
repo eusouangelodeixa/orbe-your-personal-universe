@@ -12,6 +12,25 @@ type WalletTransaction = Tables<"wallet_transactions">;
 
 const now = new Date();
 
+/** Fetch the current exchange rate (foreign → BRL) for a wallet's currency. Returns null for BRL wallets. */
+async function getWalletExchangeRate(walletId: string): Promise<number | null> {
+  const { data: wallet } = await supabase
+    .from("wallets")
+    .select("currency")
+    .eq("id", walletId)
+    .single();
+  const currency = (wallet as any)?.currency || "BRL";
+  if (currency === "BRL") return null;
+
+  const { data, error } = await supabase.functions.invoke("exchange-rates", {
+    body: { base: "BRL", symbols: currency },
+  });
+  if (error || data?.error || !data?.rates?.[currency]) return null;
+  // rates[currency] = foreign per 1 BRL → exchange_rate_to_brl = 1/rate (how many BRL per 1 foreign)
+  const rate = data.rates[currency];
+  return rate > 0 ? 1 / rate : null;
+}
+
 export function useCategories() {
   return useQuery({
     queryKey: ["categories"],
