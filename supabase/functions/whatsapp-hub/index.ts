@@ -410,6 +410,8 @@ ${context}
 REGRAS:
 - Interprete linguagem natural em português
 - Para datas relativas: "hoje" = ${now.toISOString().split("T")[0]}, "amanhã" = dia seguinte, etc.
+- MUITO IMPORTANTE: Quando o usuário mencionar um HORÁRIO na mensagem (ex: "às 14h", "às 10:30", "ao meio-dia"), SEMPRE preencha params.due_time no formato HH:mm (ex: "14:00", "10:30", "12:00"). Se NÃO mencionar horário, deixe due_time vazio. O fuso horário do usuário é América/São Paulo (UTC-3).
+- Se não entender a intenção, use action "chat" e responda normalmente
 - Se não entender a intenção, use action "chat" e responda normalmente
 - Para "ajuda" ou mensagens vagas, use action "help"
 - reply_text deve ser amigável, curto e usar emojis
@@ -1254,10 +1256,15 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         }
         if (!subjectId) return "❌ Nenhuma disciplina cadastrada. Cadastre primeiro no app.";
 
+        // Build event_date preserving user's local timezone
+        const eventDateRaw = params.due_date || now.toISOString().split("T")[0];
+        const eventTime = params.due_time || "12:00";
+        const eventDateStr = `${eventDateRaw}T${eventTime}:00-03:00`;
+
         const { error } = await supabase.from("academic_events").insert({
           user_id: userId,
           title: params.name || params.task_title || params.description || "Evento WhatsApp",
-          event_date: params.due_date || now.toISOString(),
+          event_date: eventDateStr,
           type: params.type || "prova",
           subject_id: subjectId,
         });
@@ -1464,9 +1471,13 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
       // ===== TAREFAS =====
       case "add_task": {
-        const dueDate = params.due_date
-          ? new Date(`${params.due_date}T${params.due_time || "23:59"}:00`).toISOString()
-          : null;
+        // Build due_date preserving the user's local time (São Paulo / UTC-3)
+        let dueDate: string | null = null;
+        if (params.due_date) {
+          const time = params.due_time || "23:59";
+          // Append São Paulo offset (-03:00) so the DB stores the correct UTC instant
+          dueDate = `${params.due_date}T${time}:00-03:00`;
+        }
         const { error } = await supabase.from("tasks").insert({
           user_id: userId,
           title: params.task_title || params.name || "Tarefa WhatsApp",
@@ -1490,7 +1501,13 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         let msg = `📋 *Tarefas pendentes (${data.length})*\n\n`;
         data.forEach((t: any, i: number) => {
           msg += `${i + 1}. ${priEmoji[t.priority] || "🟡"} ${catEmoji[t.category] || "📋"} *${t.title}*`;
-          if (t.due_date) msg += `\n   ⏳ ${new Date(t.due_date).toLocaleDateString("pt-BR")}`;
+          if (t.due_date) {
+            const d = new Date(t.due_date);
+            const dateStr = d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+            const timeStr = d.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+            msg += `\n   ⏳ ${dateStr}`;
+            if (timeStr !== "23:59") msg += ` às ${timeStr}`;
+          }
           msg += "\n\n";
         });
         return msg;
