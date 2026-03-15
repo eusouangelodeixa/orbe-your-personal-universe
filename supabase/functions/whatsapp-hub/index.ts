@@ -410,6 +410,8 @@ ${context}
 REGRAS:
 - Interprete linguagem natural em português
 - Para datas relativas: "hoje" = ${now.toISOString().split("T")[0]}, "amanhã" = dia seguinte, etc.
+- MUITO IMPORTANTE: Quando o usuário mencionar um HORÁRIO na mensagem (ex: "às 14h", "às 10:30", "ao meio-dia"), SEMPRE preencha params.due_time no formato HH:mm (ex: "14:00", "10:30", "12:00"). Se NÃO mencionar horário, deixe due_time vazio. O fuso horário do usuário é América/São Paulo (UTC-3).
+- Se não entender a intenção, use action "chat" e responda normalmente
 - Se não entender a intenção, use action "chat" e responda normalmente
 - Para "ajuda" ou mensagens vagas, use action "help"
 - reply_text deve ser amigável, curto e usar emojis
