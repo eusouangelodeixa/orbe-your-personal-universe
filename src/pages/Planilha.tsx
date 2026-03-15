@@ -163,7 +163,7 @@ export default function Planilha() {
     addIncome.mutate({
       description: novaRenda.descricao.trim(),
       amount: parseFloat(novaRenda.valor),
-      wallet_id: novaRenda.walletId || null,
+      wallet_id: novaRenda.walletId && novaRenda.walletId !== "none" ? novaRenda.walletId : null,
       recurring: novaRenda.recurring,
       month,
       year,
