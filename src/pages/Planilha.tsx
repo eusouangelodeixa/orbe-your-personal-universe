@@ -668,7 +668,14 @@ export default function Planilha() {
                     <SelectTrigger><SelectValue placeholder="Nenhuma carteira" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Nenhuma</SelectItem>
-                      {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}
+                      {wallets.map((w) => {
+                        const wCur = (w as any).currency || "BRL";
+                        return (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name} • {formatNative(Number(w.balance), wCur)}{wCur !== "BRL" ? ` (${wCur})` : ""}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
