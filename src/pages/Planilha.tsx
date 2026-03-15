@@ -540,7 +540,14 @@ export default function Planilha() {
                         <Select value={transferForm.fromId} onValueChange={(v) => setTransferForm({ ...transferForm, fromId: v })}>
                           <SelectTrigger><SelectValue placeholder="Carteira de origem" /></SelectTrigger>
                           <SelectContent>
-                            {wallets.map((w) => <SelectItem key={w.id} value={w.id}>{w.name} ({formatMoney(Number(w.balance))})</SelectItem>)}
+                            {wallets.map((w) => {
+                              const wCur = (w as any).currency || "BRL";
+                              return (
+                                <SelectItem key={w.id} value={w.id}>
+                                  {w.name} • {formatNative(Number(w.balance), wCur)}{wCur !== "BRL" ? ` (${wCur})` : ""}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>
