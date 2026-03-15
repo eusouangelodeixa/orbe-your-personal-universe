@@ -14,21 +14,42 @@ const now = new Date();
 
 /** Fetch the current exchange rate (foreign → BRL) for a wallet's currency. Returns null for BRL wallets. */
 async function getWalletExchangeRate(walletId: string): Promise<number | null> {
+  const info = await getWalletCurrencyInfo(walletId);
+  return info.exchangeRateToBrl;
+}
+
+/** Get wallet currency info: currency code, exchange_rate_to_brl, and foreignPerBrl rate */
+async function getWalletCurrencyInfo(walletId: string): Promise<{
+  currency: string;
+  exchangeRateToBrl: number | null; // how many BRL per 1 foreign unit
+  foreignPerBrl: number | null;     // how many foreign per 1 BRL
+}> {
   const { data: wallet } = await supabase
     .from("wallets")
     .select("currency")
     .eq("id", walletId)
     .single();
   const currency = (wallet as any)?.currency || "BRL";
-  if (currency === "BRL") return null;
+  if (currency === "BRL") return { currency, exchangeRateToBrl: null, foreignPerBrl: null };
 
   const { data, error } = await supabase.functions.invoke("exchange-rates", {
     body: { base: "BRL", symbols: currency },
   });
-  if (error || data?.error || !data?.rates?.[currency]) return null;
-  // rates[currency] = foreign per 1 BRL → exchange_rate_to_brl = 1/rate (how many BRL per 1 foreign)
-  const rate = data.rates[currency];
-  return rate > 0 ? 1 / rate : null;
+  if (error || data?.error || !data?.rates?.[currency]) return { currency, exchangeRateToBrl: null, foreignPerBrl: null };
+  // rates[currency] = foreign per 1 BRL
+  const foreignPerBrl = data.rates[currency];
+  const exchangeRateToBrl = foreignPerBrl > 0 ? 1 / foreignPerBrl : null;
+  return { currency, exchangeRateToBrl, foreignPerBrl };
+}
+
+/** Convert a BRL amount to a wallet's native currency. Returns original amount if wallet is BRL. */
+async function convertBrlToWalletCurrency(brlAmount: number, walletId: string): Promise<{ convertedAmount: number; info: Awaited<ReturnType<typeof getWalletCurrencyInfo>> }> {
+  const info = await getWalletCurrencyInfo(walletId);
+  if (info.currency === "BRL" || !info.foreignPerBrl) {
+    return { convertedAmount: brlAmount, info };
+  }
+  // BRL → foreign: multiply by foreignPerBrl
+  return { convertedAmount: brlAmount * info.foreignPerBrl, info };
 }
 
 export function useCategories() {
