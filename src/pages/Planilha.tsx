@@ -36,7 +36,9 @@ import {
 } from "@/lib/pdfTemplate";
 
 export default function Planilha() {
-  const { formatMoney, currency } = useCurrency();
+  const { formatMoney } = useCurrency();
+  const formatMoneyBRL = (value: number) =>
+    Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
