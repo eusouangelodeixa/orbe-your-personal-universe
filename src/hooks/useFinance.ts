@@ -619,10 +619,10 @@ export function useWalletTransfer() {
 
 // ========== FINANCIAL HISTORY (for charts) ==========
 
-export function useFinancialHistory() {
+export function useFinancialHistory(monthsBack: number = 6) {
   const { user } = useAuth();
   return useQuery({
-    queryKey: ["financial_history", user?.id],
+    queryKey: ["financial_history", user?.id, monthsBack],
     enabled: !!user,
     queryFn: async () => {
       const now = new Date();
@@ -633,7 +633,7 @@ export function useFinancialHistory() {
         expenses: { amount: number; wallet_id: string | null }[];
       }[] = [];
 
-      for (let i = 5; i >= 0; i--) {
+      for (let i = monthsBack - 1; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const m = d.getMonth() + 1;
         const y = d.getFullYear();

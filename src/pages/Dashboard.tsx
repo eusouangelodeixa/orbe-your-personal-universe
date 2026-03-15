@@ -3,6 +3,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   TrendingUp, TrendingDown, Wallet as WalletIcon, AlertTriangle, Loader2,
   CreditCard, ArrowUpCircle, ArrowDownCircle,
@@ -12,6 +13,7 @@ import { MonthSelector } from "@/components/MonthSelector";
 import { useCurrency, SUPPORTED_CURRENCIES } from "@/contexts/CurrencyContext";
 import { useExchangeRates, convertToBRL } from "@/hooks/useExchangeRates";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { Input } from "@/components/ui/input";
 
 const COLORS = ["#4CAF50", "#FF9800", "#2196F3", "#9C27B0", "#F44336", "#3F51B5", "#E91E63", "#607D8B"];
 const MONTH_NAMES = ["", "Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
@@ -22,11 +24,32 @@ export default function Dashboard() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
 
+  // Chart filter state
+  type ChartFilter = "1m" | "3m" | "6m" | "12m" | "custom";
+  const [chartFilter, setChartFilter] = useState<ChartFilter>("6m");
+  const [customFrom, setCustomFrom] = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 5);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [customTo, setCustomTo] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  const chartMonthsBack = useMemo(() => {
+    if (chartFilter === "custom") {
+      const [fy, fm] = customFrom.split("-").map(Number);
+      const [ty, tm] = customTo.split("-").map(Number);
+      return Math.max(1, (ty - fy) * 12 + (tm - fm) + 1);
+    }
+    return chartFilter === "1m" ? 1 : chartFilter === "3m" ? 3 : chartFilter === "12m" ? 12 : 6;
+  }, [chartFilter, customFrom, customTo]);
+
   const { data: incomes = [], isLoading: li } = useIncomes(month, year);
   const { data: expenses = [], isLoading: le } = useExpenses(month, year);
   const { data: wallets = [], isLoading: lw } = useWallets();
   const { data: transactions = [] } = useWalletTransactions();
-  const { data: history = [] } = useFinancialHistory();
+  const { data: history = [] } = useFinancialHistory(chartMonthsBack);
 
   // Gather every currency required for dashboard conversion
   const requiredCurrencies = [...new Set([
@@ -296,7 +319,47 @@ export default function Dashboard() {
         {/* Evolution Chart */}
         {chartData.length > 0 && (
           <Card>
-            <CardHeader><CardTitle className="font-display">Evolução Financeira (últimos 6 meses)</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="font-display">Evolução Financeira</CardTitle>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {([
+                    { key: "1m", label: "Mês" },
+                    { key: "3m", label: "Trimestre" },
+                    { key: "6m", label: "Semestre" },
+                    { key: "12m", label: "Ano" },
+                    { key: "custom", label: "Personalizado" },
+                  ] as const).map(({ key, label }) => (
+                    <Button
+                      key={key}
+                      variant={chartFilter === key ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-[10px] px-2.5"
+                      onClick={() => setChartFilter(key)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {chartFilter === "custom" && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Input
+                    type="month"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="h-8 w-40 text-xs"
+                  />
+                  <span className="text-xs text-muted-foreground">até</span>
+                  <Input
+                    type="month"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="h-8 w-40 text-xs"
+                  />
+                </div>
+              )}
+            </CardHeader>
             <CardContent className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
