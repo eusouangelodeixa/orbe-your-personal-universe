@@ -1103,6 +1103,7 @@ export type Database = {
           amount: number
           created_at: string
           description: string
+          exchange_rate_to_brl: number | null
           id: string
           reference_id: string | null
           reference_type: string | null
@@ -1114,6 +1115,7 @@ export type Database = {
           amount: number
           created_at?: string
           description?: string
+          exchange_rate_to_brl?: number | null
           id?: string
           reference_id?: string | null
           reference_type?: string | null
@@ -1125,6 +1127,7 @@ export type Database = {
           amount?: number
           created_at?: string
           description?: string
+          exchange_rate_to_brl?: number | null
           id?: string
           reference_id?: string | null
           reference_type?: string | null
@@ -1146,6 +1149,7 @@ export type Database = {
         Row: {
           balance: number
           created_at: string
+          currency: string
           id: string
           is_default: boolean
           name: string
@@ -1155,6 +1159,7 @@ export type Database = {
         Insert: {
           balance?: number
           created_at?: string
+          currency?: string
           id?: string
           is_default?: boolean
           name: string
@@ -1164,6 +1169,7 @@ export type Database = {
         Update: {
           balance?: number
           created_at?: string
+          currency?: string
           id?: string
           is_default?: boolean
           name?: string

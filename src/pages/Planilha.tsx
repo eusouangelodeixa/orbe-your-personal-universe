@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import { useCurrency, SUPPORTED_CURRENCIES } from "@/contexts/CurrencyContext";
+import { useExchangeRates, convertToBRL } from "@/hooks/useExchangeRates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,8 @@ export default function Planilha() {
   const { data: incomes = [], isLoading: loadingIncomes } = useIncomes(month, year);
   const { data: expenses = [], isLoading: loadingExpenses } = useExpenses(month, year);
   const { data: wallets = [], isLoading: loadingWallets } = useWallets();
+  const walletCurrencies = wallets.map((w: any) => w.currency || "BRL").filter((c: string) => c !== "BRL");
+  const { data: exchangeRates } = useExchangeRates(walletCurrencies.length > 0 ? [...new Set(walletCurrencies)] as string[] : undefined);
   const { data: transactions = [] } = useWalletTransactions();
   const { data: savingsGoals = [] } = useSavingsGoals();
   const updateSavingsGoal = useUpdateSavingsGoal();
@@ -68,7 +71,7 @@ export default function Planilha() {
     recurring: false, recurringDay: "",
   });
   const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "", walletId: "" });
-  const [novaCarteira, setNovaCarteira] = useState({ nome: "", saldoInicial: "" });
+  const [novaCarteira, setNovaCarteira] = useState({ nome: "", saldoInicial: "", currency: "BRL" });
   const [txForm, setTxForm] = useState({ valor: "", descricao: "" });
   // For marking expense as paid with wallet
   const [payWalletId, setPayWalletId] = useState("");
@@ -83,7 +86,10 @@ export default function Planilha() {
   const gastosPendentes = totalGastos - gastosPagos;
   const saldo = totalRenda - totalGastos;
   const percentual = totalRenda > 0 ? Math.round((totalGastos / totalRenda) * 100) : 0;
-  const totalCarteiras = wallets.reduce((a, w) => a + Number(w.balance), 0);
+  const totalCarteiras = wallets.reduce((a, w) => {
+    const wCurrency = (w as any).currency || "BRL";
+    return a + convertToBRL(Number(w.balance), wCurrency, exchangeRates?.rates);
+  }, 0);
 
   const handleAddExpense = () => {
     if (!novoGasto.nome.trim() || !novoGasto.valor || !dueDate) return;
@@ -128,8 +134,9 @@ export default function Planilha() {
     addWallet.mutate({
       name: novaCarteira.nome.trim(),
       balance: novaCarteira.saldoInicial ? parseFloat(novaCarteira.saldoInicial) : 0,
+      currency: novaCarteira.currency,
     });
-    setNovaCarteira({ nome: "", saldoInicial: "" });
+    setNovaCarteira({ nome: "", saldoInicial: "", currency: "BRL" });
   };
 
   const handleTogglePaid = (e: any) => {
@@ -297,21 +304,38 @@ export default function Planilha() {
           <CardContent className="space-y-4">
             {wallets.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {wallets.map((w) => (
+                {wallets.map((w) => {
+                  const wCurrency = (w as any).currency || "BRL";
+                  const currencyInfo = SUPPORTED_CURRENCIES.find(c => c.code === wCurrency);
+                  const isForex = wCurrency !== "BRL";
+                  const balanceBRL = isForex ? convertToBRL(Number(w.balance), wCurrency, exchangeRates?.rates) : Number(w.balance);
+                  const formatWalletMoney = (val: number) => {
+                    if (!currencyInfo) return formatMoney(val);
+                    return Number(val).toLocaleString(currencyInfo.locale, { style: "currency", currency: wCurrency, minimumFractionDigits: wCurrency === "JPY" ? 0 : 2 }).replace(/MTn|MTN/g, "MT");
+                  };
+                  return (
                   <div key={w.id} className="flex flex-col p-4 rounded-lg border border-border bg-card space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Wallet className="h-4 w-4 text-muted-foreground" />
                         <p className="font-medium text-sm">{w.name}</p>
                         {w.is_default && <Badge variant="outline" className="text-[10px]">Principal</Badge>}
+                        {isForex && <Badge variant="secondary" className="text-[10px]">{wCurrency}</Badge>}
                       </div>
                       <button onClick={() => deleteWallet.mutate(w.id)} className="text-muted-foreground hover:text-destructive">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
-                    <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
-                      {formatMoney(Number(w.balance))}
-                    </p>
+                    <div>
+                      <p className={`text-xl font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
+                        {formatWalletMoney(Number(w.balance))}
+                      </p>
+                      {isForex && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          ≈ {formatMoney(balanceBRL)}
+                        </p>
+                      )}
+                    </div>
                     <div className="flex flex-wrap gap-1.5">
                       <Dialog>
                         <DialogTrigger asChild>
@@ -434,7 +458,8 @@ export default function Planilha() {
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-4">Nenhuma carteira cadastrada.</p>
@@ -490,13 +515,24 @@ export default function Planilha() {
               </div>
             )}
 
-            <div className="flex items-end gap-3 pt-2 border-t border-border">
-              <div className="space-y-1 flex-1">
+            <div className="flex items-end gap-3 pt-2 border-t border-border flex-wrap">
+              <div className="space-y-1 flex-1 min-w-[120px]">
                 <Label className="text-xs">Nome</Label>
                 <Input placeholder="Ex: Nubank, Itaú" value={novaCarteira.nome} onChange={(e) => setNovaCarteira({ ...novaCarteira, nome: e.target.value })} maxLength={50} />
               </div>
+              <div className="space-y-1 w-28">
+                <Label className="text-xs">Moeda</Label>
+                <Select value={novaCarteira.currency} onValueChange={(v) => setNovaCarteira({ ...novaCarteira, currency: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_CURRENCIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.code} ({c.symbol})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1 w-36">
-                <Label className="text-xs">Saldo inicial (R$)</Label>
+                <Label className="text-xs">Saldo inicial ({SUPPORTED_CURRENCIES.find(c => c.code === novaCarteira.currency)?.symbol || "R$"})</Label>
                 <Input type="number" placeholder="0.00" value={novaCarteira.saldoInicial} onChange={(e) => setNovaCarteira({ ...novaCarteira, saldoInicial: e.target.value })} min={0} step={0.01} />
               </div>
               <Button onClick={handleAddWallet} disabled={addWallet.isPending || !novaCarteira.nome.trim()} size="sm" className="gap-1 font-display">
