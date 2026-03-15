@@ -42,6 +42,8 @@ function fmtBRL(v: number) {
   return fmtMoney(v);
 }
 
+const SAO_PAULO_OFFSET = "-03:00";
+
 function brNow() {
   return new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
 }
@@ -53,6 +55,81 @@ function normalizeText(value: unknown): string {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeDateOnly(value: unknown): string | null {
+  const text = safeString(value).trim();
+  if (!text) return null;
+
+  const isoDateMatch = text.match(/\b\d{4}-\d{2}-\d{2}\b/);
+  if (isoDateMatch) return isoDateMatch[0];
+
+  const parsed = new Date(text);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return parsed.toISOString().split("T")[0];
+}
+
+function formatTimeParts(hours: number, minutes: number) {
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function normalizeDueTime(value: unknown): string | null {
+  const text = normalizeText(value);
+  if (!text) return null;
+
+  if (text.includes("meio-dia") || text.includes("meio dia")) return "12:00";
+  if (text.includes("meia-noite") || text.includes("meia noite")) return "00:00";
+
+  const colonMatch = text.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (colonMatch) {
+    return formatTimeParts(Number(colonMatch[1]), Number(colonMatch[2]));
+  }
+
+  const hourMatch = text.match(/\b(\d{1,2})h(?:\s*(\d{1,2}))?\b/);
+  if (hourMatch) {
+    return formatTimeParts(Number(hourMatch[1]), Number(hourMatch[2] || "0"));
+  }
+
+  const verboseHourMatch = text.match(/\b(\d{1,2})\s*horas?\b/);
+  if (verboseHourMatch) {
+    return formatTimeParts(Number(verboseHourMatch[1]), 0);
+  }
+
+  return null;
+}
+
+function extractDueTimeFromText(text: string): string | null {
+  const normalized = normalizeText(text);
+  if (!normalized) return null;
+
+  if (normalized.includes("meio-dia") || normalized.includes("meio dia")) return "12:00";
+  if (normalized.includes("meia-noite") || normalized.includes("meia noite")) return "00:00";
+
+  const patterns = [
+    /\b(?:as|a)\s*(\d{1,2}):(\d{2})\b/,
+    /\b(?:as|a)\s*(\d{1,2})h(?:\s*(\d{1,2}))?\b/,
+    /\b(\d{1,2}):(\d{2})\b/,
+    /\b(\d{1,2})h(?:\s*(\d{1,2}))?\b/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (!match) continue;
+
+    const hours = Number(match[1]);
+    const minutes = Number(match[2] || "0");
+    const formatted = formatTimeParts(hours, minutes);
+    if (formatted) return formatted;
+  }
+
+  return null;
+}
+
+function buildSaoPauloDateTime(dateValue: string, timeValue: unknown, fallbackText = "", defaultTime = "23:59") {
+  const time = normalizeDueTime(timeValue) || extractDueTimeFromText(fallbackText) || defaultTime;
+  return `${dateValue}T${time}:00${SAO_PAULO_OFFSET}`;
 }
 
 const WEEKDAY_KEYS = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const;
