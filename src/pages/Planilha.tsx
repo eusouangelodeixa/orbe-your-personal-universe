@@ -36,7 +36,7 @@ import {
 } from "@/lib/pdfTemplate";
 
 export default function Planilha() {
-  const { formatMoney } = useCurrency();
+  const { formatMoney, currency } = useCurrency();
   const formatMoneyBRL = (value: number) =>
     Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const now = new Date();
@@ -52,6 +52,45 @@ export default function Planilha() {
   const { data: transactions = [] } = useWalletTransactions();
   const { data: savingsGoals = [] } = useSavingsGoals();
   const updateSavingsGoal = useUpdateSavingsGoal();
+
+  // ── Multi-currency helpers ──
+  /** Convert amount from a given currency to the user's system currency */
+  const toSystemCurrency = (amount: number, fromCurrency: string): number => {
+    const sysCur = currency.code;
+    if (fromCurrency === sysCur) return amount;
+    // Step 1: convert to BRL
+    const inBRL = convertToBRL(amount, fromCurrency, exchangeRates?.rates);
+    if (sysCur === "BRL") return inBRL;
+    // Step 2: BRL to system currency
+    const sysRate = exchangeRates?.rates?.[sysCur];
+    if (!sysRate || sysRate === 0) return inBRL;
+    return inBRL * sysRate;
+  };
+
+  /** Get the currency code of a wallet */
+  const getWalletCurrency = (walletId?: string | null): string => {
+    if (!walletId) return currency.code;
+    const w = wallets.find((w) => w.id === walletId);
+    return (w as any)?.currency || "BRL";
+  };
+
+  /** Convert an income/expense amount to system currency based on its wallet */
+  const convertItem = (amount: number, walletId?: string | null): number => {
+    return toSystemCurrency(amount, getWalletCurrency(walletId));
+  };
+
+  /** Format an amount in its wallet's native currency */
+  const formatNative = (amount: number, walletCurrency: string): string => {
+    const info = SUPPORTED_CURRENCIES.find((c) => c.code === walletCurrency);
+    if (!info) return formatMoney(amount);
+    return Number(amount)
+      .toLocaleString(info.locale, {
+        style: "currency",
+        currency: walletCurrency,
+        minimumFractionDigits: walletCurrency === "JPY" ? 0 : 2,
+      })
+      .replace(/MTn|MTN/g, "MT");
+  };
 
   const addIncome = useAddIncome();
   const addExpense = useAddExpense();
@@ -82,15 +121,16 @@ export default function Planilha() {
   const [editExpense, setEditExpense] = useState<any>(null);
   const [editForm, setEditForm] = useState({ nome: "", valor: "", dueDate: undefined as Date | undefined, tipo: "variavel" as string, categoria: "", walletId: "", recurring: false, recurringDay: "" });
 
-  const totalRenda = incomes.reduce((a, i) => a + Number(i.amount), 0);
-  const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
-  const gastosPagos = expenses.filter((e) => e.paid).reduce((a, e) => a + Number(e.amount), 0);
+  // ── Converted totals (all in system currency) ──
+  const totalRenda = incomes.reduce((a, i) => a + convertItem(Number(i.amount), i.wallet_id), 0);
+  const totalGastos = expenses.reduce((a, e) => a + convertItem(Number(e.amount), e.wallet_id), 0);
+  const gastosPagos = expenses.filter((e) => e.paid).reduce((a, e) => a + convertItem(Number(e.amount), e.wallet_id), 0);
   const gastosPendentes = totalGastos - gastosPagos;
   const saldo = totalRenda - totalGastos;
   const percentual = totalRenda > 0 ? Math.round((totalGastos / totalRenda) * 100) : 0;
   const totalCarteiras = wallets.reduce((a, w) => {
     const wCurrency = (w as any).currency || "BRL";
-    return a + convertToBRL(Number(w.balance), wCurrency, exchangeRates?.rates);
+    return a + toSystemCurrency(Number(w.balance), wCurrency);
   }, 0);
 
   const handleAddExpense = () => {
@@ -201,7 +241,7 @@ export default function Planilha() {
     drawStatCard(doc, startX, y, cardW, "Renda", formatMoney(totalRenda), PDF_COLORS.green);
     drawStatCard(doc, startX + cardW + gap, y, cardW, "Gastos", formatMoney(totalGastos), PDF_COLORS.red);
     drawStatCard(doc, startX + (cardW + gap) * 2, y, cardW, "Saldo", formatMoney(saldo), saldo >= 0 ? PDF_COLORS.green : PDF_COLORS.red);
-    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, "Patrimônio (BRL)", formatMoneyBRL(totalCarteiras), PDF_COLORS.amber);
+    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, `Patrimônio (${currency.code})`, formatMoney(totalCarteiras), PDF_COLORS.amber);
     y += 36;
 
     // Comprometimento bar
@@ -213,11 +253,16 @@ export default function Planilha() {
     if (wallets.length > 0) {
       y = drawSectionTitle(doc, y, "Carteiras / Bancos");
       y = drawTable(doc, y,
-        ["Nome", "Saldo"],
-        wallets.map((w) => [
-          w.name + (w.is_default ? " ★" : ""),
-          formatMoney(Number(w.balance)),
-        ])
+        ["Nome", "Saldo", `Em ${currency.code}`],
+        wallets.map((w) => {
+          const wCur = (w as any).currency || "BRL";
+          const isForeign = wCur !== currency.code;
+          return [
+            w.name + (w.is_default ? " ★" : ""),
+            formatNative(Number(w.balance), wCur),
+            isForeign ? formatMoney(toSystemCurrency(Number(w.balance), wCur)) : "—",
+          ];
+        })
       );
       y += 8;
     }
@@ -226,12 +271,17 @@ export default function Planilha() {
     if (incomes.length > 0) {
       y = drawSectionTitle(doc, y, "Rendas");
       y = drawTable(doc, y,
-        ["Descrição", "Valor", "Carteira"],
-        incomes.map((i: any) => [
-          i.description,
-          formatMoney(Number(i.amount)),
-          i.wallets?.name || "—",
-        ])
+        ["Descrição", "Valor", `Em ${currency.code}`, "Carteira"],
+        incomes.map((i: any) => {
+          const iCur = getWalletCurrency(i.wallet_id);
+          const isForeign = iCur !== currency.code;
+          return [
+            i.description,
+            isForeign ? formatNative(Number(i.amount), iCur) : formatMoney(Number(i.amount)),
+            isForeign ? formatMoney(convertItem(Number(i.amount), i.wallet_id)) : "—",
+            i.wallets?.name || "—",
+          ];
+        })
       );
       y += 8;
     }
@@ -240,15 +290,20 @@ export default function Planilha() {
     if (expenses.length > 0) {
       y = drawSectionTitle(doc, y, "Gastos");
       y = drawTable(doc, y,
-        ["Nome", "Categoria", "Valor", "Vencimento", "Status", "Carteira"],
-        expenses.map((e: any) => [
-          e.name,
-          e.categories?.name || "—",
-          formatMoney(Number(e.amount)),
-          new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
-          e.paid ? "Pago" : "Pendente",
-          e.wallets?.name || "—",
-        ])
+        ["Nome", "Categoria", "Valor", `Em ${currency.code}`, "Vencimento", "Status", "Carteira"],
+        expenses.map((e: any) => {
+          const eCur = getWalletCurrency(e.wallet_id);
+          const isForeign = eCur !== currency.code;
+          return [
+            e.name,
+            e.categories?.name || "—",
+            isForeign ? formatNative(Number(e.amount), eCur) : formatMoney(Number(e.amount)),
+            isForeign ? formatMoney(convertItem(Number(e.amount), e.wallet_id)) : "—",
+            new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
+            e.paid ? "Pago" : "Pendente",
+            e.wallets?.name || "—",
+          ];
+        })
       );
     }
 
@@ -300,7 +355,7 @@ export default function Planilha() {
                 <CardTitle className="font-display text-lg">Carteiras & Bancos</CardTitle>
               </div>
               <span className="text-sm font-display font-bold text-primary">
-                Total (BRL): {formatMoneyBRL(totalCarteiras)}
+                Total ({currency.code}): {formatMoney(totalCarteiras)}
               </span>
             </div>
           </CardHeader>
@@ -877,9 +932,22 @@ export default function Planilha() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold font-display">
-                      {formatMoney(Number(e.amount))}
-                    </span>
+                    <div className="text-right">
+                      {(() => {
+                        const eCur = getWalletCurrency(e.wallet_id);
+                        const isForeign = eCur !== currency.code;
+                        return (
+                          <>
+                            <span className="font-bold font-display">
+                              {isForeign ? formatNative(Number(e.amount), eCur) : formatMoney(Number(e.amount))}
+                            </span>
+                            {isForeign && (
+                              <p className="text-xs text-muted-foreground">≈ {formatMoney(convertItem(Number(e.amount), e.wallet_id))}</p>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                     <button onClick={() => {
                       setEditExpense(e);
                       setEditForm({
@@ -936,9 +1004,23 @@ export default function Planilha() {
                       </p>
                     </div>
                   </div>
-                  <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
-                    {tx.type === "credit" ? "+" : "-"} {formatMoney(Number(tx.amount))}
-                  </span>
+                  <div className="text-right">
+                    {(() => {
+                      const txCur = getWalletCurrency(tx.wallet_id);
+                      const isForeign = txCur !== currency.code;
+                      const txConverted = convertItem(Number(tx.amount), tx.wallet_id);
+                      return (
+                        <>
+                          <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
+                            {tx.type === "credit" ? "+" : "-"} {isForeign ? formatNative(Number(tx.amount), txCur) : formatMoney(Number(tx.amount))}
+                          </span>
+                          {isForeign && (
+                            <p className="text-xs text-muted-foreground">≈ {formatMoney(txConverted)}</p>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 </div>
               ))}
             </CardContent>
