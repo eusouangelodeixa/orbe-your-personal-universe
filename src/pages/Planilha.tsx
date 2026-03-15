@@ -200,7 +200,7 @@ export default function Planilha() {
     drawStatCard(doc, startX, y, cardW, "Renda", formatMoney(totalRenda), PDF_COLORS.green);
     drawStatCard(doc, startX + cardW + gap, y, cardW, "Gastos", formatMoney(totalGastos), PDF_COLORS.red);
     drawStatCard(doc, startX + (cardW + gap) * 2, y, cardW, "Saldo", formatMoney(saldo), saldo >= 0 ? PDF_COLORS.green : PDF_COLORS.red);
-    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, "Patrimônio", formatMoney(totalCarteiras), PDF_COLORS.amber);
+    drawStatCard(doc, startX + (cardW + gap) * 3, y, cardW, "Patrimônio (BRL)", formatMoneyBRL(totalCarteiras), PDF_COLORS.amber);
     y += 36;
 
     // Comprometimento bar
