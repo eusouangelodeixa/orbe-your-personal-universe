@@ -512,24 +512,34 @@ export function useFinancialHistory() {
     enabled: !!user,
     queryFn: async () => {
       const now = new Date();
-      const months: { month: number; year: number; income: number; expense: number }[] = [];
-      
+      const months: {
+        month: number;
+        year: number;
+        incomes: { amount: number; wallet_id: string | null }[];
+        expenses: { amount: number; wallet_id: string | null }[];
+      }[] = [];
+
       for (let i = 5; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const m = d.getMonth() + 1;
         const y = d.getFullYear();
 
-        const [{ data: inc }, { data: exp }] = await Promise.all([
-          supabase.from("incomes").select("amount").eq("user_id", user!.id).eq("month", m).eq("year", y),
-          supabase.from("expenses").select("amount").eq("user_id", user!.id).eq("month", m).eq("year", y),
+        const [{ data: inc, error: incError }, { data: exp, error: expError }] = await Promise.all([
+          supabase.from("incomes").select("amount, wallet_id").eq("user_id", user!.id).eq("month", m).eq("year", y),
+          supabase.from("expenses").select("amount, wallet_id").eq("user_id", user!.id).eq("month", m).eq("year", y),
         ]);
 
+        if (incError) throw incError;
+        if (expError) throw expError;
+
         months.push({
-          month: m, year: y,
-          income: (inc || []).reduce((a, r) => a + Number(r.amount), 0),
-          expense: (exp || []).reduce((a, r) => a + Number(r.amount), 0),
+          month: m,
+          year: y,
+          incomes: (inc || []).map((row) => ({ amount: Number(row.amount), wallet_id: row.wallet_id ?? null })),
+          expenses: (exp || []).map((row) => ({ amount: Number(row.amount), wallet_id: row.wallet_id ?? null })),
         });
       }
+
       return months;
     },
   });

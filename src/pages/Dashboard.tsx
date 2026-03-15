@@ -96,12 +96,23 @@ export default function Dashboard() {
   }, {});
   const pieData = Object.values(byCat);
   const recentTx = transactions.slice(0, 10);
-  const chartData = history.map(h => ({
-    label: `${MONTH_NAMES[h.month]}/${String(h.year).slice(2)}`,
-    Renda: h.income,
-    Gastos: h.expense,
-    Saldo: h.income - h.expense,
-  }));
+  const chartData = useMemo(() => history.map((h: any) => {
+    const rendaConvertida = (h.incomes || []).reduce(
+      (acc: number, item: { amount: number; wallet_id: string | null }) => acc + convertItem(Number(item.amount), item.wallet_id),
+      0,
+    );
+    const gastosConvertidos = (h.expenses || []).reduce(
+      (acc: number, item: { amount: number; wallet_id: string | null }) => acc + convertItem(Number(item.amount), item.wallet_id),
+      0,
+    );
+
+    return {
+      label: `${MONTH_NAMES[h.month]}/${String(h.year).slice(2)}`,
+      Renda: rendaConvertida,
+      Gastos: gastosConvertidos,
+      Saldo: rendaConvertida - gastosConvertidos,
+    };
+  }), [history, wallets, exchangeRates, currency.code]);
 
   if (li || le || lw) {
     return (
