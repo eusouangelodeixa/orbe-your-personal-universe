@@ -86,6 +86,26 @@ async function convertAmountBetweenWalletCurrencies(
   return { convertedAmount, targetInfo };
 }
 
+async function reconcileWalletBalance(walletId: string): Promise<void> {
+  const { data, error } = await supabase
+    .from("wallet_transactions")
+    .select("amount, type")
+    .eq("wallet_id", walletId);
+
+  if (error) throw error;
+
+  const balance = (data || []).reduce((sum, tx) => {
+    return sum + (tx.type === "credit" ? Number(tx.amount) : -Number(tx.amount));
+  }, 0);
+
+  const { error: updateError } = await supabase
+    .from("wallets")
+    .update({ balance })
+    .eq("id", walletId);
+
+  if (updateError) throw updateError;
+}
+
 export function useCategories() {
   return useQuery({
     queryKey: ["categories"],
