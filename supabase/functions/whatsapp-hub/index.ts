@@ -1464,9 +1464,13 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
       // ===== TAREFAS =====
       case "add_task": {
-        const dueDate = params.due_date
-          ? new Date(`${params.due_date}T${params.due_time || "23:59"}:00`).toISOString()
-          : null;
+        // Build due_date preserving the user's local time (São Paulo / UTC-3)
+        let dueDate: string | null = null;
+        if (params.due_date) {
+          const time = params.due_time || "23:59";
+          // Append São Paulo offset (-03:00) so the DB stores the correct UTC instant
+          dueDate = `${params.due_date}T${time}:00-03:00`;
+        }
         const { error } = await supabase.from("tasks").insert({
           user_id: userId,
           title: params.task_title || params.name || "Tarefa WhatsApp",
