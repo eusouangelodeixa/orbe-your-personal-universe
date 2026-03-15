@@ -427,11 +427,16 @@ export function useToggleExpensePaid() {
       const expenseAmount = amount ?? Number(expense.amount);
 
       if (!paid) {
-        await supabase
+        const { data: deletedTransactions, error: deleteTxError } = await supabase
           .from("wallet_transactions")
           .delete()
           .eq("reference_type", "expense")
-          .eq("reference_id", id);
+          .eq("reference_id", id)
+          .select("wallet_id");
+        if (deleteTxError) throw deleteTxError;
+
+        const affectedWalletIds = [...new Set((deletedTransactions || []).map((tx) => tx.wallet_id).filter(Boolean))];
+        await Promise.all(affectedWalletIds.map((walletId) => reconcileWalletBalance(walletId)));
 
         const { error } = await supabase
           .from("expenses")
@@ -443,56 +448,56 @@ export function useToggleExpensePaid() {
 
       const paymentWalletId = wallet_id || originalWalletId || null;
 
+      if (paymentWalletId) {
+        const { convertedAmount, targetInfo } = await convertAmountBetweenWalletCurrencies(
+          expenseAmount,
+          originalWalletId,
+          paymentWalletId,
+        );
+        const debitAmount = Number(convertedAmount.toFixed(targetInfo.currency === "JPY" ? 0 : 2));
+
+        const { data: wallet, error: wErr } = await supabase
+          .from("wallets")
+          .select("balance, name")
+          .eq("id", paymentWalletId)
+          .single();
+        if (wErr) throw wErr;
+
+        if (Number(wallet.balance) < debitAmount) {
+          throw new Error(
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${targetInfo.currency}, necessário: ${debitAmount.toFixed(2)} ${targetInfo.currency}.`
+          );
+        }
+
+        const { error: txError } = await supabase
+          .from("wallet_transactions")
+          .insert({
+            wallet_id: paymentWalletId,
+            user_id: user!.id,
+            amount: debitAmount,
+            type: "debit",
+            description: `Gasto: ${name || "Despesa"}`,
+            reference_type: "expense",
+            reference_id: id,
+            exchange_rate_to_brl: targetInfo.currency === "BRL" ? null : targetInfo.exchangeRateToBrl,
+          } as any);
+        if (txError) throw new Error(txError.message);
+
+        await reconcileWalletBalance(paymentWalletId);
+      }
+
       const { error: updateError } = await supabase
         .from("expenses")
         .update({ paid: true })
         .eq("id", id);
       if (updateError) throw updateError;
-
-      if (!paymentWalletId) return;
-
-      const { convertedAmount, targetInfo } = await convertAmountBetweenWalletCurrencies(
-        expenseAmount,
-        originalWalletId,
-        paymentWalletId,
-      );
-
-      const { data: wallet, error: wErr } = await supabase
-        .from("wallets")
-        .select("balance, name")
-        .eq("id", paymentWalletId)
-        .single();
-      if (wErr) {
-        await supabase.from("expenses").update({ paid: false }).eq("id", id);
-        throw wErr;
-      }
-
-      if (Number(wallet.balance) < convertedAmount) {
-        await supabase.from("expenses").update({ paid: false }).eq("id", id);
-        throw new Error(
-          `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${targetInfo.currency}, necessário: ${convertedAmount.toFixed(2)} ${targetInfo.currency}.`
-        );
-      }
-
-      const { error: txError } = await supabase
-        .from("wallet_transactions")
-        .insert({
-          wallet_id: paymentWalletId,
-          user_id: user!.id,
-          amount: convertedAmount,
-          type: "debit",
-          description: `Gasto: ${name || "Despesa"}`,
-          reference_type: "expense",
-          reference_id: id,
-          exchange_rate_to_brl: targetInfo.currency === "BRL" ? null : targetInfo.exchangeRateToBrl,
-        } as any);
-      if (txError) {
-        await supabase.from("expenses").update({ paid: false }).eq("id", id);
-        throw new Error(txError.message);
-      }
     },
     onSuccess: async () => {
       await Promise.all([
+        qc.invalidateQueries({ queryKey: ["expenses"] }),
+        qc.invalidateQueries({ queryKey: ["wallets"] }),
+        qc.invalidateQueries({ queryKey: ["wallet_transactions"] }),
+        qc.invalidateQueries({ queryKey: ["financial_history"] }),
         qc.refetchQueries({ queryKey: ["expenses"] }),
         qc.refetchQueries({ queryKey: ["wallets"] }),
         qc.refetchQueries({ queryKey: ["wallet_transactions"] }),
