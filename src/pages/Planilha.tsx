@@ -86,7 +86,10 @@ export default function Planilha() {
   const gastosPendentes = totalGastos - gastosPagos;
   const saldo = totalRenda - totalGastos;
   const percentual = totalRenda > 0 ? Math.round((totalGastos / totalRenda) * 100) : 0;
-  const totalCarteiras = wallets.reduce((a, w) => a + Number(w.balance), 0);
+  const totalCarteiras = wallets.reduce((a, w) => {
+    const wCurrency = (w as any).currency || "BRL";
+    return a + convertToBRL(Number(w.balance), wCurrency, exchangeRates?.rates);
+  }, 0);
 
   const handleAddExpense = () => {
     if (!novoGasto.nome.trim() || !novoGasto.valor || !dueDate) return;
