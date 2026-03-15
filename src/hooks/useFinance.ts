@@ -300,13 +300,14 @@ export function useAddExpense() {
       if (shouldAutoPay && expense.wallet_id) {
         const { data: wallet, error: wErr } = await supabase
           .from("wallets")
-          .select("balance, name")
+          .select("balance, name, currency")
           .eq("id", expense.wallet_id)
           .single();
         if (wErr) throw wErr;
+        const wCur = (wallet as any).currency || "BRL";
         if (Number(wallet.balance) < expense.amount) {
           throw new Error(
-            `Saldo insuficiente na carteira "${wallet.name}". Disponível: R$ ${Number(wallet.balance).toFixed(2)}, necessário: R$ ${expense.amount.toFixed(2)}. Adicione fundos antes de registrar este gasto.`
+            `Saldo insuficiente na carteira "${wallet.name}". Disponível: ${Number(wallet.balance).toFixed(2)} ${wCur}, necessário: ${expense.amount.toFixed(2)} ${wCur}. Adicione fundos antes de registrar este gasto.`
           );
         }
       }
