@@ -241,6 +241,7 @@ export function useAddIncome() {
 
       // If linked to a wallet, create a credit transaction
       if (income.wallet_id) {
+        const rate = await getWalletExchangeRate(income.wallet_id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
@@ -251,7 +252,8 @@ export function useAddIncome() {
             description: `Renda: ${income.description}`,
             reference_type: "income",
             reference_id: data.id,
-          });
+            exchange_rate_to_brl: rate,
+          } as any);
         if (txError) throw txError;
       }
 
