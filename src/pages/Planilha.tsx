@@ -933,7 +933,6 @@ export default function Planilha() {
                         );
                       })()}
                     </div>
-                    </span>
                     <button onClick={() => {
                       setEditExpense(e);
                       setEditForm({
