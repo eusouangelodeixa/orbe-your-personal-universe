@@ -603,7 +603,7 @@ export default function Planilha() {
                   <Input placeholder="Ex: Salário" value={novaRenda.descricao} onChange={(e) => setNovaRenda({ ...novaRenda, descricao: e.target.value })} maxLength={100} />
                 </div>
                 <div className="space-y-1">
-                  <Label>Valor (R$)</Label>
+                  <Label>Valor ({(() => { const w = wallets.find(w => w.id === novaRenda.walletId); const cur = (w as any)?.currency || "BRL"; return SUPPORTED_CURRENCIES.find(c => c.code === cur)?.symbol || "R$"; })()})</Label>
                   <Input type="number" placeholder="0.00" value={novaRenda.valor} onChange={(e) => setNovaRenda({ ...novaRenda, valor: e.target.value })} min={0} step={0.01} />
                 </div>
                 <div className="space-y-1">
