@@ -917,8 +917,22 @@ export default function Planilha() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-bold font-display">
-                      {formatMoney(Number(e.amount))}
+                    <div className="text-right">
+                      {(() => {
+                        const eCur = getWalletCurrency(e.wallet_id);
+                        const isForeign = eCur !== currency.code;
+                        return (
+                          <>
+                            <span className="font-bold font-display">
+                              {isForeign ? formatNative(Number(e.amount), eCur) : formatMoney(Number(e.amount))}
+                            </span>
+                            {isForeign && (
+                              <p className="text-xs text-muted-foreground">≈ {formatMoney(convertItem(Number(e.amount), e.wallet_id))}</p>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                     </span>
                     <button onClick={() => {
                       setEditExpense(e);
