@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Uses frankfurter.app — free, no API key needed
-const BASE_URL = "https://api.frankfurter.app";
+// Uses open.er-api.com — free, no API key, supports BRL
+const BASE_URL = "https://open.er-api.com/v6/latest";
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,20 +16,39 @@ serve(async (req) => {
   try {
     const { base = "BRL", symbols } = await req.json();
 
-    // symbols: comma-separated list like "USD,EUR,MZN"
-    const url = `${BASE_URL}/latest?from=${base}${symbols ? `&to=${symbols}` : ""}`;
+    const url = `${BASE_URL}/${base}`;
+    console.log("Fetching exchange rates from:", url);
+
     const resp = await fetch(url);
     if (!resp.ok) {
-      throw new Error(`Exchange rate API error [${resp.status}]: ${await resp.text()}`);
+      const body = await resp.text();
+      throw new Error(`Exchange rate API error [${resp.status}]: ${body}`);
     }
 
     const data = await resp.json();
-    // data.rates = { USD: 0.18, EUR: 0.16, ... }
+    if (data.result !== "success") {
+      throw new Error(`Exchange rate API returned: ${JSON.stringify(data)}`);
+    }
+
+    // data.rates contains all rates, filter if symbols specified
+    let rates = data.rates as Record<string, number>;
+    if (symbols) {
+      const wanted = symbols.split(",").map((s: string) => s.trim().toUpperCase());
+      const filtered: Record<string, number> = {};
+      for (const sym of wanted) {
+        if (rates[sym] !== undefined) {
+          filtered[sym] = rates[sym];
+        }
+      }
+      rates = filtered;
+    }
+
+    console.log("Exchange rates fetched successfully:", { base, date: data.time_last_update_utc, rateCount: Object.keys(rates).length });
 
     return new Response(JSON.stringify({
-      base: data.base,
-      date: data.date,
-      rates: data.rates,
+      base: base,
+      date: data.time_last_update_utc,
+      rates,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
