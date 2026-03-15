@@ -1548,12 +1548,11 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
       // ===== TAREFAS =====
       case "add_task": {
-        // Build due_date preserving the user's local time (São Paulo / UTC-3)
         let dueDate: string | null = null;
-        if (params.due_date) {
-          const time = params.due_time || "23:59";
-          // Append São Paulo offset (-03:00) so the DB stores the correct UTC instant
-          dueDate = `${params.due_date}T${time}:00-03:00`;
+        const dueDateOnly = normalizeDateOnly(params.due_date);
+
+        if (dueDateOnly) {
+          dueDate = buildSaoPauloDateTime(dueDateOnly, params.due_time, originalText, "23:59");
         }
         const { error } = await supabase.from("tasks").insert({
           user_id: userId,
