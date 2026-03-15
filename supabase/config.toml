@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.lojou-webhook]
 verify_jwt = false
+
+[functions.exchange-rates]
+verify_jwt = false
