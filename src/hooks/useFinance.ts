@@ -505,9 +505,10 @@ export function useWalletTransfer() {
   return useMutation({
     mutationFn: async ({ fromId, toId, amount, description }: { fromId: string; toId: string; amount: number; description?: string }) => {
       // Check source balance
-      const { data: from, error: fErr } = await supabase.from("wallets").select("balance, name").eq("id", fromId).single();
+      const { data: from, error: fErr } = await supabase.from("wallets").select("balance, name, currency").eq("id", fromId).single();
       if (fErr) throw fErr;
-      if (Number(from.balance) < amount) throw new Error(`Saldo insuficiente em "${from.name}". Disponível: R$ ${Number(from.balance).toFixed(2)}`);
+      const fromCur = (from as any).currency || "BRL";
+      if (Number(from.balance) < amount) throw new Error(`Saldo insuficiente em "${from.name}". Disponível: ${Number(from.balance).toFixed(2)} ${fromCur}`);
 
       const { data: to } = await supabase.from("wallets").select("name").eq("id", toId).single();
       const desc = description || `Transferência para ${to?.name || "outra carteira"}`;
