@@ -117,6 +117,7 @@ export function useAddWallet() {
 
       // If there's an initial balance, record it as a transaction (trigger updates balance)
       if (initialBalance > 0) {
+        const rate = await getWalletExchangeRate(data.id);
         const { error: txError } = await supabase
           .from("wallet_transactions")
           .insert({
@@ -126,6 +127,7 @@ export function useAddWallet() {
             type: "credit",
             description: "Saldo inicial",
             reference_type: "manual",
+            exchange_rate_to_brl: rate,
           } as any);
         if (txError) throw txError;
       }
