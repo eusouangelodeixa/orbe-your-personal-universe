@@ -24,11 +24,32 @@ export default function Dashboard() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
 
+  // Chart filter state
+  type ChartFilter = "1m" | "3m" | "6m" | "12m" | "custom";
+  const [chartFilter, setChartFilter] = useState<ChartFilter>("6m");
+  const [customFrom, setCustomFrom] = useState(() => {
+    const d = new Date(); d.setMonth(d.getMonth() - 5);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [customTo, setCustomTo] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  });
+
+  const chartMonthsBack = useMemo(() => {
+    if (chartFilter === "custom") {
+      const [fy, fm] = customFrom.split("-").map(Number);
+      const [ty, tm] = customTo.split("-").map(Number);
+      return Math.max(1, (ty - fy) * 12 + (tm - fm) + 1);
+    }
+    return chartFilter === "1m" ? 1 : chartFilter === "3m" ? 3 : chartFilter === "12m" ? 12 : 6;
+  }, [chartFilter, customFrom, customTo]);
+
   const { data: incomes = [], isLoading: li } = useIncomes(month, year);
   const { data: expenses = [], isLoading: le } = useExpenses(month, year);
   const { data: wallets = [], isLoading: lw } = useWallets();
   const { data: transactions = [] } = useWalletTransactions();
-  const { data: history = [] } = useFinancialHistory();
+  const { data: history = [] } = useFinancialHistory(chartMonthsBack);
 
   // Gather every currency required for dashboard conversion
   const requiredCurrencies = [...new Set([
