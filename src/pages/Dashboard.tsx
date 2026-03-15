@@ -63,7 +63,7 @@ export default function Dashboard() {
 
   /** Get the currency of a wallet by id */
   const getWalletCurrency = (walletId?: string | null): string => {
-    if (!walletId) return currency.code; // no wallet = system currency
+    if (!walletId) return "BRL"; // no wallet = amounts stored in BRL
     const w = wallets.find((w) => w.id === walletId);
     return (w as any)?.currency || "BRL";
   };
