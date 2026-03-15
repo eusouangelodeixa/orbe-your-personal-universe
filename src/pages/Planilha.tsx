@@ -124,10 +124,11 @@ export default function Planilha() {
       description: novaRenda.descricao.trim(),
       amount: parseFloat(novaRenda.valor),
       wallet_id: novaRenda.walletId || null,
+      recurring: novaRenda.recurring,
       month,
       year,
     });
-    setNovaRenda({ descricao: "", valor: "", walletId: "" });
+    setNovaRenda({ descricao: "", valor: "", walletId: "", recurring: false });
     setShowIncomeForm(false);
   };
 
