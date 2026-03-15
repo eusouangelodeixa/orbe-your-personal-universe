@@ -15,7 +15,7 @@ const now = new Date();
 /** Fetch the current exchange rate (foreign → BRL) for a wallet's currency. Returns null for BRL wallets. */
 async function getWalletExchangeRate(walletId: string): Promise<number | null> {
   const info = await getWalletCurrencyInfo(walletId);
-  return info.exchangeRateToBrl;
+  return info.currency === "BRL" ? null : info.exchangeRateToBrl;
 }
 
 type WalletCurrencyInfo = {
