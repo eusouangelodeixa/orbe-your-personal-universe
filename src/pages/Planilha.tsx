@@ -72,7 +72,7 @@ export default function Planilha() {
     nome: "", categoria: "", valor: "", tipo: "variavel" as "fixo" | "variavel", walletId: "",
     recurring: false, recurringDay: "",
   });
-  const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "", walletId: "" });
+  const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "", walletId: "", recurring: false });
   const [novaCarteira, setNovaCarteira] = useState({ nome: "", saldoInicial: "", currency: "BRL" });
   const [txForm, setTxForm] = useState({ valor: "", descricao: "" });
   // For marking expense as paid with wallet
