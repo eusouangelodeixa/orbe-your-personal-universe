@@ -319,7 +319,47 @@ export default function Dashboard() {
         {/* Evolution Chart */}
         {chartData.length > 0 && (
           <Card>
-            <CardHeader><CardTitle className="font-display">Evolução Financeira (últimos 6 meses)</CardTitle></CardHeader>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <CardTitle className="font-display">Evolução Financeira</CardTitle>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {([
+                    { key: "1m", label: "Mês" },
+                    { key: "3m", label: "Trimestre" },
+                    { key: "6m", label: "Semestre" },
+                    { key: "12m", label: "Ano" },
+                    { key: "custom", label: "Personalizado" },
+                  ] as const).map(({ key, label }) => (
+                    <Button
+                      key={key}
+                      variant={chartFilter === key ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 text-[10px] px-2.5"
+                      onClick={() => setChartFilter(key)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {chartFilter === "custom" && (
+                <div className="flex items-center gap-2 mt-2">
+                  <Input
+                    type="month"
+                    value={customFrom}
+                    onChange={(e) => setCustomFrom(e.target.value)}
+                    className="h-8 w-40 text-xs"
+                  />
+                  <span className="text-xs text-muted-foreground">até</span>
+                  <Input
+                    type="month"
+                    value={customTo}
+                    onChange={(e) => setCustomTo(e.target.value)}
+                    className="h-8 w-40 text-xs"
+                  />
+                </div>
+              )}
+            </CardHeader>
             <CardContent className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData}>
