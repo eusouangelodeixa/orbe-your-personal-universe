@@ -515,13 +515,24 @@ export default function Planilha() {
               </div>
             )}
 
-            <div className="flex items-end gap-3 pt-2 border-t border-border">
-              <div className="space-y-1 flex-1">
+            <div className="flex items-end gap-3 pt-2 border-t border-border flex-wrap">
+              <div className="space-y-1 flex-1 min-w-[120px]">
                 <Label className="text-xs">Nome</Label>
                 <Input placeholder="Ex: Nubank, Itaú" value={novaCarteira.nome} onChange={(e) => setNovaCarteira({ ...novaCarteira, nome: e.target.value })} maxLength={50} />
               </div>
+              <div className="space-y-1 w-28">
+                <Label className="text-xs">Moeda</Label>
+                <Select value={novaCarteira.currency} onValueChange={(v) => setNovaCarteira({ ...novaCarteira, currency: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SUPPORTED_CURRENCIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>{c.code} ({c.symbol})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1 w-36">
-                <Label className="text-xs">Saldo inicial (R$)</Label>
+                <Label className="text-xs">Saldo inicial ({SUPPORTED_CURRENCIES.find(c => c.code === novaCarteira.currency)?.symbol || "R$"})</Label>
                 <Input type="number" placeholder="0.00" value={novaCarteira.saldoInicial} onChange={(e) => setNovaCarteira({ ...novaCarteira, saldoInicial: e.target.value })} min={0} step={0.01} />
               </div>
               <Button onClick={handleAddWallet} disabled={addWallet.isPending || !novaCarteira.nome.trim()} size="sm" className="gap-1 font-display">
