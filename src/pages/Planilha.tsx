@@ -195,7 +195,7 @@ export default function Planilha() {
     togglePaid.mutate({
       id: expense.id,
       paid: true,
-      wallet_id: payWalletId || null,
+      wallet_id: payWalletId && payWalletId !== "none" ? payWalletId : null,
       amount: Number(expense.amount),
       name: expense.name,
     });
