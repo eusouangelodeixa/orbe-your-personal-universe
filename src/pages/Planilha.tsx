@@ -797,15 +797,9 @@ export default function Planilha() {
             </CardHeader>
             <CardContent className="space-y-2">
               {incomes.map((inc: any) => {
-                const incWallet = inc.wallet_id ? wallets.find(w => w.id === inc.wallet_id) : null;
-                const incCurrency = (incWallet as any)?.currency || "BRL";
-                const incCurrencyInfo = SUPPORTED_CURRENCIES.find(c => c.code === incCurrency);
-                const isIncForex = incCurrency !== "BRL";
-                const incAmountBRL = isIncForex ? convertToBRL(Number(inc.amount), incCurrency, exchangeRates?.rates) : Number(inc.amount);
-                const formatIncMoney = (val: number) => {
-                  if (!incCurrencyInfo) return formatMoney(val);
-                  return Number(val).toLocaleString(incCurrencyInfo.locale, { style: "currency", currency: incCurrency, minimumFractionDigits: incCurrency === "JPY" ? 0 : 2 }).replace(/MTn|MTN/g, "MT");
-                };
+                const incCur = getWalletCurrency(inc.wallet_id);
+                const isForeign = incCur !== currency.code;
+                const convertedAmount = convertItem(Number(inc.amount), inc.wallet_id);
                 return (
                 <div key={inc.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
                   <div>
@@ -817,16 +811,16 @@ export default function Planilha() {
                           <Wallet className="h-2.5 w-2.5" />{inc.wallets.name}
                         </Badge>
                       )}
-                      {isIncForex && <Badge variant="secondary" className="text-[10px]">{incCurrency}</Badge>}
+                      {isForeign && <Badge variant="secondary" className="text-[10px]">{incCur}</Badge>}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
                       <span className="font-bold font-display text-primary">
-                        {isIncForex ? formatIncMoney(Number(inc.amount)) : formatMoney(Number(inc.amount))}
+                        {isForeign ? formatNative(Number(inc.amount), incCur) : formatMoney(Number(inc.amount))}
                       </span>
-                      {isIncForex && (
-                        <p className="text-xs text-muted-foreground">≈ {formatMoneyBRL(incAmountBRL)}</p>
+                      {isForeign && (
+                        <p className="text-xs text-muted-foreground">≈ {formatMoney(convertedAmount)}</p>
                       )}
                     </div>
                     <button onClick={() => deleteIncome.mutate(inc.id)} className="text-muted-foreground hover:text-destructive">
