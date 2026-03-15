@@ -67,13 +67,21 @@ async function convertAmountBetweenWalletCurrencies(
     return { convertedAmount: amount, targetInfo };
   }
 
+  if (fromInfo.currency !== "BRL" && !fromInfo.exchangeRateToBrl) {
+    throw new Error(`Não foi possível obter a cotação da moeda ${fromInfo.currency}. Tente novamente.`);
+  }
+
+  if (targetInfo.currency !== "BRL" && !targetInfo.foreignPerBrl) {
+    throw new Error(`Não foi possível obter a cotação da moeda ${targetInfo.currency}. Tente novamente.`);
+  }
+
   const amountInBrl = fromInfo.currency === "BRL"
     ? amount
-    : amount * (fromInfo.exchangeRateToBrl || 1);
+    : amount * fromInfo.exchangeRateToBrl!;
 
   const convertedAmount = targetInfo.currency === "BRL"
     ? amountInBrl
-    : amountInBrl * (targetInfo.foreignPerBrl || 1);
+    : amountInBrl * targetInfo.foreignPerBrl!;
 
   return { convertedAmount, targetInfo };
 }
