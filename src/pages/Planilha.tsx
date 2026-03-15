@@ -290,15 +290,20 @@ export default function Planilha() {
     if (expenses.length > 0) {
       y = drawSectionTitle(doc, y, "Gastos");
       y = drawTable(doc, y,
-        ["Nome", "Categoria", "Valor", "Vencimento", "Status", "Carteira"],
-        expenses.map((e: any) => [
-          e.name,
-          e.categories?.name || "—",
-          formatMoney(Number(e.amount)),
-          new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
-          e.paid ? "Pago" : "Pendente",
-          e.wallets?.name || "—",
-        ])
+        ["Nome", "Categoria", "Valor", `Em ${currency.code}`, "Vencimento", "Status", "Carteira"],
+        expenses.map((e: any) => {
+          const eCur = getWalletCurrency(e.wallet_id);
+          const isForeign = eCur !== currency.code;
+          return [
+            e.name,
+            e.categories?.name || "—",
+            isForeign ? formatNative(Number(e.amount), eCur) : formatMoney(Number(e.amount)),
+            isForeign ? formatMoney(convertItem(Number(e.amount), e.wallet_id)) : "—",
+            new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR"),
+            e.paid ? "Pago" : "Pendente",
+            e.wallets?.name || "—",
+          ];
+        })
       );
     }
 
