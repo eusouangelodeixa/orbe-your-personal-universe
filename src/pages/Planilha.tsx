@@ -253,11 +253,16 @@ export default function Planilha() {
     if (wallets.length > 0) {
       y = drawSectionTitle(doc, y, "Carteiras / Bancos");
       y = drawTable(doc, y,
-        ["Nome", "Saldo"],
-        wallets.map((w) => [
-          w.name + (w.is_default ? " ★" : ""),
-          formatMoney(Number(w.balance)),
-        ])
+        ["Nome", "Saldo", `Em ${currency.code}`],
+        wallets.map((w) => {
+          const wCur = (w as any).currency || "BRL";
+          const isForeign = wCur !== currency.code;
+          return [
+            w.name + (w.is_default ? " ★" : ""),
+            formatNative(Number(w.balance), wCur),
+            isForeign ? formatMoney(toSystemCurrency(Number(w.balance), wCur)) : "—",
+          ];
+        })
       );
       y += 8;
     }
