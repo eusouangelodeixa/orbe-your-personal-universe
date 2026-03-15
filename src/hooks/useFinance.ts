@@ -85,12 +85,13 @@ export function useAddWallet() {
   const qc = useQueryClient();
   const { user } = useAuth();
   return useMutation({
-    mutationFn: async (wallet: { name: string; balance?: number }) => {
+    mutationFn: async (wallet: { name: string; balance?: number; currency?: string }) => {
       const initialBalance = wallet.balance ?? 0;
+      const walletCurrency = wallet.currency || "BRL";
       // Create wallet with 0 balance, then add initial credit transaction if needed
       const { data, error } = await supabase
         .from("wallets")
-        .insert({ name: wallet.name, balance: 0, user_id: user!.id })
+        .insert({ name: wallet.name, balance: 0, user_id: user!.id, currency: walletCurrency } as any)
         .select()
         .single();
       if (error) throw error;
@@ -106,7 +107,7 @@ export function useAddWallet() {
             type: "credit",
             description: "Saldo inicial",
             reference_type: "manual",
-          });
+          } as any);
         if (txError) throw txError;
       }
 
