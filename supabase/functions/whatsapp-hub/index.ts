@@ -1501,7 +1501,13 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         let msg = `📋 *Tarefas pendentes (${data.length})*\n\n`;
         data.forEach((t: any, i: number) => {
           msg += `${i + 1}. ${priEmoji[t.priority] || "🟡"} ${catEmoji[t.category] || "📋"} *${t.title}*`;
-          if (t.due_date) msg += `\n   ⏳ ${new Date(t.due_date).toLocaleDateString("pt-BR")}`;
+          if (t.due_date) {
+            const d = new Date(t.due_date);
+            const dateStr = d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+            const timeStr = d.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+            msg += `\n   ⏳ ${dateStr}`;
+            if (timeStr !== "23:59") msg += ` às ${timeStr}`;
+          }
           msg += "\n\n";
         });
         return msg;
