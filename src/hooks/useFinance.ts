@@ -471,10 +471,12 @@ export function useToggleExpensePaid() {
         throw new Error(txError.message);
       }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["expenses"] });
-      qc.invalidateQueries({ queryKey: ["wallets"] });
-      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["expenses"] }),
+        qc.refetchQueries({ queryKey: ["wallets"] }),
+        qc.refetchQueries({ queryKey: ["wallet_transactions"] }),
+      ]);
     },
     onError: (e: Error) => toast.error(e.message),
   });
