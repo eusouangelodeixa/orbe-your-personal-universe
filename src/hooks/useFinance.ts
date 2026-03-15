@@ -18,38 +18,64 @@ async function getWalletExchangeRate(walletId: string): Promise<number | null> {
   return info.exchangeRateToBrl;
 }
 
-/** Get wallet currency info: currency code, exchange_rate_to_brl, and foreignPerBrl rate */
-async function getWalletCurrencyInfo(walletId: string): Promise<{
+type WalletCurrencyInfo = {
   currency: string;
   exchangeRateToBrl: number | null; // how many BRL per 1 foreign unit
-  foreignPerBrl: number | null;     // how many foreign per 1 BRL
-}> {
+  foreignPerBrl: number | null; // how many foreign per 1 BRL
+};
+
+/** Get wallet currency info: currency code, exchange_rate_to_brl, and foreignPerBrl rate */
+async function getWalletCurrencyInfo(walletId: string): Promise<WalletCurrencyInfo> {
   const { data: wallet } = await supabase
     .from("wallets")
     .select("currency")
     .eq("id", walletId)
     .single();
   const currency = (wallet as any)?.currency || "BRL";
-  if (currency === "BRL") return { currency, exchangeRateToBrl: null, foreignPerBrl: null };
+  if (currency === "BRL") return { currency, exchangeRateToBrl: 1, foreignPerBrl: 1 };
 
   const { data, error } = await supabase.functions.invoke("exchange-rates", {
     body: { base: "BRL", symbols: currency },
   });
-  if (error || data?.error || !data?.rates?.[currency]) return { currency, exchangeRateToBrl: null, foreignPerBrl: null };
-  // rates[currency] = foreign per 1 BRL
+  if (error || data?.error || !data?.rates?.[currency]) {
+    return { currency, exchangeRateToBrl: null, foreignPerBrl: null };
+  }
+
   const foreignPerBrl = data.rates[currency];
   const exchangeRateToBrl = foreignPerBrl > 0 ? 1 / foreignPerBrl : null;
   return { currency, exchangeRateToBrl, foreignPerBrl };
 }
 
-/** Convert a BRL amount to a wallet's native currency. Returns original amount if wallet is BRL. */
-async function convertBrlToWalletCurrency(brlAmount: number, walletId: string): Promise<{ convertedAmount: number; info: Awaited<ReturnType<typeof getWalletCurrencyInfo>> }> {
-  const info = await getWalletCurrencyInfo(walletId);
-  if (info.currency === "BRL" || !info.foreignPerBrl) {
-    return { convertedAmount: brlAmount, info };
+async function getCurrencyInfoForWallet(walletId?: string | null): Promise<WalletCurrencyInfo> {
+  if (!walletId) {
+    return { currency: "BRL", exchangeRateToBrl: 1, foreignPerBrl: 1 };
   }
-  // BRL → foreign: multiply by foreignPerBrl
-  return { convertedAmount: brlAmount * info.foreignPerBrl, info };
+  return getWalletCurrencyInfo(walletId);
+}
+
+async function convertAmountBetweenWalletCurrencies(
+  amount: number,
+  fromWalletId?: string | null,
+  toWalletId?: string | null,
+): Promise<{ convertedAmount: number; targetInfo: WalletCurrencyInfo }> {
+  const [fromInfo, targetInfo] = await Promise.all([
+    getCurrencyInfoForWallet(fromWalletId),
+    getCurrencyInfoForWallet(toWalletId),
+  ]);
+
+  if (fromInfo.currency === targetInfo.currency) {
+    return { convertedAmount: amount, targetInfo };
+  }
+
+  const amountInBrl = fromInfo.currency === "BRL"
+    ? amount
+    : amount * (fromInfo.exchangeRateToBrl || 1);
+
+  const convertedAmount = targetInfo.currency === "BRL"
+    ? amountInBrl
+    : amountInBrl * (targetInfo.foreignPerBrl || 1);
+
+  return { convertedAmount, targetInfo };
 }
 
 export function useCategories() {
