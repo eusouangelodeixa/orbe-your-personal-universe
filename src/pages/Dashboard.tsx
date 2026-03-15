@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import { useIncomes, useExpenses, useWallets, useWalletTransactions, useFinancialHistory } from "@/hooks/useFinance";
 import { MonthSelector } from "@/components/MonthSelector";
-import { useCurrency } from "@/contexts/CurrencyContext";
+import { useCurrency, SUPPORTED_CURRENCIES } from "@/contexts/CurrencyContext";
+import { useExchangeRates, convertToBRL } from "@/hooks/useExchangeRates";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid, Legend } from "recharts";
 
 const COLORS = ["#4CAF50", "#FF9800", "#2196F3", "#9C27B0", "#F44336", "#3F51B5", "#E91E63", "#607D8B"];
@@ -27,13 +28,51 @@ export default function Dashboard() {
   const { data: transactions = [] } = useWalletTransactions();
   const { data: history = [] } = useFinancialHistory();
 
+  // Gather all foreign currencies from wallets
+  const walletCurrencies = wallets
+    .map((w: any) => w.currency || "BRL")
+    .filter((c: string) => c !== "BRL");
+  const uniqueCurrencies = [...new Set(walletCurrencies)] as string[];
+  const { data: exchangeRates } = useExchangeRates(uniqueCurrencies.length > 0 ? uniqueCurrencies : undefined);
+
+  /** Convert any amount from a wallet's currency to the user's system currency via BRL as pivot */
+  const toSystemCurrency = (amount: number, fromCurrency: string): number => {
+    const sysCur = currency.code;
+    if (fromCurrency === sysCur) return amount;
+    // Step 1: convert to BRL
+    const inBRL = convertToBRL(amount, fromCurrency, exchangeRates?.rates);
+    if (sysCur === "BRL") return inBRL;
+    // Step 2: convert BRL to system currency
+    const sysRate = exchangeRates?.rates?.[sysCur];
+    if (!sysRate || sysRate === 0) return inBRL;
+    return inBRL * sysRate;
+  };
+
+  /** Format a wallet amount in its native currency */
+  const formatWalletNative = (amount: number, walletCurrency: string): string => {
+    const info = SUPPORTED_CURRENCIES.find((c) => c.code === walletCurrency);
+    if (!info) return formatMoney(amount);
+    return Number(amount)
+      .toLocaleString(info.locale, {
+        style: "currency",
+        currency: walletCurrency,
+        minimumFractionDigits: walletCurrency === "JPY" ? 0 : 2,
+      })
+      .replace(/MTn|MTN/g, "MT");
+  };
+
   const renda = incomes.reduce((a, i) => a + Number(i.amount), 0);
   const totalGastos = expenses.reduce((a, e) => a + Number(e.amount), 0);
   const gastosPendentes = expenses.filter(e => !e.paid).reduce((a, e) => a + Number(e.amount), 0);
   const fluxoMensal = renda - totalGastos;
   const percentual = renda > 0 ? Math.round((totalGastos / renda) * 100) : 0;
   const isCritical = percentual > 80;
-  const totalCarteiras = wallets.reduce((a, w) => a + Number(w.balance), 0);
+
+  // Convert all wallet balances to system currency for total
+  const totalCarteiras = wallets.reduce((a, w) => {
+    const wCur = (w as any).currency || "BRL";
+    return a + toSystemCurrency(Number(w.balance), wCur);
+  }, 0);
 
   const byCat = expenses.reduce<Record<string, { name: string; value: number; color: string }>>((acc, e) => {
     const catName = (e as any).categories?.name || "Outros";
@@ -127,19 +166,19 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card className="bg-primary/5 border-primary/20">
             <CardHeader className="flex flex-row items-center justify-between pb-1">
-              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Patrimônio Atual</CardTitle>
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Patrimônio Atual ({currency.symbol})</CardTitle>
               <WalletIcon className="h-5 w-5 text-primary" />
             </CardHeader>
             <CardContent>
               <p className={`text-3xl font-bold font-display ${totalCarteiras < 0 ? "text-destructive" : "text-primary"}`}>
                 {formatMoney(totalCarteiras)}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">Saldo total de todas as carteiras</p>
+              <p className="text-xs text-muted-foreground mt-1">Saldo total convertido para {currency.code}</p>
             </CardContent>
           </Card>
           <Card className={`${(totalCarteiras - gastosPendentes) >= 0 ? "bg-primary/5 border-primary/20" : "bg-destructive/5 border-destructive/20"}`}>
             <CardHeader className="flex flex-row items-center justify-between pb-1">
-              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Disponível Real</CardTitle>
+              <CardTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Disponível Real ({currency.symbol})</CardTitle>
               <CreditCard className="h-5 w-5 text-primary" />
             </CardHeader>
             <CardContent>
@@ -162,18 +201,29 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {wallets.map((w) => (
-                  <div key={w.id} className="flex items-center justify-between p-4 rounded-lg border border-border bg-card">
-                    <div className="flex items-center gap-2">
-                      <WalletIcon className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-sm">{w.name}</span>
-                      {w.is_default && <Badge variant="outline" className="text-[10px]">Principal</Badge>}
+                {wallets.map((w) => {
+                  const wCur = (w as any).currency || "BRL";
+                  const isForeign = wCur !== currency.code;
+                  const convertedBalance = toSystemCurrency(Number(w.balance), wCur);
+                  return (
+                    <div key={w.id} className="flex items-center justify-between p-4 rounded-lg border border-border bg-card">
+                      <div className="flex items-center gap-2">
+                        <WalletIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium text-sm">{w.name}</span>
+                        {w.is_default && <Badge variant="outline" className="text-[10px]">Principal</Badge>}
+                        {isForeign && <Badge variant="secondary" className="text-[10px]">{wCur}</Badge>}
+                      </div>
+                      <div className="text-right">
+                        <span className={`font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
+                          {formatWalletNative(Number(w.balance), wCur)}
+                        </span>
+                        {isForeign && (
+                          <p className="text-xs text-muted-foreground">≈ {formatMoney(convertedBalance)}</p>
+                        )}
+                      </div>
                     </div>
-                    <span className={`font-bold font-display ${Number(w.balance) < 0 ? "text-destructive" : "text-primary"}`}>
-                      {formatMoney(Number(w.balance))}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -245,27 +295,38 @@ export default function Dashboard() {
           <Card>
             <CardHeader><CardTitle className="font-display">Últimas Movimentações</CardTitle></CardHeader>
             <CardContent className="space-y-2">
-              {recentTx.map((tx: any) => (
-                <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
-                  <div className="flex items-center gap-3">
-                    {tx.type === "credit" ? <ArrowUpCircle className="h-4 w-4 text-primary shrink-0" /> : <ArrowDownCircle className="h-4 w-4 text-destructive shrink-0" />}
-                    <div>
-                      <p className="font-medium text-sm">{tx.description || (tx.type === "credit" ? "Crédito" : "Débito")}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {tx.wallets?.name} • {new Date(tx.created_at).toLocaleDateString("pt-BR")}
-                        {tx.reference_type && (
-                          <Badge variant="outline" className="ml-1 text-[10px]">
-                            {tx.reference_type === "income" ? "Renda" : tx.reference_type === "expense" ? "Gasto" : "Manual"}
-                          </Badge>
-                        )}
-                      </p>
+              {recentTx.map((tx: any) => {
+                const txWallet = wallets.find((w) => w.id === tx.wallet_id);
+                const txCur = (txWallet as any)?.currency || "BRL";
+                const isTxForeign = txCur !== currency.code;
+                const txConverted = toSystemCurrency(Number(tx.amount), txCur);
+                return (
+                  <div key={tx.id} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card">
+                    <div className="flex items-center gap-3">
+                      {tx.type === "credit" ? <ArrowUpCircle className="h-4 w-4 text-primary shrink-0" /> : <ArrowDownCircle className="h-4 w-4 text-destructive shrink-0" />}
+                      <div>
+                        <p className="font-medium text-sm">{tx.description || (tx.type === "credit" ? "Crédito" : "Débito")}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {tx.wallets?.name} • {new Date(tx.created_at).toLocaleDateString("pt-BR")}
+                          {tx.reference_type && (
+                            <Badge variant="outline" className="ml-1 text-[10px]">
+                              {tx.reference_type === "income" ? "Renda" : tx.reference_type === "expense" ? "Gasto" : tx.reference_type === "transfer" ? "Transferência" : "Manual"}
+                            </Badge>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
+                        {tx.type === "credit" ? "+" : "-"} {formatWalletNative(Number(tx.amount), txCur)}
+                      </span>
+                      {isTxForeign && (
+                        <p className="text-xs text-muted-foreground">≈ {formatMoney(txConverted)}</p>
+                      )}
                     </div>
                   </div>
-                  <span className={`font-bold font-display text-sm ${tx.type === "credit" ? "text-primary" : "text-destructive"}`}>
-                    {tx.type === "credit" ? "+" : "-"} {formatMoney(Number(tx.amount))}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         )}
