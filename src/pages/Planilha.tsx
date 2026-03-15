@@ -142,7 +142,7 @@ export default function Planilha() {
         amount: parseFloat(novoGasto.valor),
         due_date: format(dueDate, "yyyy-MM-dd"),
         type: novoGasto.tipo,
-        wallet_id: novoGasto.walletId || null,
+        wallet_id: novoGasto.walletId && novoGasto.walletId !== "none" ? novoGasto.walletId : null,
         month,
         year,
         recurring: novoGasto.recurring,
