@@ -15,7 +15,7 @@ const now = new Date();
 /** Fetch the current exchange rate (foreign → BRL) for a wallet's currency. Returns null for BRL wallets. */
 async function getWalletExchangeRate(walletId: string): Promise<number | null> {
   const info = await getWalletCurrencyInfo(walletId);
-  return info.exchangeRateToBrl;
+  return info.currency === "BRL" ? null : info.exchangeRateToBrl;
 }
 
 type WalletCurrencyInfo = {
@@ -67,13 +67,21 @@ async function convertAmountBetweenWalletCurrencies(
     return { convertedAmount: amount, targetInfo };
   }
 
+  if (fromInfo.currency !== "BRL" && !fromInfo.exchangeRateToBrl) {
+    throw new Error(`Não foi possível obter a cotação da moeda ${fromInfo.currency}. Tente novamente.`);
+  }
+
+  if (targetInfo.currency !== "BRL" && !targetInfo.foreignPerBrl) {
+    throw new Error(`Não foi possível obter a cotação da moeda ${targetInfo.currency}. Tente novamente.`);
+  }
+
   const amountInBrl = fromInfo.currency === "BRL"
     ? amount
-    : amount * (fromInfo.exchangeRateToBrl || 1);
+    : amount * fromInfo.exchangeRateToBrl!;
 
   const convertedAmount = targetInfo.currency === "BRL"
     ? amountInBrl
-    : amountInBrl * (targetInfo.foreignPerBrl || 1);
+    : amountInBrl * targetInfo.foreignPerBrl!;
 
   return { convertedAmount, targetInfo };
 }
@@ -463,10 +471,12 @@ export function useToggleExpensePaid() {
         throw new Error(txError.message);
       }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["expenses"] });
-      qc.invalidateQueries({ queryKey: ["wallets"] });
-      qc.invalidateQueries({ queryKey: ["wallet_transactions"] });
+    onSuccess: async () => {
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ["expenses"] }),
+        qc.refetchQueries({ queryKey: ["wallets"] }),
+        qc.refetchQueries({ queryKey: ["wallet_transactions"] }),
+      ]);
     },
     onError: (e: Error) => toast.error(e.message),
   });
