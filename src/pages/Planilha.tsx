@@ -336,7 +336,6 @@ export default function Planilha() {
                         </p>
                       )}
                     </div>
-                    </p>
                     <div className="flex flex-wrap gap-1.5">
                       <Dialog>
                         <DialogTrigger asChild>
