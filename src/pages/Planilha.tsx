@@ -72,7 +72,7 @@ export default function Planilha() {
     nome: "", categoria: "", valor: "", tipo: "variavel" as "fixo" | "variavel", walletId: "",
     recurring: false, recurringDay: "",
   });
-  const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "", walletId: "" });
+  const [novaRenda, setNovaRenda] = useState({ descricao: "", valor: "", walletId: "", recurring: false });
   const [novaCarteira, setNovaCarteira] = useState({ nome: "", saldoInicial: "", currency: "BRL" });
   const [txForm, setTxForm] = useState({ valor: "", descricao: "" });
   // For marking expense as paid with wallet
@@ -124,10 +124,11 @@ export default function Planilha() {
       description: novaRenda.descricao.trim(),
       amount: parseFloat(novaRenda.valor),
       wallet_id: novaRenda.walletId || null,
+      recurring: novaRenda.recurring,
       month,
       year,
     });
-    setNovaRenda({ descricao: "", valor: "", walletId: "" });
+    setNovaRenda({ descricao: "", valor: "", walletId: "", recurring: false });
     setShowIncomeForm(false);
   };
 
@@ -616,13 +617,23 @@ export default function Planilha() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-end">
-                  <Button onClick={handleAddIncome} disabled={addIncome.isPending} className="font-display">
-                    {addIncome.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Adicionar
-                  </Button>
+                <div className="space-y-3 col-span-full border-t border-border pt-4">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={novaRenda.recurring}
+                      onCheckedChange={(v) => setNovaRenda({ ...novaRenda, recurring: v })}
+                    />
+                    <div>
+                      <Label className="cursor-pointer">Renda recorrente</Label>
+                      <p className="text-xs text-muted-foreground">Será criada automaticamente todo mês</p>
+                    </div>
+                  </div>
                 </div>
               </div>
+              <Button onClick={handleAddIncome} disabled={addIncome.isPending} className="mt-4 font-display">
+                {addIncome.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Adicionar
+              </Button>
             </CardContent>
           </Card>
         )}
