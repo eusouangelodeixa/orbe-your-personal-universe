@@ -186,9 +186,10 @@ export function useAddWalletTransaction() {
           );
         }
       }
+      const rate = await getWalletExchangeRate(tx.wallet_id);
       const { data, error } = await supabase
         .from("wallet_transactions")
-        .insert({ ...tx, user_id: user!.id })
+        .insert({ ...tx, user_id: user!.id, exchange_rate_to_brl: rate } as any)
         .select()
         .single();
       if (error) throw error;
