@@ -271,12 +271,17 @@ export default function Planilha() {
     if (incomes.length > 0) {
       y = drawSectionTitle(doc, y, "Rendas");
       y = drawTable(doc, y,
-        ["Descrição", "Valor", "Carteira"],
-        incomes.map((i: any) => [
-          i.description,
-          formatMoney(Number(i.amount)),
-          i.wallets?.name || "—",
-        ])
+        ["Descrição", "Valor", `Em ${currency.code}`, "Carteira"],
+        incomes.map((i: any) => {
+          const iCur = getWalletCurrency(i.wallet_id);
+          const isForeign = iCur !== currency.code;
+          return [
+            i.description,
+            isForeign ? formatNative(Number(i.amount), iCur) : formatMoney(Number(i.amount)),
+            isForeign ? formatMoney(convertItem(Number(i.amount), i.wallet_id)) : "—",
+            i.wallets?.name || "—",
+          ];
+        })
       );
       y += 8;
     }
