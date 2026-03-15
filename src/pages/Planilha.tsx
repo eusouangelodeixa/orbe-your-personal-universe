@@ -617,11 +617,23 @@ export default function Planilha() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-end">
-                  <Button onClick={handleAddIncome} disabled={addIncome.isPending} className="font-display">
-                    {addIncome.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Adicionar
-                  </Button>
+                <div className="space-y-3 col-span-full border-t border-border pt-4">
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={novaRenda.recurring}
+                      onCheckedChange={(v) => setNovaRenda({ ...novaRenda, recurring: v })}
+                    />
+                    <div>
+                      <Label className="cursor-pointer">Renda recorrente</Label>
+                      <p className="text-xs text-muted-foreground">Será criada automaticamente todo mês</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <Button onClick={handleAddIncome} disabled={addIncome.isPending} className="mt-4 font-display">
+                {addIncome.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Adicionar
+              </Button>
                 </div>
               </div>
             </CardContent>
