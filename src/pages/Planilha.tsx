@@ -634,8 +634,6 @@ export default function Planilha() {
                 {addIncome.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Adicionar
               </Button>
-                </div>
-              </div>
             </CardContent>
           </Card>
         )}
