@@ -577,13 +577,22 @@ export function useWalletTransfer() {
   const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ fromId, toId, amount, description }: { fromId: string; toId: string; amount: number; description?: string }) => {
-      // Check source balance
+      // Check source balance & currency
       const { data: from, error: fErr } = await supabase.from("wallets").select("balance, name, currency").eq("id", fromId).single();
       if (fErr) throw fErr;
       const fromCur = (from as any).currency || "BRL";
+
+      const { data: to, error: tErr } = await supabase.from("wallets").select("name, currency").eq("id", toId).single();
+      if (tErr) throw tErr;
+      const toCur = (to as any).currency || "BRL";
+
+      // Block transfer between wallets with different currencies
+      if (fromCur !== toCur) {
+        throw new Error(`Transferência bloqueada: as carteiras possuem moedas diferentes (${fromCur} → ${toCur}). Só é permitido transferir entre carteiras da mesma moeda.`);
+      }
+
       if (Number(from.balance) < amount) throw new Error(`Saldo insuficiente em "${from.name}". Disponível: ${Number(from.balance).toFixed(2)} ${fromCur}`);
 
-      const { data: to } = await supabase.from("wallets").select("name").eq("id", toId).single();
       const desc = description || `Transferência para ${to?.name || "outra carteira"}`;
 
       // Fetch rates for both wallets
