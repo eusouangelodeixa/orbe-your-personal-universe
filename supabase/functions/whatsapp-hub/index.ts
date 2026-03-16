@@ -2499,8 +2499,34 @@ async function processIncomingMessage(body: any) {
     });
   } catch (e) {
     console.error("whatsapp-hub error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    throw e;
+  }
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch (parseError) {
+    console.error("Invalid webhook payload:", parseError);
+    return jsonResponse({ error: "invalid json payload" }, 400);
+  }
+
+  const automaticWebhook = isAutomaticWebhookPayload(body);
+  if (automaticWebhook) {
+    const queued = queueBackgroundTask(processIncomingMessage(body));
+    if (queued) {
+      return jsonResponse({ accepted: true, mode: "background" }, 202);
+    }
+  }
+
+  try {
+    const result = await processIncomingMessage(body);
+    return jsonResponse(result);
+  } catch (e) {
+    console.error("whatsapp-hub error:", e);
+    return jsonResponse({ error: e instanceof Error ? e.message : "Erro" }, 500);
   }
 });
