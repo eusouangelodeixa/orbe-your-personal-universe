@@ -1757,21 +1757,47 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
 // ========== MAIN HANDLER ==========
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+function jsonResponse(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
+function isAutomaticWebhookPayload(body: any) {
+  return body?.EventType === "messages"
+    || body?.EventType === "message"
+    || body?.event === "messages.upsert"
+    || !!body?.data?.key;
+}
+
+function queueBackgroundTask(task: Promise<unknown>) {
+  const edgeRuntime = (globalThis as typeof globalThis & {
+    EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+  }).EdgeRuntime;
+
+  if (edgeRuntime?.waitUntil) {
+    edgeRuntime.waitUntil(task);
+    return true;
+  }
+
+  return false;
+}
+
+async function processIncomingMessage(body: any) {
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const UAZAPI_URL = Deno.env.get("UAZAPI_URL");
     const UAZAPI_TOKEN = Deno.env.get("UAZAPI_TOKEN");
 
+    if (!supabaseUrl) throw new Error("SUPABASE_URL not configured");
+    if (!serviceKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
     if (!UAZAPI_URL) throw new Error("UAZAPI_URL not configured");
 
     const supabase = createClient(supabaseUrl, serviceKey);
-    const body = await req.json();
 
     // Log full structure keys for debugging
     console.log("Webhook keys:", JSON.stringify(Object.keys(body)));
@@ -2473,8 +2499,34 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("whatsapp-hub error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erro" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    throw e;
+  }
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  let body: any;
+  try {
+    body = await req.json();
+  } catch (parseError) {
+    console.error("Invalid webhook payload:", parseError);
+    return jsonResponse({ error: "invalid json payload" }, 400);
+  }
+
+  const automaticWebhook = isAutomaticWebhookPayload(body);
+  if (automaticWebhook) {
+    const queued = queueBackgroundTask(processIncomingMessage(body));
+    if (queued) {
+      return jsonResponse({ accepted: true, mode: "background" }, 202);
+    }
+  }
+
+  try {
+    const result = await processIncomingMessage(body);
+    return jsonResponse(result);
+  } catch (e) {
+    console.error("whatsapp-hub error:", e);
+    return jsonResponse({ error: e instanceof Error ? e.message : "Erro" }, 500);
   }
 });
