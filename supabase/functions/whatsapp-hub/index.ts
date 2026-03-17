@@ -588,7 +588,8 @@ const INTENT_TOOLS = [
               month: { type: "number" },
               year: { type: "number" },
               wallet_name: { type: "string" },
-              paid: { type: "boolean" },
+              paid: { type: "boolean", description: "Filter for list_expenses: true = show only paid expenses, false = show only unpaid/pending expenses. Omit to show all." },
+              goal_name: { type: "string", description: "Name of a savings goal (cofrinho/meta). E.g. 'reserva emergência', 'viagem'." },
               goal_name: { type: "string", description: "Name of a savings goal (cofrinho/meta). E.g. 'reserva emergência', 'viagem'." },
               show_exercises: { type: "boolean", description: "Set to true when the user explicitly asks to see the exercises of a workout. Default false — just confirm which workout it is." },
               agent: { type: "string", enum: ["fit", "finance", "studies_central"], description: "Which agent to connect for agent_chat. fit=Personal/Nutricionista, finance=Consultor Financeiro, studies_central=Tutor de Estudos" },
@@ -635,6 +636,11 @@ REGRAS:
 - IMPORTANTE: Quando o usuário perguntar sobre metas de economia, cofrinho, reserva de emergência, quanto falta para alcançar uma meta, use action "check_savings_goal" e preencha params.goal_name. NÃO use monthly_summary para perguntas sobre metas.
 - IMPORTANTE: Quando o usuário quiser GUARDAR/DEPOSITAR dinheiro no cofrinho (ex: "guardei 500 no cofrinho", "depositar 200 na reserva"), use action "save_to_cofrinho". Preencha params.amount, params.wallet_name (de onde sai o dinheiro) e params.goal_name (meta destino). Se o usuário NÃO mencionar o nome da meta, deixe goal_name vazio — o sistema vai listar as opções.
 - IMPORTANTE: Quando o usuário perguntar sobre saldo, gastos ou informações de uma carteira/conta ESPECÍFICA, preencha params.wallet_name com o nome da carteira. Responda APENAS com os dados da carteira pedida. NÃO inclua dados de outras carteiras, resumo geral ou patrimônio total a menos que o usuário peça explicitamente.
+- IMPORTANTE: Para list_expenses, use params.paid para FILTRAR:
+  • "contas por pagar", "gastos pendentes", "o que falta pagar" → params.paid = false (mostra SÓ pendentes)
+  • "contas pagas", "gastos pagos", "o que já paguei" → params.paid = true (mostra SÓ pagos)
+  • "todos os gastos", "resumo de gastos", "relatório do mês" → NÃO preencha params.paid (mostra todos)
+  Quando o usuário perguntar "quais contas tenho?", isso é list_expenses SEM filtro. "Quais contas tenho por pagar?" é list_expenses com paid=false.
 - Mantenha respostas CONCISAS e FOCADAS no que foi perguntado. Máximo 10-15 linhas no WhatsApp.
 - MUITO IMPORTANTE: Leve em conta o HISTÓRICO DE CONVERSA recente. Se o usuário está respondendo a uma pergunta anterior, CONECTE com o contexto anterior.
 - MUITO IMPORTANTE: Se a última mensagem do assistente no histórico foi um LEMBRETE DE TAREFA (ex: "Você tem tarefa pra hoje: Comprar leite") e o usuário responde com algo como "já fiz", "feito", "já comprei", "pronto", "concluído" → a intenção é COMPLETAR A TAREFA (complete_task), NÃO registrar gasto. Preencha params.task_title com o título da tarefa mencionada no lembrete.
@@ -1237,6 +1243,9 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           .select("id, name, amount, paid, due_date, wallet_id, wallets(name)")
           .eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear)
           .order("due_date");
+        // Filter by paid status if specified
+        if (params.paid === true) query = query.eq("paid", true);
+        else if (params.paid === false) query = query.eq("paid", false);
         // Filter by wallet if specified
         if (params.wallet_name) {
           const { data: wallets } = await supabase.from("wallets")
@@ -1247,15 +1256,22 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           }
         }
         const { data } = await query;
-        if (!data?.length) return params.wallet_name
-          ? `📊 Nenhum gasto encontrado na conta *${params.wallet_name}* este mês.`
-          : "📊 Nenhum gasto registrado este mês.";
+
+        // Determine label based on filter
+        const filterLabel = params.paid === true ? "Pagos" : params.paid === false ? "Pendentes" : "Gastos";
+        const filterEmoji = params.paid === true ? "✅" : params.paid === false ? "⏳" : "📊";
+
+        if (!data?.length) {
+          if (params.wallet_name) return `${filterEmoji} Nenhum gasto encontrado na conta *${params.wallet_name}* este mês.`;
+          if (params.paid === false) return "✅ Parabéns! Não há contas pendentes este mês.";
+          if (params.paid === true) return "📊 Nenhum gasto pago registrado este mês.";
+          return "📊 Nenhum gasto registrado este mês.";
+        }
 
         const convertedExpenses = await convertRecordsToUserCurrency(supabase, userId, data, "expense", _userCurrency);
         const total = convertedExpenses.reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
-        const paid = convertedExpenses.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
         const walletLabel = params.wallet_name ? ` (${params.wallet_name})` : "";
-        let msg = `📊 *Gastos${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
+        let msg = `${filterEmoji} *${filterLabel}${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
         convertedExpenses.slice(0, 15).forEach((e: any) => {
           const displayValue = e.has_conversion
             ? `${fmtMoney(e.source_amount || 0, e.source_currency)} (≈ ${fmtMoney(e.display_amount || 0, _userCurrency)})`
@@ -1263,7 +1279,12 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${displayValue}\n`;
         });
         if (convertedExpenses.length > 15) msg += `... e mais ${convertedExpenses.length - 15}\n`;
-        msg += `\n💰 Total em ${_userCurrency}: ${fmtMoney(total, _userCurrency)}\n✅ Pago: ${fmtMoney(paid, _userCurrency)}\n⏳ Pendente: ${fmtMoney(total - paid, _userCurrency)}`;
+        msg += `\n💰 Total: ${fmtMoney(total, _userCurrency)}`;
+        // Show paid/pending breakdown only when listing all
+        if (params.paid == null) {
+          const paidTotal = convertedExpenses.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
+          msg += `\n✅ Pago: ${fmtMoney(paidTotal, _userCurrency)}\n⏳ Pendente: ${fmtMoney(total - paidTotal, _userCurrency)}`;
+        }
         return msg;
       }
 
