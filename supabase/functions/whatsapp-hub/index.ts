@@ -708,20 +708,22 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   const year = now.getFullYear();
 
   const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
-    supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
-    supabase.from("expenses").select("name, amount, paid, due_date, category_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("incomes").select("id, description, amount, wallet_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("expenses").select("id, name, amount, paid, due_date, category_id, wallet_id").eq("user_id", userId).eq("month", month).eq("year", year),
     supabase.from("wallets").select("name, balance, is_default, currency").eq("user_id", userId),
     supabase.from("savings_goals").select("name, target_amount, current_amount, deadline").eq("user_id", userId),
   ]);
 
-  const incomes = incomesRes.data || [];
-  const expenses = expensesRes.data || [];
   const wallets = walletsRes.data || [];
   const goals = goalsRes.data || [];
+  const [incomes, expenses] = await Promise.all([
+    convertRecordsToUserCurrency(supabase, userId, incomesRes.data || [], "income", _userCurrency),
+    convertRecordsToUserCurrency(supabase, userId, expensesRes.data || [], "expense", _userCurrency),
+  ]);
 
-  const totalIncome = incomes.reduce((a: number, i: any) => a + Number(i.amount), 0);
-  const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.amount), 0);
-  const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
+  const totalIncome = incomes.reduce((a: number, i: any) => a + Number(i.display_amount || 0), 0);
+  const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.display_amount || 0), 0);
+  const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.display_amount || 0), 0);
   const pendingExpenses = totalExpenses - paidExpenses;
 
   // Convert wallet balances to user's currency
@@ -732,7 +734,7 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   }, 0);
 
   const topExpenses = [...expenses]
-    .sort((a: any, b: any) => Number(b.amount) - Number(a.amount))
+    .sort((a: any, b: any) => Number(b.display_amount || 0) - Number(a.display_amount || 0))
     .slice(0, 5);
 
   const lines: string[] = [];
@@ -744,7 +746,7 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   if (topExpenses.length) {
     lines.push(`Maiores gastos:`);
     topExpenses.forEach((e: any) => {
-      lines.push(`  - ${e.name}: ${fmtMoney(Number(e.amount))} (${e.paid ? "pago" : "pendente"}, vence ${e.due_date})`);
+      lines.push(`  - ${e.name}: ${fmtMoney(Number(e.display_amount || 0))} (${e.paid ? "pago" : "pendente"}, vence ${e.due_date})`);
     });
   }
 
