@@ -160,18 +160,18 @@ Deno.serve(async (req) => {
         const pct = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
 
         // Upcoming unpaid expenses (next 7 days)
-        const upcoming = (expenses || [])
-          .filter(e => !e.paid)
-          .filter(e => {
+        const upcoming = expenses
+          .filter((e: any) => !e.paid)
+          .filter((e: any) => {
             const d = new Date(e.due_date + "T12:00:00");
             const diff = (d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
             return diff >= 0 && diff <= 7;
           })
-          .sort((a, b) => a.due_date.localeCompare(b.due_date));
+          .sort((a: any, b: any) => a.due_date.localeCompare(b.due_date));
 
         // Overdue
-        const overdue = (expenses || [])
-          .filter(e => !e.paid && new Date(e.due_date + "T12:00:00") < now);
+        const overdue = expenses
+          .filter((e: any) => !e.paid && new Date(e.due_date + "T12:00:00") < now);
 
         const monthName = now.toLocaleDateString("pt-BR", { month: "long" });
         const greeting = profile.display_name ? `Olá, ${profile.display_name.split(" ")[0]}!` : "Olá!";
