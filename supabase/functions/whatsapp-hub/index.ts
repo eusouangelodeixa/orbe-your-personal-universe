@@ -1257,10 +1257,13 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         const walletLabel = params.wallet_name ? ` (${params.wallet_name})` : "";
         let msg = `📊 *Gastos${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
         convertedExpenses.slice(0, 15).forEach((e: any) => {
-          msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${fmtBRL(e.display_amount || 0)}\n`;
+          const displayValue = e.has_conversion
+            ? `${fmtMoney(e.source_amount || 0, e.source_currency)} (≈ ${fmtMoney(e.display_amount || 0, _userCurrency)})`
+            : fmtMoney(e.display_amount || 0, _userCurrency);
+          msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${displayValue}\n`;
         });
         if (convertedExpenses.length > 15) msg += `... e mais ${convertedExpenses.length - 15}\n`;
-        msg += `\n💰 Total: ${fmtBRL(total)}\n✅ Pago: ${fmtBRL(paid)}\n⏳ Pendente: ${fmtBRL(total - paid)}`;
+        msg += `\n💰 Total em ${_userCurrency}: ${fmtMoney(total, _userCurrency)}\n✅ Pago: ${fmtMoney(paid, _userCurrency)}\n⏳ Pendente: ${fmtMoney(total - paid, _userCurrency)}`;
         return msg;
       }
 
