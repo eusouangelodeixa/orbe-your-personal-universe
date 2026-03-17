@@ -1290,15 +1290,19 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       case "monthly_summary":
       case "financial_projection": {
         const [expRes, incRes, walRes] = await Promise.all([
-          supabase.from("expenses").select("amount, paid").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
-          supabase.from("incomes").select("amount").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
+          supabase.from("expenses").select("id, amount, paid, wallet_id").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
+          supabase.from("incomes").select("id, amount, wallet_id").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
           supabase.from("wallets").select("name, balance, currency").eq("user_id", userId),
         ]);
-        const totalExp = (expRes.data || []).reduce((s: number, e: any) => s + Number(e.amount), 0);
-        const paidExp = (expRes.data || []).filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.amount), 0);
-        const totalInc = (incRes.data || []).reduce((s: number, i: any) => s + Number(i.amount), 0);
-        // Convert wallet balances to user currency
         const wallets = walRes.data || [];
+        const [convertedExpenses, convertedIncomes] = await Promise.all([
+          convertRecordsToUserCurrency(supabase, userId, expRes.data || [], "expense", _userCurrency),
+          convertRecordsToUserCurrency(supabase, userId, incRes.data || [], "income", _userCurrency),
+        ]);
+        const totalExp = convertedExpenses.reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
+        const paidExp = convertedExpenses.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
+        const totalInc = convertedIncomes.reduce((s: number, i: any) => s + Number(i.display_amount || 0), 0);
+        // Convert wallet balances to user currency
         const mCurrencies = wallets.map((w: any) => w.currency || "BRL");
         const mRates = await fetchExchangeRates(_userCurrency, mCurrencies);
         console.log("monthly_summary exchange rates:", JSON.stringify({ base: _userCurrency, rates: mRates }));
