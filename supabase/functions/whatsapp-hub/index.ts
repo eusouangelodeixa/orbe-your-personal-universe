@@ -2559,13 +2559,17 @@ async function processIncomingMessage(body: any) {
             responseText = `${responsePrefix}Agora suas mensagens vão direto para o novo agente. Pergunte o que quiser! Diga *sair* para voltar ao modo normal.`;
           } else {
             try {
-              responseText = await withTimeout(
+              const deterministicFinanceReply = targetAgentType === "finance"
+                ? await maybeHandleDeterministicFinanceQuery(supabase, userId, userMessageForAgent)
+                : null;
+
+              responseText = deterministicFinanceReply ?? await withTimeout(
                 callAgentOrchestrator(supabase, userId, targetAgentType, userMessageForAgent),
                 25000,
                 "agent_orchestrator"
               );
 
-              if (targetAgentType === "finance") {
+              if (targetAgentType === "finance" && !deterministicFinanceReply) {
                 responseText = await maybeOverrideFinanceEmptyReply(supabase, userId, userMessageForAgent, responseText);
               }
             } catch (agentErr) {
