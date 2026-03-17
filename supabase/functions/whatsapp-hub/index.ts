@@ -990,24 +990,30 @@ async function maybeOverrideFinanceEmptyReply(
   const year = now.getFullYear();
 
   const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
-    supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
-    supabase.from("expenses").select("name, amount, paid").eq("user_id", userId).eq("month", month).eq("year", year),
-    supabase.from("wallets").select("name, balance").eq("user_id", userId),
+    supabase.from("incomes").select("id, description, amount, wallet_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("expenses").select("id, name, amount, paid, wallet_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("wallets").select("name, balance, currency").eq("user_id", userId),
     supabase.from("savings_goals").select("name, target_amount, current_amount").eq("user_id", userId),
   ]);
 
-  const incomes = incomesRes.data || [];
-  const expenses = expensesRes.data || [];
   const wallets = walletsRes.data || [];
   const goals = goalsRes.data || [];
+  const [incomes, expenses] = await Promise.all([
+    convertRecordsToUserCurrency(supabase, userId, incomesRes.data || [], "income", _userCurrency),
+    convertRecordsToUserCurrency(supabase, userId, expensesRes.data || [], "expense", _userCurrency),
+  ]);
 
   const hasData = incomes.length > 0 || expenses.length > 0 || wallets.length > 0 || goals.length > 0;
   if (!hasData) return agentReply;
 
-  const totalIncome = incomes.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
-  const totalExpenses = expenses.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
-  const totalWallets = wallets.reduce((sum: number, row: any) => sum + Number(row.balance || 0), 0);
-  const maiorGasto = [...expenses].sort((a: any, b: any) => Number(b.amount || 0) - Number(a.amount || 0))[0] || null;
+  const walletCurrencies = wallets.map((wallet: any) => wallet.currency || "BRL");
+  const walletRates = await fetchExchangeRates(_userCurrency, walletCurrencies);
+  const totalIncome = incomes.reduce((sum: number, row: any) => sum + Number(row.display_amount || 0), 0);
+  const totalExpenses = expenses.reduce((sum: number, row: any) => sum + Number(row.display_amount || 0), 0);
+  const totalWallets = wallets.reduce((sum: number, row: any) => {
+    return sum + convertToBase(Number(row.balance || 0), row.currency || "BRL", _userCurrency, walletRates);
+  }, 0);
+  const maiorGasto = [...expenses].sort((a: any, b: any) => Number(b.display_amount || 0) - Number(a.display_amount || 0))[0] || null;
   const mainGoal = goals.find((g: any) => Number(g.target_amount || 0) >= 10000) || goals[0] || null;
 
   const lines: string[] = [];
