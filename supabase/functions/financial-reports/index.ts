@@ -31,13 +31,23 @@ async function fetchExchangeRates(baseCurrency: string, currencies: string[]): P
   if (!unique.length) return {};
   try {
     const resp = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
-    if (!resp.ok) return {};
+    if (!resp.ok) {
+      console.warn(`Exchange rate API error: ${resp.status} for base ${baseCurrency}`);
+      return {};
+    }
     const data = await resp.json();
-    if (data.result !== "success") return {};
+    if (data.result !== "success") {
+      console.warn(`Exchange rate API result not success:`, data.result);
+      return {};
+    }
     const rates: Record<string, number> = {};
     for (const c of unique) { if (data.rates[c] !== undefined) rates[c] = data.rates[c]; }
+    console.log(`Exchange rates for report: base=${baseCurrency}, rates=${JSON.stringify(rates)}`);
     return rates;
-  } catch { return {}; }
+  } catch (err) {
+    console.error("fetchExchangeRates error:", err);
+    return {};
+  }
 }
 
 function convertToBase(amount: number, fromCurrency: string, baseCurrency: string, rates: Record<string, number>): number {
@@ -140,6 +150,24 @@ Deno.serve(async (req) => {
         const monthName = now.toLocaleDateString("pt-BR", { month: "long" });
         const greeting = profile.display_name ? `Olá, ${profile.display_name.split(" ")[0]}!` : "Olá!";
 
+        // Build wallet breakdown for multi-currency users
+        const hasMultiCurrency = (wallets || []).some((w: any) => (w.currency || "BRL") !== cur);
+        let walletBreakdown = "";
+        if (hasMultiCurrency && (wallets || []).length > 0) {
+          walletBreakdown = "\n💳 *Carteiras:*\n";
+          for (const w of (wallets || [])) {
+            const wCur = w.currency || "BRL";
+            const bal = Number(w.balance);
+            if (bal === 0 && (wallets || []).length > 3) continue;
+            if (wCur !== cur) {
+              const converted = convertToBase(bal, wCur, cur, exchangeRates);
+              walletBreakdown += `  • ${w.name}: ${fmtMoney(bal, wCur)} (≈ ${fmt(converted)})\n`;
+            } else {
+              walletBreakdown += `  • ${w.name}: ${fmt(bal)}\n`;
+            }
+          }
+        }
+
         let msg = "";
         if (reportType === "weekly") {
           msg = `📊 *Resumo Semanal*\n\n${greeting}\n\n`;
@@ -162,6 +190,8 @@ Deno.serve(async (req) => {
               msg += `  • ${e.name} — ${fmt(Number(e.amount))} (${d})\n`;
             });
           }
+
+          if (walletBreakdown) msg += `\n${walletBreakdown}`;
         } else {
           // Monthly
           msg = `📈 *Relatório Mensal — ${monthName}*\n\n${greeting}\n\n`;
@@ -186,6 +216,8 @@ Deno.serve(async (req) => {
               msg += `  • ${cat}: ${fmt(val)}\n`;
             });
           }
+
+          if (walletBreakdown) msg += `\n${walletBreakdown}`;
         }
 
         msg += `\n_Enviado automaticamente pelo ORBE_ 🟣`;

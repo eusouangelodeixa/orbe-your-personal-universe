@@ -281,13 +281,23 @@ async function fetchExchangeRates(baseCurrency: string, currencies: string[]): P
   if (!unique.length) return {};
   try {
     const resp = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
-    if (!resp.ok) return {};
+    if (!resp.ok) {
+      console.warn(`Exchange rate API error: ${resp.status} for base ${baseCurrency}`);
+      return {};
+    }
     const data = await resp.json();
-    if (data.result !== "success") return {};
+    if (data.result !== "success") {
+      console.warn(`Exchange rate API result not success:`, data.result);
+      return {};
+    }
     const rates: Record<string, number> = {};
     for (const c of unique) { if (data.rates[c] !== undefined) rates[c] = data.rates[c]; }
+    console.log(`Exchange rates fetched: base=${baseCurrency}, rates=${JSON.stringify(rates)}`);
     return rates;
-  } catch { return {}; }
+  } catch (err) {
+    console.error("fetchExchangeRates error:", err);
+    return {};
+  }
 }
 
 function convertToBase(amount: number, fromCurrency: string, baseCurrency: string, rates: Record<string, number>): number {
@@ -1201,19 +1211,38 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         const [expRes, incRes, walRes] = await Promise.all([
           supabase.from("expenses").select("amount, paid").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
           supabase.from("incomes").select("amount").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
-          supabase.from("wallets").select("balance, currency").eq("user_id", userId),
+          supabase.from("wallets").select("name, balance, currency").eq("user_id", userId),
         ]);
         const totalExp = (expRes.data || []).reduce((s: number, e: any) => s + Number(e.amount), 0);
         const paidExp = (expRes.data || []).filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.amount), 0);
         const totalInc = (incRes.data || []).reduce((s: number, i: any) => s + Number(i.amount), 0);
         // Convert wallet balances to user currency
-        const mCurrencies = (walRes.data || []).map((w: any) => w.currency || "BRL");
+        const wallets = walRes.data || [];
+        const mCurrencies = wallets.map((w: any) => w.currency || "BRL");
         const mRates = await fetchExchangeRates(_userCurrency, mCurrencies);
-        const totalWal = (walRes.data || []).reduce((s: number, w: any) => {
+        console.log("monthly_summary exchange rates:", JSON.stringify({ base: _userCurrency, rates: mRates }));
+        const totalWal = wallets.reduce((s: number, w: any) => {
           return s + convertToBase(Number(w.balance), w.currency || "BRL", _userCurrency, mRates);
         }, 0);
         const flow = totalInc - totalExp;
         const commitment = totalInc > 0 ? ((totalExp / totalInc) * 100).toFixed(0) : "—";
+
+        let walletLines = "";
+        const hasMultiCurrency = wallets.some((w: any) => (w.currency || "BRL") !== _userCurrency);
+        if (hasMultiCurrency && wallets.length > 0) {
+          walletLines = "\n\n🏦 *Carteiras:*\n";
+          for (const w of wallets) {
+            const wCur = w.currency || "BRL";
+            const bal = Number(w.balance);
+            if (bal === 0 && wallets.length > 3) continue;
+            if (wCur !== _userCurrency) {
+              const converted = convertToBase(bal, wCur, _userCurrency, mRates);
+              walletLines += `  • ${w.name}: ${fmtMoney(bal, wCur)} (≈ ${fmtBRL(converted)})\n`;
+            } else {
+              walletLines += `  • ${w.name}: ${fmtBRL(bal)}\n`;
+            }
+          }
+        }
 
         return `📊 *Resumo Financeiro ${currentMonth}/${currentYear}*\n\n` +
           `💵 Renda: ${fmtBRL(totalInc)}\n` +
@@ -1221,8 +1250,9 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           `✅ Pago: ${fmtBRL(paidExp)} | ⏳ Pendente: ${fmtBRL(totalExp - paidExp)}\n` +
           `📈 Fluxo: ${fmtBRL(flow)}\n` +
           `📊 Comprometimento: ${commitment}%\n` +
-          `🏦 Patrimônio: ${fmtBRL(totalWal)}\n` +
-          `💰 Disponível: ${fmtBRL(totalWal - (totalExp - paidExp))}`;
+          `🏦 Patrimônio total: ${fmtBRL(totalWal)}\n` +
+          `💰 Disponível: ${fmtBRL(totalWal - (totalExp - paidExp))}` +
+          walletLines;
       }
 
       case "check_savings_goal": {
