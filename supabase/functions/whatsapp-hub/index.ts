@@ -2045,13 +2045,17 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
         if (!commandContext.isActivationCommand && inlineQuery.length > 2) {
           try {
-            let agentResponse = await withTimeout(
+            const deterministicFinanceReply = agentType === "finance"
+              ? await maybeHandleDeterministicFinanceQuery(supabase, userId, inlineQuery)
+              : null;
+
+            let agentResponse = deterministicFinanceReply ?? await withTimeout(
               callAgentOrchestrator(supabase, userId, agentType, inlineQuery),
               25000,
               "agent_first_msg"
             );
 
-            if (agentType === "finance") {
+            if (agentType === "finance" && !deterministicFinanceReply) {
               agentResponse = await maybeOverrideFinanceEmptyReply(supabase, userId, inlineQuery, agentResponse);
             }
 
