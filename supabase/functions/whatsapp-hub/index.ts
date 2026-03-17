@@ -307,6 +307,77 @@ function convertToBase(amount: number, fromCurrency: string, baseCurrency: strin
   return amount / rate;
 }
 
+async function convertRecordsToUserCurrency(
+  supabase: any,
+  userId: string,
+  records: any[],
+  referenceType: "expense" | "income",
+  targetCurrency: string,
+): Promise<any[]> {
+  if (!records.length) {
+    return records.map((record: any) => ({ ...record, display_amount: Number(record.amount || 0) }));
+  }
+
+  const recordIds = records.map((record: any) => record.id).filter(Boolean);
+  const walletIds = [...new Set(records.map((record: any) => record.wallet_id).filter(Boolean))];
+  const txType = referenceType === "expense" ? "debit" : "credit";
+
+  const [walletRes, txRes, brlToTargetRates] = await Promise.all([
+    walletIds.length
+      ? supabase.from("wallets").select("id, currency").in("id", walletIds)
+      : Promise.resolve({ data: [], error: null }),
+    recordIds.length
+      ? supabase
+          .from("wallet_transactions")
+          .select("reference_id, exchange_rate_to_brl")
+          .eq("user_id", userId)
+          .eq("reference_type", referenceType)
+          .eq("type", txType)
+          .in("reference_id", recordIds)
+      : Promise.resolve({ data: [], error: null }),
+    targetCurrency !== "BRL" ? fetchExchangeRates("BRL", [targetCurrency]) : Promise.resolve({}),
+  ]);
+
+  const walletCurrencyById = new Map((walletRes.data || []).map((wallet: any) => [wallet.id, wallet.currency || "BRL"]));
+  const txByReferenceId = new Map((txRes.data || []).map((tx: any) => [tx.reference_id, tx]));
+  const brlToTargetRate = targetCurrency === "BRL"
+    ? 1
+    : Number((brlToTargetRates as Record<string, number>)[targetCurrency] || 0);
+
+  const fallbackCurrencies = [...new Set(
+    records
+      .map((record: any) => walletCurrencyById.get(record.wallet_id))
+      .filter((currency: string | undefined) => !!currency && currency !== targetCurrency)
+  )] as string[];
+  const liveRatesToTarget = fallbackCurrencies.length ? await fetchExchangeRates(targetCurrency, fallbackCurrencies) : {};
+
+  return records.map((record: any) => {
+    const originalAmount = Number(record.amount || 0);
+    const walletCurrency = walletCurrencyById.get(record.wallet_id) || "BRL";
+    const tx = txByReferenceId.get(record.id);
+    let displayAmount = originalAmount;
+
+    if (walletCurrency === targetCurrency) {
+      displayAmount = originalAmount;
+    } else if (tx?.exchange_rate_to_brl && walletCurrency !== "BRL") {
+      const amountInBrl = originalAmount * Number(tx.exchange_rate_to_brl);
+      displayAmount = targetCurrency === "BRL"
+        ? amountInBrl
+        : brlToTargetRate > 0
+          ? amountInBrl * brlToTargetRate
+          : amountInBrl;
+    } else if (walletCurrency !== targetCurrency) {
+      displayAmount = convertToBase(originalAmount, walletCurrency, targetCurrency, liveRatesToTarget);
+    }
+
+    return {
+      ...record,
+      display_amount: displayAmount,
+      source_currency: walletCurrency,
+    };
+  });
+}
+
 
 
 async function callAI(apiKey: string, systemPrompt: string, userMessage: string, tools?: any[], toolChoice?: any, chatHistory?: Array<{role: string, content: string}>) {
