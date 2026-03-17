@@ -629,7 +629,7 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
     supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
     supabase.from("expenses").select("name, amount, paid, due_date, category_id").eq("user_id", userId).eq("month", month).eq("year", year),
-    supabase.from("wallets").select("name, balance, is_default").eq("user_id", userId),
+    supabase.from("wallets").select("name, balance, is_default, currency").eq("user_id", userId),
     supabase.from("savings_goals").select("name, target_amount, current_amount, deadline").eq("user_id", userId),
   ]);
 
@@ -642,7 +642,13 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.amount), 0);
   const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
   const pendingExpenses = totalExpenses - paidExpenses;
-  const totalWallets = wallets.reduce((a: number, w: any) => a + Number(w.balance), 0);
+
+  // Convert wallet balances to user's currency
+  const walletCurrencies = wallets.map((w: any) => w.currency || "BRL");
+  const exchangeRates = await fetchExchangeRates(_userCurrency, walletCurrencies);
+  const totalWallets = wallets.reduce((a: number, w: any) => {
+    return a + convertToBase(Number(w.balance), w.currency || "BRL", _userCurrency, exchangeRates);
+  }, 0);
 
   const topExpenses = [...expenses]
     .sort((a: any, b: any) => Number(b.amount) - Number(a.amount))
