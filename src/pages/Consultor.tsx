@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useIncomes, useExpenses, useWallets, useSavingsGoals } from "@/hooks/useFinance";
+import { format } from "date-fns";
 
 interface Message {
   id: string;
