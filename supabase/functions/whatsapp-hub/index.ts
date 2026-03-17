@@ -307,6 +307,77 @@ function convertToBase(amount: number, fromCurrency: string, baseCurrency: strin
   return amount / rate;
 }
 
+async function convertRecordsToUserCurrency(
+  supabase: any,
+  userId: string,
+  records: any[],
+  referenceType: "expense" | "income",
+  targetCurrency: string,
+): Promise<any[]> {
+  if (!records.length) {
+    return records.map((record: any) => ({ ...record, display_amount: Number(record.amount || 0) }));
+  }
+
+  const recordIds = records.map((record: any) => record.id).filter(Boolean);
+  const walletIds = [...new Set(records.map((record: any) => record.wallet_id).filter(Boolean))];
+  const txType = referenceType === "expense" ? "debit" : "credit";
+
+  const [walletRes, txRes, brlToTargetRates] = await Promise.all([
+    walletIds.length
+      ? supabase.from("wallets").select("id, currency").in("id", walletIds)
+      : Promise.resolve({ data: [], error: null }),
+    recordIds.length
+      ? supabase
+          .from("wallet_transactions")
+          .select("reference_id, exchange_rate_to_brl")
+          .eq("user_id", userId)
+          .eq("reference_type", referenceType)
+          .eq("type", txType)
+          .in("reference_id", recordIds)
+      : Promise.resolve({ data: [], error: null }),
+    targetCurrency !== "BRL" ? fetchExchangeRates("BRL", [targetCurrency]) : Promise.resolve({}),
+  ]);
+
+  const walletCurrencyById = new Map((walletRes.data || []).map((wallet: any) => [wallet.id, wallet.currency || "BRL"]));
+  const txByReferenceId = new Map((txRes.data || []).map((tx: any) => [tx.reference_id, tx]));
+  const brlToTargetRate = targetCurrency === "BRL"
+    ? 1
+    : Number((brlToTargetRates as Record<string, number>)[targetCurrency] || 0);
+
+  const fallbackCurrencies = [...new Set(
+    records
+      .map((record: any) => walletCurrencyById.get(record.wallet_id))
+      .filter((currency: string | undefined) => !!currency && currency !== targetCurrency)
+  )] as string[];
+  const liveRatesToTarget = fallbackCurrencies.length ? await fetchExchangeRates(targetCurrency, fallbackCurrencies) : {};
+
+  return records.map((record: any) => {
+    const originalAmount = Number(record.amount || 0);
+    const walletCurrency = walletCurrencyById.get(record.wallet_id) || "BRL";
+    const tx = txByReferenceId.get(record.id);
+    let displayAmount = originalAmount;
+
+    if (walletCurrency === targetCurrency) {
+      displayAmount = originalAmount;
+    } else if (tx?.exchange_rate_to_brl && walletCurrency !== "BRL") {
+      const amountInBrl = originalAmount * Number(tx.exchange_rate_to_brl);
+      displayAmount = targetCurrency === "BRL"
+        ? amountInBrl
+        : brlToTargetRate > 0
+          ? amountInBrl * brlToTargetRate
+          : amountInBrl;
+    } else if (walletCurrency !== targetCurrency) {
+      displayAmount = convertToBase(originalAmount, walletCurrency, targetCurrency, liveRatesToTarget);
+    }
+
+    return {
+      ...record,
+      display_amount: displayAmount,
+      source_currency: walletCurrency,
+    };
+  });
+}
+
 
 
 async function callAI(apiKey: string, systemPrompt: string, userMessage: string, tools?: any[], toolChoice?: any, chatHistory?: Array<{role: string, content: string}>) {
@@ -637,20 +708,22 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   const year = now.getFullYear();
 
   const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
-    supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
-    supabase.from("expenses").select("name, amount, paid, due_date, category_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("incomes").select("id, description, amount, wallet_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("expenses").select("id, name, amount, paid, due_date, category_id, wallet_id").eq("user_id", userId).eq("month", month).eq("year", year),
     supabase.from("wallets").select("name, balance, is_default, currency").eq("user_id", userId),
     supabase.from("savings_goals").select("name, target_amount, current_amount, deadline").eq("user_id", userId),
   ]);
 
-  const incomes = incomesRes.data || [];
-  const expenses = expensesRes.data || [];
   const wallets = walletsRes.data || [];
   const goals = goalsRes.data || [];
+  const [incomes, expenses] = await Promise.all([
+    convertRecordsToUserCurrency(supabase, userId, incomesRes.data || [], "income", _userCurrency),
+    convertRecordsToUserCurrency(supabase, userId, expensesRes.data || [], "expense", _userCurrency),
+  ]);
 
-  const totalIncome = incomes.reduce((a: number, i: any) => a + Number(i.amount), 0);
-  const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.amount), 0);
-  const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
+  const totalIncome = incomes.reduce((a: number, i: any) => a + Number(i.display_amount || 0), 0);
+  const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.display_amount || 0), 0);
+  const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.display_amount || 0), 0);
   const pendingExpenses = totalExpenses - paidExpenses;
 
   // Convert wallet balances to user's currency
@@ -661,7 +734,7 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   }, 0);
 
   const topExpenses = [...expenses]
-    .sort((a: any, b: any) => Number(b.amount) - Number(a.amount))
+    .sort((a: any, b: any) => Number(b.display_amount || 0) - Number(a.display_amount || 0))
     .slice(0, 5);
 
   const lines: string[] = [];
@@ -673,7 +746,7 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   if (topExpenses.length) {
     lines.push(`Maiores gastos:`);
     topExpenses.forEach((e: any) => {
-      lines.push(`  - ${e.name}: ${fmtMoney(Number(e.amount))} (${e.paid ? "pago" : "pendente"}, vence ${e.due_date})`);
+      lines.push(`  - ${e.name}: ${fmtMoney(Number(e.display_amount || 0))} (${e.paid ? "pago" : "pendente"}, vence ${e.due_date})`);
     });
   }
 
@@ -917,31 +990,37 @@ async function maybeOverrideFinanceEmptyReply(
   const year = now.getFullYear();
 
   const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
-    supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
-    supabase.from("expenses").select("name, amount, paid").eq("user_id", userId).eq("month", month).eq("year", year),
-    supabase.from("wallets").select("name, balance").eq("user_id", userId),
+    supabase.from("incomes").select("id, description, amount, wallet_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("expenses").select("id, name, amount, paid, wallet_id").eq("user_id", userId).eq("month", month).eq("year", year),
+    supabase.from("wallets").select("name, balance, currency").eq("user_id", userId),
     supabase.from("savings_goals").select("name, target_amount, current_amount").eq("user_id", userId),
   ]);
 
-  const incomes = incomesRes.data || [];
-  const expenses = expensesRes.data || [];
   const wallets = walletsRes.data || [];
   const goals = goalsRes.data || [];
+  const [incomes, expenses] = await Promise.all([
+    convertRecordsToUserCurrency(supabase, userId, incomesRes.data || [], "income", _userCurrency),
+    convertRecordsToUserCurrency(supabase, userId, expensesRes.data || [], "expense", _userCurrency),
+  ]);
 
   const hasData = incomes.length > 0 || expenses.length > 0 || wallets.length > 0 || goals.length > 0;
   if (!hasData) return agentReply;
 
-  const totalIncome = incomes.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
-  const totalExpenses = expenses.reduce((sum: number, row: any) => sum + Number(row.amount || 0), 0);
-  const totalWallets = wallets.reduce((sum: number, row: any) => sum + Number(row.balance || 0), 0);
-  const maiorGasto = [...expenses].sort((a: any, b: any) => Number(b.amount || 0) - Number(a.amount || 0))[0] || null;
+  const walletCurrencies = wallets.map((wallet: any) => wallet.currency || "BRL");
+  const walletRates = await fetchExchangeRates(_userCurrency, walletCurrencies);
+  const totalIncome = incomes.reduce((sum: number, row: any) => sum + Number(row.display_amount || 0), 0);
+  const totalExpenses = expenses.reduce((sum: number, row: any) => sum + Number(row.display_amount || 0), 0);
+  const totalWallets = wallets.reduce((sum: number, row: any) => {
+    return sum + convertToBase(Number(row.balance || 0), row.currency || "BRL", _userCurrency, walletRates);
+  }, 0);
+  const maiorGasto = [...expenses].sort((a: any, b: any) => Number(b.display_amount || 0) - Number(a.display_amount || 0))[0] || null;
   const mainGoal = goals.find((g: any) => Number(g.target_amount || 0) >= 10000) || goals[0] || null;
 
   const lines: string[] = [];
   lines.push(`Revisei seus dados reais de ${month}/${year} e encontrei movimentações no sistema.`);
 
   if (maiorGasto) {
-    lines.push(`📌 Maior gasto do mês: *${maiorGasto.name}* (${fmtBRL(Number(maiorGasto.amount || 0))}).`);
+    lines.push(`📌 Maior gasto do mês: *${maiorGasto.name}* (${fmtBRL(Number(maiorGasto.display_amount || 0))}).`);
   }
 
   lines.push(`💰 Renda: ${fmtBRL(totalIncome)} | Gastos: ${fmtBRL(totalExpenses)} | Saldo em carteiras: ${fmtBRL(totalWallets)}.`);
@@ -1132,7 +1211,7 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
       case "list_expenses": {
         let query = supabase.from("expenses")
-          .select("name, amount, paid, due_date, wallet_id, wallets(name)")
+          .select("id, name, amount, paid, due_date, wallet_id, wallets(name)")
           .eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear)
           .order("due_date");
         // Filter by wallet if specified
@@ -1148,14 +1227,16 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         if (!data?.length) return params.wallet_name
           ? `📊 Nenhum gasto encontrado na conta *${params.wallet_name}* este mês.`
           : "📊 Nenhum gasto registrado este mês.";
-        const total = data.reduce((s: number, e: any) => s + Number(e.amount), 0);
-        const paid = data.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.amount), 0);
+
+        const convertedExpenses = await convertRecordsToUserCurrency(supabase, userId, data, "expense", _userCurrency);
+        const total = convertedExpenses.reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
+        const paid = convertedExpenses.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
         const walletLabel = params.wallet_name ? ` (${params.wallet_name})` : "";
         let msg = `📊 *Gastos${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
-        data.slice(0, 15).forEach((e: any) => {
-          msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${fmtBRL(e.amount)}\n`;
+        convertedExpenses.slice(0, 15).forEach((e: any) => {
+          msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${fmtBRL(e.display_amount || 0)}\n`;
         });
-        if (data.length > 15) msg += `... e mais ${data.length - 15}\n`;
+        if (convertedExpenses.length > 15) msg += `... e mais ${convertedExpenses.length - 15}\n`;
         msg += `\n💰 Total: ${fmtBRL(total)}\n✅ Pago: ${fmtBRL(paid)}\n⏳ Pendente: ${fmtBRL(total - paid)}`;
         return msg;
       }
@@ -1209,15 +1290,19 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       case "monthly_summary":
       case "financial_projection": {
         const [expRes, incRes, walRes] = await Promise.all([
-          supabase.from("expenses").select("amount, paid").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
-          supabase.from("incomes").select("amount").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
+          supabase.from("expenses").select("id, amount, paid, wallet_id").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
+          supabase.from("incomes").select("id, amount, wallet_id").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
           supabase.from("wallets").select("name, balance, currency").eq("user_id", userId),
         ]);
-        const totalExp = (expRes.data || []).reduce((s: number, e: any) => s + Number(e.amount), 0);
-        const paidExp = (expRes.data || []).filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.amount), 0);
-        const totalInc = (incRes.data || []).reduce((s: number, i: any) => s + Number(i.amount), 0);
-        // Convert wallet balances to user currency
         const wallets = walRes.data || [];
+        const [convertedExpenses, convertedIncomes] = await Promise.all([
+          convertRecordsToUserCurrency(supabase, userId, expRes.data || [], "expense", _userCurrency),
+          convertRecordsToUserCurrency(supabase, userId, incRes.data || [], "income", _userCurrency),
+        ]);
+        const totalExp = convertedExpenses.reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
+        const paidExp = convertedExpenses.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
+        const totalInc = convertedIncomes.reduce((s: number, i: any) => s + Number(i.display_amount || 0), 0);
+        // Convert wallet balances to user currency
         const mCurrencies = wallets.map((w: any) => w.currency || "BRL");
         const mRates = await fetchExchangeRates(_userCurrency, mCurrencies);
         console.log("monthly_summary exchange rates:", JSON.stringify({ base: _userCurrency, rates: mRates }));
