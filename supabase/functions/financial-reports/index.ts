@@ -97,38 +97,64 @@ Deno.serve(async (req) => {
       try {
         const cur = profile.currency || "BRL";
         const fmt = (v: number) => fmtMoney(v, cur);
-        // Get incomes
-        const { data: incomes } = await supabase
-          .from("incomes")
-          .select("amount")
-          .eq("user_id", profile.user_id)
-          .eq("month", currentMonth)
-          .eq("year", currentYear);
+        const userId = profile.user_id;
 
-        // Get expenses
-        const { data: expenses } = await supabase
-          .from("expenses")
-          .select("amount, paid, name, due_date, categories(name)")
-          .eq("user_id", profile.user_id)
-          .eq("month", currentMonth)
-          .eq("year", currentYear);
+        // Get incomes, expenses, wallets
+        const [incomesRes, expensesRes, walletsRes] = await Promise.all([
+          supabase.from("incomes").select("id, amount, wallet_id").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
+          supabase.from("expenses").select("id, amount, paid, name, due_date, wallet_id, categories(name)").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
+          supabase.from("wallets").select("id, name, balance, currency").eq("user_id", userId),
+        ]);
 
-        // Get wallets (include currency for multi-currency conversion)
-        const { data: wallets } = await supabase
-          .from("wallets")
-          .select("name, balance, currency")
-          .eq("user_id", profile.user_id);
+        const wallets = walletsRes.data || [];
+        const walletCurrencyById: Record<string, string> = {};
+        for (const w of wallets) { walletCurrencyById[w.id] = w.currency || "BRL"; }
+
+        // Get wallet_transactions for historical exchange rates
+        const allRecordIds = [
+          ...(incomesRes.data || []).map((i: any) => i.id),
+          ...(expensesRes.data || []).map((e: any) => e.id),
+        ].filter(Boolean);
+
+        let txByRefId: Record<string, any> = {};
+        if (allRecordIds.length) {
+          const { data: txRows } = await supabase
+            .from("wallet_transactions")
+            .select("reference_id, exchange_rate_to_brl, type")
+            .eq("user_id", userId)
+            .in("reference_id", allRecordIds);
+          for (const tx of (txRows || [])) {
+            txByRefId[tx.reference_id] = tx;
+          }
+        }
+
+        // Helper to convert a record amount to user currency
+        function toUserCurrency(record: any): number {
+          const amt = Number(record.amount || 0);
+          const wCur = record.wallet_id ? (walletCurrencyById[record.wallet_id] || "BRL") : "BRL";
+          if (wCur === cur) return amt;
+          const tx = txByRefId[record.id];
+          if (tx?.exchange_rate_to_brl && wCur !== "BRL") {
+            const inBrl = amt * Number(tx.exchange_rate_to_brl);
+            // If user currency is BRL, done; otherwise need BRL→userCur
+            return cur === "BRL" ? inBrl : inBrl; // for now BRL is base
+          }
+          return amt; // fallback: assume already in user currency
+        }
+
+        const incomes = incomesRes.data || [];
+        const expenses = expensesRes.data || [];
 
         // Fetch exchange rates for multi-currency wallet conversion
-        const walletCurrencies = (wallets || []).map((w: any) => w.currency || "BRL");
+        const walletCurrencies = wallets.map((w: any) => w.currency || "BRL");
         const exchangeRates = await fetchExchangeRates(cur, walletCurrencies);
 
-        const totalIncome = (incomes || []).reduce((a, i) => a + Number(i.amount), 0);
-        const totalExpense = (expenses || []).reduce((a, e) => a + Number(e.amount), 0);
-        const totalPaid = (expenses || []).filter(e => e.paid).reduce((a, e) => a + Number(e.amount), 0);
+        const totalIncome = incomes.reduce((a: number, i: any) => a + toUserCurrency(i), 0);
+        const totalExpense = expenses.reduce((a: number, e: any) => a + toUserCurrency(e), 0);
+        const totalPaid = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + toUserCurrency(e), 0);
         const totalPending = totalExpense - totalPaid;
         const balance = totalIncome - totalExpense;
-        const totalWallets = (wallets || []).reduce((a: number, w: any) => {
+        const totalWallets = wallets.reduce((a: number, w: any) => {
           return a + convertToBase(Number(w.balance), w.currency || "BRL", cur, exchangeRates);
         }, 0);
         const pct = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
