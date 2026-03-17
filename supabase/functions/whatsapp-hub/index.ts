@@ -136,6 +136,46 @@ function enforceExpenseListIntent(text: string, intent: any) {
   return nextIntent;
 }
 
+async function maybeHandleDeterministicFinanceQuery(
+  supabase: any,
+  userId: string,
+  userMessage: string,
+): Promise<string | null> {
+  const expenseIntent = enforceExpenseListIntent(userMessage, {
+    module: "financeiro",
+    action: "chat",
+    params: {},
+    reply_text: "",
+  });
+
+  if (expenseIntent?.action === "list_expenses") {
+    return await executeAction(supabase, userId, expenseIntent, userMessage);
+  }
+
+  const normalizedText = normalizeText(userMessage);
+  const summaryTerms = [
+    "resumo financeiro",
+    "como esta minha grana",
+    "como esta a minha grana",
+    "como estao minhas financas",
+    "como estao as minhas financas",
+    "resumo das financas",
+    "relatorio financeiro",
+    "resumo do mes",
+  ];
+
+  if (includesNormalizedTerm(normalizedText, summaryTerms)) {
+    return await executeAction(supabase, userId, {
+      module: "financeiro",
+      action: "monthly_summary",
+      params: {},
+      reply_text: "📊 Aqui vai seu resumo financeiro:",
+    }, userMessage);
+  }
+
+  return null;
+}
+
 function normalizeDateOnly(value: unknown): string | null {
   const text = safeString(value).trim();
   if (!text) return null;
