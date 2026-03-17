@@ -87,6 +87,7 @@ export default function Consultor() {
       commitmentPercent: totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 100) : 0,
       wallets: wallets.map(w => ({ name: w.name, balance: Number(w.balance) })),
       savingsGoals: savingsGoals.map((g: any) => ({ name: g.name, target_amount: Number(g.target_amount), current_amount: Number(g.current_amount) })),
+      expensesList: expenses.map(e => ({ name: e.name, amount: Number(e.amount), paid: e.paid, due_date: e.due_date })),
     };
   }, [incomes, expenses, wallets, savingsGoals, month, year]);
 
