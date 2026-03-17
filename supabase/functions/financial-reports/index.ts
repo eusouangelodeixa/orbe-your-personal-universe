@@ -211,9 +211,9 @@ Deno.serve(async (req) => {
 
           if (upcoming.length > 0) {
             msg += `\n🔔 *Vencendo em breve:*\n`;
-            upcoming.slice(0, 5).forEach(e => {
+            upcoming.slice(0, 5).forEach((e: any) => {
               const d = new Date(e.due_date + "T12:00:00").toLocaleDateString("pt-BR");
-              msg += `  • ${e.name} — ${fmt(Number(e.amount))} (${d})\n`;
+              msg += `  • ${e.name} — ${fmt(toUserCurrency(e))} (${d})\n`;
             });
           }
 
