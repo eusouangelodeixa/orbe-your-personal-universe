@@ -1020,7 +1020,7 @@ async function maybeOverrideFinanceEmptyReply(
   lines.push(`Revisei seus dados reais de ${month}/${year} e encontrei movimentações no sistema.`);
 
   if (maiorGasto) {
-    lines.push(`📌 Maior gasto do mês: *${maiorGasto.name}* (${fmtBRL(Number(maiorGasto.amount || 0))}).`);
+    lines.push(`📌 Maior gasto do mês: *${maiorGasto.name}* (${fmtBRL(Number(maiorGasto.display_amount || 0))}).`);
   }
 
   lines.push(`💰 Renda: ${fmtBRL(totalIncome)} | Gastos: ${fmtBRL(totalExpenses)} | Saldo em carteiras: ${fmtBRL(totalWallets)}.`);
