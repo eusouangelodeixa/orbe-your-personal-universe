@@ -274,7 +274,30 @@ async function sendWhatsApp(url: string, tokenCandidates: string[], phone: strin
   throw lastError ?? new Error("Unable to send WhatsApp reply");
 }
 
-// ========== AI FUNCTIONS ==========
+// ========== EXCHANGE RATE HELPERS ==========
+
+async function fetchExchangeRates(baseCurrency: string, currencies: string[]): Promise<Record<string, number>> {
+  const unique = [...new Set(currencies.filter(c => c && c !== baseCurrency))];
+  if (!unique.length) return {};
+  try {
+    const resp = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
+    if (!resp.ok) return {};
+    const data = await resp.json();
+    if (data.result !== "success") return {};
+    const rates: Record<string, number> = {};
+    for (const c of unique) { if (data.rates[c] !== undefined) rates[c] = data.rates[c]; }
+    return rates;
+  } catch { return {}; }
+}
+
+function convertToBase(amount: number, fromCurrency: string, baseCurrency: string, rates: Record<string, number>): number {
+  if (!fromCurrency || fromCurrency === baseCurrency) return amount;
+  const rate = rates[fromCurrency];
+  if (!rate || rate === 0) return amount;
+  return amount / rate;
+}
+
+
 
 async function callAI(apiKey: string, systemPrompt: string, userMessage: string, tools?: any[], toolChoice?: any, chatHistory?: Array<{role: string, content: string}>) {
   const messages: any[] = [
@@ -606,7 +629,7 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
     supabase.from("incomes").select("description, amount").eq("user_id", userId).eq("month", month).eq("year", year),
     supabase.from("expenses").select("name, amount, paid, due_date, category_id").eq("user_id", userId).eq("month", month).eq("year", year),
-    supabase.from("wallets").select("name, balance, is_default").eq("user_id", userId),
+    supabase.from("wallets").select("name, balance, is_default, currency").eq("user_id", userId),
     supabase.from("savings_goals").select("name, target_amount, current_amount, deadline").eq("user_id", userId),
   ]);
 
@@ -619,7 +642,13 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.amount), 0);
   const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
   const pendingExpenses = totalExpenses - paidExpenses;
-  const totalWallets = wallets.reduce((a: number, w: any) => a + Number(w.balance), 0);
+
+  // Convert wallet balances to user's currency
+  const walletCurrencies = wallets.map((w: any) => w.currency || "BRL");
+  const exchangeRates = await fetchExchangeRates(_userCurrency, walletCurrencies);
+  const totalWallets = wallets.reduce((a: number, w: any) => {
+    return a + convertToBase(Number(w.balance), w.currency || "BRL", _userCurrency, exchangeRates);
+  }, 0);
 
   const topExpenses = [...expenses]
     .sort((a: any, b: any) => Number(b.amount) - Number(a.amount))
@@ -639,8 +668,13 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   }
 
   if (wallets.length) {
-    lines.push(`Carteiras: ${wallets.map((w: any) => `${w.name}: ${fmtMoney(Number(w.balance))}`).join(", ")}`);
-    lines.push(`Patrimônio total: ${fmtMoney(totalWallets)}`);
+    lines.push(`Carteiras: ${wallets.map((w: any) => {
+      const wCur = w.currency || "BRL";
+      const balStr = fmtMoney(Number(w.balance), wCur);
+      const converted = wCur !== _userCurrency ? ` (≈ ${fmtMoney(convertToBase(Number(w.balance), wCur, _userCurrency, exchangeRates))})` : "";
+      return `${w.name} [${wCur}]: ${balStr}${converted}`;
+    }).join(", ")}`);
+    lines.push(`Patrimônio total (convertido para ${_userCurrency}): ${fmtMoney(totalWallets)}`);
   }
 
   if (goals.length) {
@@ -1132,19 +1166,31 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         // If a specific wallet is asked, return ONLY that wallet
         if (params.wallet_name) {
           const { data } = await supabase.from("wallets")
-            .select("name, balance").eq("user_id", userId)
+            .select("name, balance, currency").eq("user_id", userId)
             .ilike("name", `%${params.wallet_name}%`).limit(1);
           if (!data?.length) return `🏦 Carteira "${params.wallet_name}" não encontrada.`;
           const w = data[0];
-          return `💳 *${w.name}*\nSaldo: ${fmtBRL(Number(w.balance))}`;
+          const wCur = w.currency || _userCurrency;
+          return `💳 *${w.name}*\nSaldo: ${fmtMoney(Number(w.balance), wCur)}`;
         }
         const { data } = await supabase.from("wallets")
-          .select("name, balance, is_default").eq("user_id", userId);
+          .select("name, balance, is_default, currency").eq("user_id", userId);
         if (!data?.length) return "🏦 Nenhuma carteira cadastrada.";
-        const total = data.reduce((s: number, w: any) => s + Number(w.balance), 0);
+        // Convert all wallet balances to user currency for total
+        const wCurrencies = data.map((w: any) => w.currency || "BRL");
+        const wRates = await fetchExchangeRates(_userCurrency, wCurrencies);
+        const total = data.reduce((s: number, w: any) => {
+          return s + convertToBase(Number(w.balance), w.currency || "BRL", _userCurrency, wRates);
+        }, 0);
         let msg = `🏦 *Carteiras*\n\n`;
         data.forEach((w: any) => {
-          msg += `${w.is_default ? "⭐" : "💳"} ${w.name}: ${fmtBRL(w.balance)}\n`;
+          const wCur = w.currency || _userCurrency;
+          const balanceStr = fmtMoney(Number(w.balance), wCur);
+          // Show converted value if different currency
+          const converted = wCur !== _userCurrency
+            ? ` (≈ ${fmtMoney(convertToBase(Number(w.balance), wCur, _userCurrency, wRates))})`
+            : "";
+          msg += `${w.is_default ? "⭐" : "💳"} ${w.name}: ${balanceStr}${converted}\n`;
         });
         msg += `\n💰 Patrimônio total: ${fmtBRL(total)}`;
         return msg;
@@ -1155,12 +1201,17 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         const [expRes, incRes, walRes] = await Promise.all([
           supabase.from("expenses").select("amount, paid").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
           supabase.from("incomes").select("amount").eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear),
-          supabase.from("wallets").select("balance").eq("user_id", userId),
+          supabase.from("wallets").select("balance, currency").eq("user_id", userId),
         ]);
         const totalExp = (expRes.data || []).reduce((s: number, e: any) => s + Number(e.amount), 0);
         const paidExp = (expRes.data || []).filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.amount), 0);
         const totalInc = (incRes.data || []).reduce((s: number, i: any) => s + Number(i.amount), 0);
-        const totalWal = (walRes.data || []).reduce((s: number, w: any) => s + Number(w.balance), 0);
+        // Convert wallet balances to user currency
+        const mCurrencies = (walRes.data || []).map((w: any) => w.currency || "BRL");
+        const mRates = await fetchExchangeRates(_userCurrency, mCurrencies);
+        const totalWal = (walRes.data || []).reduce((s: number, w: any) => {
+          return s + convertToBase(Number(w.balance), w.currency || "BRL", _userCurrency, mRates);
+        }, 0);
         const flow = totalInc - totalExp;
         const commitment = totalInc > 0 ? ((totalExp / totalInc) * 100).toFixed(0) : "—";
 

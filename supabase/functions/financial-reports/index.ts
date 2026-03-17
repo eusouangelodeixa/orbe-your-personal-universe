@@ -26,6 +26,27 @@ function fmtMoney(v: number, currencyCode = "BRL") {
   return formatted;
 }
 
+async function fetchExchangeRates(baseCurrency: string, currencies: string[]): Promise<Record<string, number>> {
+  const unique = [...new Set(currencies.filter(c => c && c !== baseCurrency))];
+  if (!unique.length) return {};
+  try {
+    const resp = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
+    if (!resp.ok) return {};
+    const data = await resp.json();
+    if (data.result !== "success") return {};
+    const rates: Record<string, number> = {};
+    for (const c of unique) { if (data.rates[c] !== undefined) rates[c] = data.rates[c]; }
+    return rates;
+  } catch { return {}; }
+}
+
+function convertToBase(amount: number, fromCurrency: string, baseCurrency: string, rates: Record<string, number>): number {
+  if (!fromCurrency || fromCurrency === baseCurrency) return amount;
+  const rate = rates[fromCurrency];
+  if (!rate || rate === 0) return amount;
+  return amount / rate;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -82,18 +103,24 @@ Deno.serve(async (req) => {
           .eq("month", currentMonth)
           .eq("year", currentYear);
 
-        // Get wallets
+        // Get wallets (include currency for multi-currency conversion)
         const { data: wallets } = await supabase
           .from("wallets")
-          .select("name, balance")
+          .select("name, balance, currency")
           .eq("user_id", profile.user_id);
+
+        // Fetch exchange rates for multi-currency wallet conversion
+        const walletCurrencies = (wallets || []).map((w: any) => w.currency || "BRL");
+        const exchangeRates = await fetchExchangeRates(cur, walletCurrencies);
 
         const totalIncome = (incomes || []).reduce((a, i) => a + Number(i.amount), 0);
         const totalExpense = (expenses || []).reduce((a, e) => a + Number(e.amount), 0);
         const totalPaid = (expenses || []).filter(e => e.paid).reduce((a, e) => a + Number(e.amount), 0);
         const totalPending = totalExpense - totalPaid;
         const balance = totalIncome - totalExpense;
-        const totalWallets = (wallets || []).reduce((a, w) => a + Number(w.balance), 0);
+        const totalWallets = (wallets || []).reduce((a: number, w: any) => {
+          return a + convertToBase(Number(w.balance), w.currency || "BRL", cur, exchangeRates);
+        }, 0);
         const pct = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
 
         // Upcoming unpaid expenses (next 7 days)
