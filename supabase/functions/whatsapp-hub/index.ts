@@ -274,7 +274,30 @@ async function sendWhatsApp(url: string, tokenCandidates: string[], phone: strin
   throw lastError ?? new Error("Unable to send WhatsApp reply");
 }
 
-// ========== AI FUNCTIONS ==========
+// ========== EXCHANGE RATE HELPERS ==========
+
+async function fetchExchangeRates(baseCurrency: string, currencies: string[]): Promise<Record<string, number>> {
+  const unique = [...new Set(currencies.filter(c => c && c !== baseCurrency))];
+  if (!unique.length) return {};
+  try {
+    const resp = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
+    if (!resp.ok) return {};
+    const data = await resp.json();
+    if (data.result !== "success") return {};
+    const rates: Record<string, number> = {};
+    for (const c of unique) { if (data.rates[c] !== undefined) rates[c] = data.rates[c]; }
+    return rates;
+  } catch { return {}; }
+}
+
+function convertToBase(amount: number, fromCurrency: string, baseCurrency: string, rates: Record<string, number>): number {
+  if (!fromCurrency || fromCurrency === baseCurrency) return amount;
+  const rate = rates[fromCurrency];
+  if (!rate || rate === 0) return amount;
+  return amount / rate;
+}
+
+
 
 async function callAI(apiKey: string, systemPrompt: string, userMessage: string, tools?: any[], toolChoice?: any, chatHistory?: Array<{role: string, content: string}>) {
   const messages: any[] = [
