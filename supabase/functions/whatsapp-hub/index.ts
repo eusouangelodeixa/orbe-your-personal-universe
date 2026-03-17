@@ -315,7 +315,13 @@ async function convertRecordsToUserCurrency(
   targetCurrency: string,
 ): Promise<any[]> {
   if (!records.length) {
-    return records.map((record: any) => ({ ...record, display_amount: Number(record.amount || 0) }));
+    return records.map((record: any) => ({
+      ...record,
+      display_amount: Number(record.amount || 0),
+      source_amount: Number(record.amount || 0),
+      source_currency: targetCurrency,
+      has_conversion: false,
+    }));
   }
 
   const recordIds = records.map((record: any) => record.id).filter(Boolean);
@@ -329,7 +335,7 @@ async function convertRecordsToUserCurrency(
     recordIds.length
       ? supabase
           .from("wallet_transactions")
-          .select("reference_id, exchange_rate_to_brl")
+          .select("reference_id, exchange_rate_to_brl, amount, wallet_id")
           .eq("user_id", userId)
           .eq("reference_type", referenceType)
           .eq("type", txType)
@@ -338,42 +344,59 @@ async function convertRecordsToUserCurrency(
     targetCurrency !== "BRL" ? fetchExchangeRates("BRL", [targetCurrency]) : Promise.resolve({}),
   ]);
 
-  const walletCurrencyById = new Map((walletRes.data || []).map((wallet: any) => [wallet.id, wallet.currency || "BRL"]));
+  const txWalletIds = [...new Set((txRes.data || []).map((tx: any) => tx.wallet_id).filter(Boolean))];
+  const txWalletRes = txWalletIds.length
+    ? await supabase.from("wallets").select("id, currency").in("id", txWalletIds)
+    : { data: [], error: null };
+
+  const walletCurrencyById = new Map([
+    ...(walletRes.data || []).map((wallet: any) => [wallet.id, wallet.currency || "BRL"]),
+    ...(txWalletRes.data || []).map((wallet: any) => [wallet.id, wallet.currency || "BRL"]),
+  ]);
   const txByReferenceId = new Map((txRes.data || []).map((tx: any) => [tx.reference_id, tx]));
   const brlToTargetRate = targetCurrency === "BRL"
     ? 1
     : Number((brlToTargetRates as Record<string, number>)[targetCurrency] || 0);
 
   const fallbackCurrencies = [...new Set(
-    records
-      .map((record: any) => walletCurrencyById.get(record.wallet_id))
-      .filter((currency: string | undefined) => !!currency && currency !== targetCurrency)
+    [
+      ...records.map((record: any) => walletCurrencyById.get(record.wallet_id)),
+      ...(txRes.data || []).map((tx: any) => walletCurrencyById.get(tx.wallet_id)),
+    ].filter((currency: string | undefined) => !!currency && currency !== targetCurrency)
   )] as string[];
   const liveRatesToTarget = fallbackCurrencies.length ? await fetchExchangeRates(targetCurrency, fallbackCurrencies) : {};
 
   return records.map((record: any) => {
-    const originalAmount = Number(record.amount || 0);
-    const walletCurrency = walletCurrencyById.get(record.wallet_id) || "BRL";
     const tx = txByReferenceId.get(record.id);
-    let displayAmount = originalAmount;
+    const sourceCurrency = tx?.wallet_id
+      ? (walletCurrencyById.get(tx.wallet_id) || walletCurrencyById.get(record.wallet_id) || "BRL")
+      : (walletCurrencyById.get(record.wallet_id) || "BRL");
+    const sourceAmount = tx?.amount != null ? Number(tx.amount) : Number(record.amount || 0);
+    let displayAmount = Number(record.amount || 0);
 
-    if (walletCurrency === targetCurrency) {
-      displayAmount = originalAmount;
-    } else if (tx?.exchange_rate_to_brl && walletCurrency !== "BRL") {
-      const amountInBrl = originalAmount * Number(tx.exchange_rate_to_brl);
+    if (sourceCurrency === targetCurrency) {
+      displayAmount = sourceAmount;
+    } else if (tx?.exchange_rate_to_brl && sourceCurrency !== "BRL") {
+      const amountInBrl = sourceAmount * Number(tx.exchange_rate_to_brl);
       displayAmount = targetCurrency === "BRL"
         ? amountInBrl
         : brlToTargetRate > 0
           ? amountInBrl * brlToTargetRate
           : amountInBrl;
-    } else if (walletCurrency !== targetCurrency) {
-      displayAmount = convertToBase(originalAmount, walletCurrency, targetCurrency, liveRatesToTarget);
+    } else if (sourceCurrency === "BRL" && targetCurrency !== "BRL" && brlToTargetRate > 0) {
+      displayAmount = sourceAmount * brlToTargetRate;
+    } else if (sourceCurrency !== targetCurrency) {
+      displayAmount = convertToBase(sourceAmount, sourceCurrency, targetCurrency, liveRatesToTarget);
+    } else {
+      displayAmount = sourceAmount;
     }
 
     return {
       ...record,
       display_amount: displayAmount,
-      source_currency: walletCurrency,
+      source_amount: sourceAmount,
+      source_currency: sourceCurrency,
+      has_conversion: sourceCurrency !== targetCurrency,
     };
   });
 }
