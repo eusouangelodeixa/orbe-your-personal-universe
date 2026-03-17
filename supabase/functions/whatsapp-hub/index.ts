@@ -95,44 +95,60 @@ function enforceExpenseListIntent(text: string, intent: any) {
     "quais", "qual", "lista", "listar", "mostra", "mostrar", "me mostra",
     "me diga", "ver", "tenho", "tem", "resumo", "relatorio",
   ];
+  const expenseScopeTerms = ["conta", "contas", "gasto", "gastos", "despesa", "despesas"];
   const pendingTerms = [
-    "contas por pagar", "gastos pendentes", "despesas pendentes", "o que falta pagar",
-    "falta pagar", "a pagar", "pendente", "pendentes", "em aberto",
+    "por pagar", "a pagar", "falta pagar", "faltam pagar", "pendente", "pendentes", "em aberto",
   ];
   const paidTerms = [
-    "contas pagas", "gastos pagos", "despesas pagas", "o que ja paguei",
-    "ja paguei", "pagos", "pagas", "quitado", "quitadas",
+    "ja paguei", "pago", "pagos", "paga", "pagas", "quitado", "quitadas",
   ];
   const expenseSummaryTerms = [
     "resumo de gastos", "resumo das contas", "relatorio de gastos", "relatorio das contas",
     "todos os gastos", "todas as contas", "todas as despesas", "quais contas tenho",
     "quais gastos tenho", "minhas contas", "meus gastos",
   ];
+  const financeSummaryTerms = [
+    "resumo financeiro", "resumo das financas", "relatorio financeiro", "resumo do mes",
+    "como esta minha grana", "como esta a minha grana", "como estao minhas financas", "como estao as minhas financas",
+  ];
 
   const looksLikeQuery = includesNormalizedTerm(normalizedText, queryTerms);
-  const mentionsExpenseScope =
-    includesNormalizedTerm(normalizedText, pendingTerms) ||
-    includesNormalizedTerm(normalizedText, paidTerms) ||
-    includesNormalizedTerm(normalizedText, expenseSummaryTerms) ||
-    ((nextIntent.action === "list_expenses" || nextIntent.action === "monthly_summary") &&
-      includesNormalizedTerm(normalizedText, ["contas", "gastos", "despesas"]));
+  const mentionsExpenseScope = includesNormalizedTerm(normalizedText, expenseScopeTerms);
+  const asksPendingExpenses = mentionsExpenseScope && includesNormalizedTerm(normalizedText, pendingTerms);
+  const asksPaidExpenses = mentionsExpenseScope && includesNormalizedTerm(normalizedText, paidTerms);
+  const asksExpenseSummary = mentionsExpenseScope && includesNormalizedTerm(normalizedText, expenseSummaryTerms);
+  const asksFinanceSummary = includesNormalizedTerm(normalizedText, financeSummaryTerms);
 
-  if (!looksLikeQuery || !mentionsExpenseScope) return nextIntent;
+  if (!looksLikeQuery) return nextIntent;
 
-  nextIntent.module = "financeiro";
-  nextIntent.action = "list_expenses";
+  if (asksFinanceSummary) {
+    nextIntent.module = "financeiro";
+    nextIntent.action = "monthly_summary";
+    delete nextIntent.params.paid;
+    return nextIntent;
+  }
 
-  if (includesNormalizedTerm(normalizedText, pendingTerms)) {
+  if (asksPendingExpenses) {
+    nextIntent.module = "financeiro";
+    nextIntent.action = "list_expenses";
     nextIntent.params.paid = false;
     return nextIntent;
   }
 
-  if (includesNormalizedTerm(normalizedText, paidTerms)) {
+  if (asksPaidExpenses) {
+    nextIntent.module = "financeiro";
+    nextIntent.action = "list_expenses";
     nextIntent.params.paid = true;
     return nextIntent;
   }
 
-  delete nextIntent.params.paid;
+  if (asksExpenseSummary || ((nextIntent.action === "list_expenses" || nextIntent.action === "monthly_summary") && mentionsExpenseScope)) {
+    nextIntent.module = "financeiro";
+    nextIntent.action = "list_expenses";
+    delete nextIntent.params.paid;
+    return nextIntent;
+  }
+
   return nextIntent;
 }
 
@@ -141,36 +157,15 @@ async function maybeHandleDeterministicFinanceQuery(
   userId: string,
   userMessage: string,
 ): Promise<string | null> {
-  const expenseIntent = enforceExpenseListIntent(userMessage, {
+  const normalizedIntent = enforceExpenseListIntent(userMessage, {
     module: "financeiro",
     action: "chat",
     params: {},
     reply_text: "",
   });
 
-  if (expenseIntent?.action === "list_expenses") {
-    return await executeAction(supabase, userId, expenseIntent, userMessage);
-  }
-
-  const normalizedText = normalizeText(userMessage);
-  const summaryTerms = [
-    "resumo financeiro",
-    "como esta minha grana",
-    "como esta a minha grana",
-    "como estao minhas financas",
-    "como estao as minhas financas",
-    "resumo das financas",
-    "relatorio financeiro",
-    "resumo do mes",
-  ];
-
-  if (includesNormalizedTerm(normalizedText, summaryTerms)) {
-    return await executeAction(supabase, userId, {
-      module: "financeiro",
-      action: "monthly_summary",
-      params: {},
-      reply_text: "📊 Aqui vai seu resumo financeiro:",
-    }, userMessage);
+  if (normalizedIntent?.action === "list_expenses" || normalizedIntent?.action === "monthly_summary") {
+    return await executeAction(supabase, userId, normalizedIntent, userMessage);
   }
 
   return null;
