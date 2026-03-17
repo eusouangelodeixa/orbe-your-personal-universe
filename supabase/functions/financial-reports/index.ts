@@ -26,6 +26,27 @@ function fmtMoney(v: number, currencyCode = "BRL") {
   return formatted;
 }
 
+async function fetchExchangeRates(baseCurrency: string, currencies: string[]): Promise<Record<string, number>> {
+  const unique = [...new Set(currencies.filter(c => c && c !== baseCurrency))];
+  if (!unique.length) return {};
+  try {
+    const resp = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
+    if (!resp.ok) return {};
+    const data = await resp.json();
+    if (data.result !== "success") return {};
+    const rates: Record<string, number> = {};
+    for (const c of unique) { if (data.rates[c] !== undefined) rates[c] = data.rates[c]; }
+    return rates;
+  } catch { return {}; }
+}
+
+function convertToBase(amount: number, fromCurrency: string, baseCurrency: string, rates: Record<string, number>): number {
+  if (!fromCurrency || fromCurrency === baseCurrency) return amount;
+  const rate = rates[fromCurrency];
+  if (!rate || rate === 0) return amount;
+  return amount / rate;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
