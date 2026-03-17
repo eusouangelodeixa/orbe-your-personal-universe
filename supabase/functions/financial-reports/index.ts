@@ -150,6 +150,24 @@ Deno.serve(async (req) => {
         const monthName = now.toLocaleDateString("pt-BR", { month: "long" });
         const greeting = profile.display_name ? `Olá, ${profile.display_name.split(" ")[0]}!` : "Olá!";
 
+        // Build wallet breakdown for multi-currency users
+        const hasMultiCurrency = (wallets || []).some((w: any) => (w.currency || "BRL") !== cur);
+        let walletBreakdown = "";
+        if (hasMultiCurrency && (wallets || []).length > 0) {
+          walletBreakdown = "\n💳 *Carteiras:*\n";
+          for (const w of (wallets || [])) {
+            const wCur = w.currency || "BRL";
+            const bal = Number(w.balance);
+            if (bal === 0 && (wallets || []).length > 3) continue;
+            if (wCur !== cur) {
+              const converted = convertToBase(bal, wCur, cur, exchangeRates);
+              walletBreakdown += `  • ${w.name}: ${fmtMoney(bal, wCur)} (≈ ${fmt(converted)})\n`;
+            } else {
+              walletBreakdown += `  • ${w.name}: ${fmt(bal)}\n`;
+            }
+          }
+        }
+
         let msg = "";
         if (reportType === "weekly") {
           msg = `📊 *Resumo Semanal*\n\n${greeting}\n\n`;
@@ -172,6 +190,8 @@ Deno.serve(async (req) => {
               msg += `  • ${e.name} — ${fmt(Number(e.amount))} (${d})\n`;
             });
           }
+
+          if (walletBreakdown) msg += `\n${walletBreakdown}`;
         } else {
           // Monthly
           msg = `📈 *Relatório Mensal — ${monthName}*\n\n${greeting}\n\n`;
@@ -196,6 +216,8 @@ Deno.serve(async (req) => {
               msg += `  • ${cat}: ${fmt(val)}\n`;
             });
           }
+
+          if (walletBreakdown) msg += `\n${walletBreakdown}`;
         }
 
         msg += `\n_Enviado automaticamente pelo ORBE_ 🟣`;
