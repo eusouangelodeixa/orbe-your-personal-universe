@@ -57,6 +57,85 @@ function normalizeText(value: unknown): string {
     .trim();
 }
 
+function normalizeOptionalBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+
+  const normalized = normalizeText(value);
+  if (!normalized) return undefined;
+
+  if (["true", "1", "sim", "yes", "pago", "pagos", "paga", "pagas", "quitado", "quitadas"].includes(normalized)) {
+    return true;
+  }
+
+  if (["false", "0", "nao", "não", "pendente", "pendentes", "unpaid"].includes(normalized)) {
+    return false;
+  }
+
+  return undefined;
+}
+
+function includesNormalizedTerm(text: string, terms: string[]) {
+  return terms.some((term) => text.includes(term));
+}
+
+function enforceExpenseListIntent(text: string, intent: any) {
+  if (!intent || typeof intent !== "object") return intent;
+
+  const normalizedText = normalizeText(text);
+  const nextIntent = {
+    ...intent,
+    params: { ...(intent?.params || {}) },
+  };
+
+  const normalizedPaid = normalizeOptionalBoolean(nextIntent.params?.paid);
+  if (normalizedPaid !== undefined) nextIntent.params.paid = normalizedPaid;
+  else delete nextIntent.params.paid;
+
+  const queryTerms = [
+    "quais", "qual", "lista", "listar", "mostra", "mostrar", "me mostra",
+    "me diga", "ver", "tenho", "tem", "resumo", "relatorio",
+  ];
+  const pendingTerms = [
+    "contas por pagar", "gastos pendentes", "despesas pendentes", "o que falta pagar",
+    "falta pagar", "a pagar", "pendente", "pendentes", "em aberto",
+  ];
+  const paidTerms = [
+    "contas pagas", "gastos pagos", "despesas pagas", "o que ja paguei",
+    "ja paguei", "pagos", "pagas", "quitado", "quitadas",
+  ];
+  const expenseSummaryTerms = [
+    "resumo de gastos", "resumo das contas", "relatorio de gastos", "relatorio das contas",
+    "todos os gastos", "todas as contas", "todas as despesas", "quais contas tenho",
+    "quais gastos tenho", "minhas contas", "meus gastos",
+  ];
+
+  const looksLikeQuery = includesNormalizedTerm(normalizedText, queryTerms);
+  const mentionsExpenseScope =
+    includesNormalizedTerm(normalizedText, pendingTerms) ||
+    includesNormalizedTerm(normalizedText, paidTerms) ||
+    includesNormalizedTerm(normalizedText, expenseSummaryTerms) ||
+    ((nextIntent.action === "list_expenses" || nextIntent.action === "monthly_summary") &&
+      includesNormalizedTerm(normalizedText, ["contas", "gastos", "despesas"]));
+
+  if (!looksLikeQuery || !mentionsExpenseScope) return nextIntent;
+
+  nextIntent.module = "financeiro";
+  nextIntent.action = "list_expenses";
+
+  if (includesNormalizedTerm(normalizedText, pendingTerms)) {
+    nextIntent.params.paid = false;
+    return nextIntent;
+  }
+
+  if (includesNormalizedTerm(normalizedText, paidTerms)) {
+    nextIntent.params.paid = true;
+    return nextIntent;
+  }
+
+  delete nextIntent.params.paid;
+  return nextIntent;
+}
+
 function normalizeDateOnly(value: unknown): string | null {
   const text = safeString(value).trim();
   if (!text) return null;
@@ -656,15 +735,16 @@ REGRAS:
 
   const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
   if (toolCall) {
-    return JSON.parse(toolCall.function.arguments);
+    const parsedIntent = JSON.parse(toolCall.function.arguments);
+    return enforceExpenseListIntent(text, parsedIntent);
   }
 
   // Fallback: plain text reply
-  return {
+  return enforceExpenseListIntent(text, {
     module: "geral",
     action: "chat",
     reply_text: result.choices?.[0]?.message?.content || "Não entendi. Diga 'ajuda' para ver o que posso fazer.",
-  };
+  });
 }
 
 function parseFallbackIntent(text: string) {
@@ -2658,9 +2738,10 @@ async function processIncomingMessage(body: any) {
       // Parse intent with timeout + deterministic fallback
       try {
         intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context, chatHistory), 18000, "parse_intent");
+        intent = enforceExpenseListIntent(userText, intent);
       } catch (intentError) {
         console.error("Intent parsing failed, using fallback:", intentError);
-        intent = parseFallbackIntent(userText);
+        intent = enforceExpenseListIntent(userText, parseFallbackIntent(userText));
       }
 
       // Execute action with timeout
