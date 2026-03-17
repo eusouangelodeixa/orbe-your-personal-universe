@@ -103,18 +103,24 @@ Deno.serve(async (req) => {
           .eq("month", currentMonth)
           .eq("year", currentYear);
 
-        // Get wallets
+        // Get wallets (include currency for multi-currency conversion)
         const { data: wallets } = await supabase
           .from("wallets")
-          .select("name, balance")
+          .select("name, balance, currency")
           .eq("user_id", profile.user_id);
+
+        // Fetch exchange rates for multi-currency wallet conversion
+        const walletCurrencies = (wallets || []).map((w: any) => w.currency || "BRL");
+        const exchangeRates = await fetchExchangeRates(cur, walletCurrencies);
 
         const totalIncome = (incomes || []).reduce((a, i) => a + Number(i.amount), 0);
         const totalExpense = (expenses || []).reduce((a, e) => a + Number(e.amount), 0);
         const totalPaid = (expenses || []).filter(e => e.paid).reduce((a, e) => a + Number(e.amount), 0);
         const totalPending = totalExpense - totalPaid;
         const balance = totalIncome - totalExpense;
-        const totalWallets = (wallets || []).reduce((a, w) => a + Number(w.balance), 0);
+        const totalWallets = (wallets || []).reduce((a: number, w: any) => {
+          return a + convertToBase(Number(w.balance), w.currency || "BRL", cur, exchangeRates);
+        }, 0);
         const pct = totalIncome > 0 ? Math.round((totalExpense / totalIncome) * 100) : 0;
 
         // Upcoming unpaid expenses (next 7 days)
