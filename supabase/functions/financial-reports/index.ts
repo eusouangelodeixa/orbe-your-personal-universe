@@ -231,9 +231,9 @@ Deno.serve(async (req) => {
 
           // By category
           const byCat: Record<string, number> = {};
-          (expenses || []).forEach((e: any) => {
+          expenses.forEach((e: any) => {
             const cat = e.categories?.name || "Outros";
-            byCat[cat] = (byCat[cat] || 0) + Number(e.amount);
+            byCat[cat] = (byCat[cat] || 0) + toUserCurrency(e);
           });
           const sorted = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
           if (sorted.length > 0) {

@@ -2680,16 +2680,11 @@ serve(async (req) => {
     return jsonResponse({ error: "invalid json payload" }, 400);
   }
 
-  const automaticWebhook = isAutomaticWebhookPayload(body);
-  if (automaticWebhook) {
-    const queued = queueBackgroundTask(processIncomingMessage(body));
-    if (queued) {
-      return jsonResponse({ accepted: true, mode: "background" }, 202);
-    }
-  }
-
+  // Always process synchronously to ensure reliable message delivery
   try {
     const result = await processIncomingMessage(body);
+    // processIncomingMessage returns Response objects — return them directly
+    if (result instanceof Response) return result;
     return jsonResponse(result);
   } catch (e) {
     console.error("whatsapp-hub error:", e);
