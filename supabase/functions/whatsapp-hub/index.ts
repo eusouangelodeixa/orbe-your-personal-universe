@@ -136,6 +136,46 @@ function enforceExpenseListIntent(text: string, intent: any) {
   return nextIntent;
 }
 
+async function maybeHandleDeterministicFinanceQuery(
+  supabase: any,
+  userId: string,
+  userMessage: string,
+): Promise<string | null> {
+  const expenseIntent = enforceExpenseListIntent(userMessage, {
+    module: "financeiro",
+    action: "chat",
+    params: {},
+    reply_text: "",
+  });
+
+  if (expenseIntent?.action === "list_expenses") {
+    return await executeAction(supabase, userId, expenseIntent, userMessage);
+  }
+
+  const normalizedText = normalizeText(userMessage);
+  const summaryTerms = [
+    "resumo financeiro",
+    "como esta minha grana",
+    "como esta a minha grana",
+    "como estao minhas financas",
+    "como estao as minhas financas",
+    "resumo das financas",
+    "relatorio financeiro",
+    "resumo do mes",
+  ];
+
+  if (includesNormalizedTerm(normalizedText, summaryTerms)) {
+    return await executeAction(supabase, userId, {
+      module: "financeiro",
+      action: "monthly_summary",
+      params: {},
+      reply_text: "📊 Aqui vai seu resumo financeiro:",
+    }, userMessage);
+  }
+
+  return null;
+}
+
 function normalizeDateOnly(value: unknown): string | null {
   const text = safeString(value).trim();
   if (!text) return null;
@@ -2005,13 +2045,17 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
         if (!commandContext.isActivationCommand && inlineQuery.length > 2) {
           try {
-            let agentResponse = await withTimeout(
+            const deterministicFinanceReply = agentType === "finance"
+              ? await maybeHandleDeterministicFinanceQuery(supabase, userId, inlineQuery)
+              : null;
+
+            let agentResponse = deterministicFinanceReply ?? await withTimeout(
               callAgentOrchestrator(supabase, userId, agentType, inlineQuery),
               25000,
               "agent_first_msg"
             );
 
-            if (agentType === "finance") {
+            if (agentType === "finance" && !deterministicFinanceReply) {
               agentResponse = await maybeOverrideFinanceEmptyReply(supabase, userId, inlineQuery, agentResponse);
             }
 
@@ -2519,13 +2563,17 @@ async function processIncomingMessage(body: any) {
             responseText = `${responsePrefix}Agora suas mensagens vão direto para o novo agente. Pergunte o que quiser! Diga *sair* para voltar ao modo normal.`;
           } else {
             try {
-              responseText = await withTimeout(
+              const deterministicFinanceReply = targetAgentType === "finance"
+                ? await maybeHandleDeterministicFinanceQuery(supabase, userId, userMessageForAgent)
+                : null;
+
+              responseText = deterministicFinanceReply ?? await withTimeout(
                 callAgentOrchestrator(supabase, userId, targetAgentType, userMessageForAgent),
                 25000,
                 "agent_orchestrator"
               );
 
-              if (targetAgentType === "finance") {
+              if (targetAgentType === "finance" && !deterministicFinanceReply) {
                 responseText = await maybeOverrideFinanceEmptyReply(supabase, userId, userMessageForAgent, responseText);
               }
             } catch (agentErr) {
