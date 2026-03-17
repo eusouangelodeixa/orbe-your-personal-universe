@@ -2738,9 +2738,10 @@ async function processIncomingMessage(body: any) {
       // Parse intent with timeout + deterministic fallback
       try {
         intent = await withTimeout(parseIntent(LOVABLE_API_KEY, userText, context, chatHistory), 18000, "parse_intent");
+        intent = enforceExpenseListIntent(userText, intent);
       } catch (intentError) {
         console.error("Intent parsing failed, using fallback:", intentError);
-        intent = parseFallbackIntent(userText);
+        intent = enforceExpenseListIntent(userText, parseFallbackIntent(userText));
       }
 
       // Execute action with timeout
