@@ -668,8 +668,13 @@ async function buildFinanceExtraPrompt(supabase: any, userId: string): Promise<s
   }
 
   if (wallets.length) {
-    lines.push(`Carteiras: ${wallets.map((w: any) => `${w.name}: ${fmtMoney(Number(w.balance))}`).join(", ")}`);
-    lines.push(`Patrimônio total: ${fmtMoney(totalWallets)}`);
+    lines.push(`Carteiras: ${wallets.map((w: any) => {
+      const wCur = w.currency || "BRL";
+      const balStr = fmtMoney(Number(w.balance), wCur);
+      const converted = wCur !== _userCurrency ? ` (≈ ${fmtMoney(convertToBase(Number(w.balance), wCur, _userCurrency, exchangeRates))})` : "";
+      return `${w.name} [${wCur}]: ${balStr}${converted}`;
+    }).join(", ")}`);
+    lines.push(`Patrimônio total (convertido para ${_userCurrency}): ${fmtMoney(totalWallets)}`);
   }
 
   if (goals.length) {
