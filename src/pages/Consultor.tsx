@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useIncomes, useExpenses, useWallets, useSavingsGoals } from "@/hooks/useFinance";
+import { format } from "date-fns";
 
 interface Message {
   id: string;
@@ -26,7 +27,11 @@ const ORCHESTRATOR_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agen
 function buildFinancialPrompt(fc: any): string {
   const fmtBRL = (v: number) =>
     `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
-  return `DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}):
+
+  const pendingList = (fc.expensesList || []).filter((e: any) => !e.paid);
+  const paidList = (fc.expensesList || []).filter((e: any) => e.paid);
+
+  let prompt = `DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}):
 Renda total: ${fmtBRL(fc.totalIncome)}
 Gastos total: ${fmtBRL(fc.totalExpenses)} (pagos: ${fmtBRL(fc.paidExpenses)}, pendentes: ${fmtBRL(fc.pendingExpenses)})
 Carteiras: ${(fc.wallets || []).map((w: any) => `${w.name}: ${fmtBRL(w.balance)}`).join(", ")}
@@ -34,6 +39,28 @@ Patrimônio total: ${fmtBRL(fc.totalWallets)}
 Disponível: ${fmtBRL(fc.availableBalance)}
 Fluxo mensal: ${fmtBRL(fc.monthlyFlow)} (${fc.commitmentPercent}% comprometido)
 Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmtBRL(g.current_amount)}/${fmtBRL(g.target_amount)}`).join(", ") || "Nenhuma"}`;
+
+  if (pendingList.length > 0) {
+    prompt += `\n\nCONTAS PENDENTES (por pagar):`;
+    pendingList.forEach((e: any) => {
+      prompt += `\n- ${e.name}: ${fmtBRL(e.amount)} (vence ${e.due_date})`;
+    });
+  } else {
+    prompt += `\n\nCONTAS PENDENTES: Nenhuma`;
+  }
+
+  if (paidList.length > 0) {
+    prompt += `\n\nCONTAS PAGAS:`;
+    paidList.forEach((e: any) => {
+      prompt += `\n- ${e.name}: ${fmtBRL(e.amount)}`;
+    });
+  } else {
+    prompt += `\n\nCONTAS PAGAS: Nenhuma`;
+  }
+
+  prompt += `\n\nINSTRUÇÕES: Quando o usuário perguntar sobre "contas por pagar" ou "pendentes", liste APENAS as contas pendentes. Quando perguntar sobre "contas pagas", liste APENAS as pagas. Só mostre o resumo completo quando pedir "resumo" ou uma visão geral.`;
+
+  return prompt;
 }
 
 export default function Consultor() {
@@ -60,6 +87,7 @@ export default function Consultor() {
       commitmentPercent: totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 100) : 0,
       wallets: wallets.map(w => ({ name: w.name, balance: Number(w.balance) })),
       savingsGoals: savingsGoals.map((g: any) => ({ name: g.name, target_amount: Number(g.target_amount), current_amount: Number(g.current_amount) })),
+      expensesList: expenses.map(e => ({ name: e.name, amount: Number(e.amount), paid: e.paid, due_date: e.due_date })),
     };
   }, [incomes, expenses, wallets, savingsGoals, month, year]);
 
