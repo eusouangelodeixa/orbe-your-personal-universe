@@ -1238,6 +1238,9 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           .select("id, name, amount, paid, due_date, wallet_id, wallets(name)")
           .eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear)
           .order("due_date");
+        // Filter by paid status if specified
+        if (params.paid === true) query = query.eq("paid", true);
+        else if (params.paid === false) query = query.eq("paid", false);
         // Filter by wallet if specified
         if (params.wallet_name) {
           const { data: wallets } = await supabase.from("wallets")
@@ -1248,15 +1251,22 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           }
         }
         const { data } = await query;
-        if (!data?.length) return params.wallet_name
-          ? `📊 Nenhum gasto encontrado na conta *${params.wallet_name}* este mês.`
-          : "📊 Nenhum gasto registrado este mês.";
+
+        // Determine label based on filter
+        const filterLabel = params.paid === true ? "Pagos" : params.paid === false ? "Pendentes" : "Gastos";
+        const filterEmoji = params.paid === true ? "✅" : params.paid === false ? "⏳" : "📊";
+
+        if (!data?.length) {
+          if (params.wallet_name) return `${filterEmoji} Nenhum gasto encontrado na conta *${params.wallet_name}* este mês.`;
+          if (params.paid === false) return "✅ Parabéns! Não há contas pendentes este mês.";
+          if (params.paid === true) return "📊 Nenhum gasto pago registrado este mês.";
+          return "📊 Nenhum gasto registrado este mês.";
+        }
 
         const convertedExpenses = await convertRecordsToUserCurrency(supabase, userId, data, "expense", _userCurrency);
         const total = convertedExpenses.reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
-        const paid = convertedExpenses.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
         const walletLabel = params.wallet_name ? ` (${params.wallet_name})` : "";
-        let msg = `📊 *Gastos${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
+        let msg = `${filterEmoji} *${filterLabel}${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
         convertedExpenses.slice(0, 15).forEach((e: any) => {
           const displayValue = e.has_conversion
             ? `${fmtMoney(e.source_amount || 0, e.source_currency)} (≈ ${fmtMoney(e.display_amount || 0, _userCurrency)})`
@@ -1264,7 +1274,12 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
           msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${displayValue}\n`;
         });
         if (convertedExpenses.length > 15) msg += `... e mais ${convertedExpenses.length - 15}\n`;
-        msg += `\n💰 Total em ${_userCurrency}: ${fmtMoney(total, _userCurrency)}\n✅ Pago: ${fmtMoney(paid, _userCurrency)}\n⏳ Pendente: ${fmtMoney(total - paid, _userCurrency)}`;
+        msg += `\n💰 Total: ${fmtMoney(total, _userCurrency)}`;
+        // Show paid/pending breakdown only when listing all
+        if (params.paid == null) {
+          const paidTotal = convertedExpenses.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
+          msg += `\n✅ Pago: ${fmtMoney(paidTotal, _userCurrency)}\n⏳ Pendente: ${fmtMoney(total - paidTotal, _userCurrency)}`;
+        }
         return msg;
       }
 
