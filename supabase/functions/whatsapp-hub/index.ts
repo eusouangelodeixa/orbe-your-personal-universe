@@ -1211,7 +1211,7 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
 
       case "list_expenses": {
         let query = supabase.from("expenses")
-          .select("name, amount, paid, due_date, wallet_id, wallets(name)")
+          .select("id, name, amount, paid, due_date, wallet_id, wallets(name)")
           .eq("user_id", userId).eq("month", currentMonth).eq("year", currentYear)
           .order("due_date");
         // Filter by wallet if specified
@@ -1227,14 +1227,16 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
         if (!data?.length) return params.wallet_name
           ? `📊 Nenhum gasto encontrado na conta *${params.wallet_name}* este mês.`
           : "📊 Nenhum gasto registrado este mês.";
-        const total = data.reduce((s: number, e: any) => s + Number(e.amount), 0);
-        const paid = data.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.amount), 0);
+
+        const convertedExpenses = await convertRecordsToUserCurrency(supabase, userId, data, "expense", _userCurrency);
+        const total = convertedExpenses.reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
+        const paid = convertedExpenses.filter((e: any) => e.paid).reduce((s: number, e: any) => s + Number(e.display_amount || 0), 0);
         const walletLabel = params.wallet_name ? ` (${params.wallet_name})` : "";
         let msg = `📊 *Gastos${walletLabel} ${currentMonth}/${currentYear}*\n\n`;
-        data.slice(0, 15).forEach((e: any) => {
-          msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${fmtBRL(e.amount)}\n`;
+        convertedExpenses.slice(0, 15).forEach((e: any) => {
+          msg += `${e.paid ? "✅" : "⏳"} ${e.name}: ${fmtBRL(e.display_amount || 0)}\n`;
         });
-        if (data.length > 15) msg += `... e mais ${data.length - 15}\n`;
+        if (convertedExpenses.length > 15) msg += `... e mais ${convertedExpenses.length - 15}\n`;
         msg += `\n💰 Total: ${fmtBRL(total)}\n✅ Pago: ${fmtBRL(paid)}\n⏳ Pendente: ${fmtBRL(total - paid)}`;
         return msg;
       }
