@@ -204,8 +204,8 @@ Deno.serve(async (req) => {
 
           if (overdue.length > 0) {
             msg += `\n⚠️ *${overdue.length} conta(s) vencida(s):*\n`;
-            overdue.slice(0, 5).forEach(e => {
-              msg += `  • ${e.name} — ${fmt(Number(e.amount))}\n`;
+            overdue.slice(0, 5).forEach((e: any) => {
+              msg += `  • ${e.name} — ${fmt(toUserCurrency(e))}\n`;
             });
           }
 
