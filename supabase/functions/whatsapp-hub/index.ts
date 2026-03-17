@@ -735,15 +735,16 @@ REGRAS:
 
   const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
   if (toolCall) {
-    return JSON.parse(toolCall.function.arguments);
+    const parsedIntent = JSON.parse(toolCall.function.arguments);
+    return enforceExpenseListIntent(text, parsedIntent);
   }
 
   // Fallback: plain text reply
-  return {
+  return enforceExpenseListIntent(text, {
     module: "geral",
     action: "chat",
     reply_text: result.choices?.[0]?.message?.content || "Não entendi. Diga 'ajuda' para ver o que posso fazer.",
-  };
+  });
 }
 
 function parseFallbackIntent(text: string) {
