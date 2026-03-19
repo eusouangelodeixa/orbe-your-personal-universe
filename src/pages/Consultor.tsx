@@ -131,7 +131,7 @@ export default function Consultor() {
       const token = session.data.session?.access_token;
 
       const allMsgs = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }));
-      const extraSystemPrompt = buildFinancialPrompt(financialContext);
+      const extraSystemPrompt = buildFinancialPrompt(financialContext, formatMoney, currency.code);
 
       const resp = await fetch(ORCHESTRATOR_URL, {
         method: "POST",
