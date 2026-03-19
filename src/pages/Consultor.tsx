@@ -65,6 +65,7 @@ Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmt(g.current_amo
 
 export default function Consultor() {
   const { user } = useAuth();
+  const { currency, formatMoney } = useCurrency();
   const now = new Date();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
