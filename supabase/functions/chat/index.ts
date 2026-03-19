@@ -24,17 +24,20 @@ serve(async (req) => {
     let extraSystemPrompt = "";
     if (financialContext) {
       const fc = financialContext;
-      const fmtBRL = (v: number) =>
-        `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+      const cur = fc.currencyCode || "BRL";
+      const CURRENCY_SYMBOLS: Record<string, string> = { BRL: "R$", USD: "$", EUR: "€", GBP: "£", MZN: "MT", JPY: "¥" };
+      const sym = CURRENCY_SYMBOLS[cur] || cur;
+      const fmtMoney = (v: number) => `${sym} ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: cur === "JPY" ? 0 : 2 })}`;
 
-      extraSystemPrompt = `DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}):
-Renda total: ${fmtBRL(fc.totalIncome)}
-Gastos total: ${fmtBRL(fc.totalExpenses)} (pagos: ${fmtBRL(fc.paidExpenses)}, pendentes: ${fmtBRL(fc.pendingExpenses)})
-Carteiras: ${(fc.wallets || []).map((w: any) => `${w.name}: ${fmtBRL(w.balance)}`).join(", ")}
-Patrimônio total: ${fmtBRL(fc.totalWallets)}
-Disponível: ${fmtBRL(fc.availableBalance)}
-Fluxo mensal: ${fmtBRL(fc.monthlyFlow)} (${fc.commitmentPercent}% comprometido)
-Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmtBRL(g.current_amount)}/${fmtBRL(g.target_amount)}`).join(", ") || "Nenhuma"}`;
+      extraSystemPrompt = `DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}, moeda: ${cur}):
+Renda total: ${fmtMoney(fc.totalIncome)}
+Gastos total: ${fmtMoney(fc.totalExpenses)} (pagos: ${fmtMoney(fc.paidExpenses)}, pendentes: ${fmtMoney(fc.pendingExpenses)})
+Carteiras: ${(fc.wallets || []).map((w: any) => `${w.name} (${w.currency || cur}): ${fmtMoney(w.balance)}`).join(", ")}
+Patrimônio total: ${fmtMoney(fc.totalWallets)}
+Disponível: ${fmtMoney(fc.availableBalance)}
+Fluxo mensal: ${fmtMoney(fc.monthlyFlow)} (${fc.commitmentPercent}% comprometido)
+Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmtMoney(g.current_amount)}/${fmtMoney(g.target_amount)}`).join(", ") || "Nenhuma"}
+IMPORTANTE: Formate todos os valores monetários usando ${cur} (${sym}).`;
     }
 
     const orchestratorUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/agent-orchestrator`;

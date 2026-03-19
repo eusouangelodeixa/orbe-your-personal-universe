@@ -218,13 +218,15 @@ async function executeTool(
       const now = new Date();
       const month = now.getMonth() + 1;
       const year = now.getFullYear();
-      const [incomesRes, expensesRes, walletsRes, goalsRes] = await Promise.all([
+      const [incomesRes, expensesRes, walletsRes, goalsRes, profileRes] = await Promise.all([
         supabase.from("incomes").select("description, amount, month, year").eq("user_id", userId).eq("month", month).eq("year", year),
         supabase.from("expenses").select("name, amount, paid, due_date, month, year").eq("user_id", userId).eq("month", month).eq("year", year),
-        supabase.from("wallets").select("name, balance, is_default").eq("user_id", userId),
+        supabase.from("wallets").select("name, balance, is_default, currency").eq("user_id", userId),
         supabase.from("savings_goals").select("name, target_amount, current_amount, deadline").eq("user_id", userId),
+        supabase.from("profiles").select("currency").eq("user_id", userId).single(),
       ]);
 
+      const userCurrency = profileRes.data?.currency || "BRL";
       const incomes = incomesRes.data || [];
       const expenses = expensesRes.data || [];
       const wallets = walletsRes.data || [];
@@ -234,6 +236,7 @@ async function executeTool(
       const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.amount), 0);
       const totalWallets = wallets.reduce((a: number, w: any) => a + Number(w.balance), 0);
       const pendingExpenses = expenses.filter((e: any) => !e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
+      const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
 
       const topExpenses = [...expenses]
         .sort((a: any, b: any) => Number(b.amount) - Number(a.amount))
@@ -245,24 +248,30 @@ async function executeTool(
           vencimento: e.due_date,
         }));
 
-      const largestExpense = topExpenses.length
-        ? topExpenses[0]
-        : null;
+      const largestExpense = topExpenses.length ? topExpenses[0] : null;
 
       const totalGoalTarget = goals.reduce((sum: number, g: any) => sum + Number(g.target_amount || 0), 0);
       const totalGoalCurrent = goals.reduce((sum: number, g: any) => sum + Number(g.current_amount || 0), 0);
 
       return JSON.stringify({
+        moeda_usuario: userCurrency,
         mes: `${month}/${year}`,
         tem_dados_no_mes: incomes.length > 0 || expenses.length > 0,
         renda_total: totalIncome,
         gastos_total: totalExpenses,
-        saldo_carteiras: totalWallets,
+        gastos_pagos: paidExpenses,
         gastos_pendentes: pendingExpenses,
+        saldo_carteiras: totalWallets,
         disponivel: totalWallets - pendingExpenses,
         fluxo_mensal: totalIncome - totalExpenses,
         maior_gasto: largestExpense,
         top_gastos: topExpenses,
+        contas_pendentes: expenses.filter((e: any) => !e.paid).map((e: any) => ({
+          nome: e.name, valor: Number(e.amount), vencimento: e.due_date,
+        })),
+        contas_pagas: expenses.filter((e: any) => e.paid).map((e: any) => ({
+          nome: e.name, valor: Number(e.amount),
+        })),
         rendas_registradas: incomes.map((i: any) => ({
           descricao: i.description,
           valor: Number(i.amount),
@@ -270,6 +279,7 @@ async function executeTool(
         carteiras: wallets.map((w: any) => ({
           nome: w.name,
           saldo: Number(w.balance),
+          moeda: w.currency || "BRL",
           principal: !!w.is_default,
         })),
         metas: goals.map((g: any) => ({
@@ -474,6 +484,8 @@ REGRAS DE COMUNICAÇÃO:
 
 SUAS CAPACIDADES:
 - Acesso TOTAL ao módulo financeiro: rendas, gastos, carteiras, metas de poupança.
+- O sistema é MULTI-MOEDA: carteiras podem ter moedas diferentes (BRL, USD, EUR, MZN, etc). Sempre respeite a moeda preferida do usuário ao formatar valores.
+- Quando os dados retornarem "moeda_usuario", use essa moeda para formatar valores. Use o símbolo correto (R$ para BRL, $ para USD, € para EUR, MT para MZN, £ para GBP, ¥ para JPY).
 - Pode consultar dados do Fit (perfil, planos) se o usuário perguntar sobre gastos com saúde/academia.
 - Pode ver tarefas e agenda para contextualizar planejamento financeiro.
 - Você NÃO é nutricionista nem personal trainer.
