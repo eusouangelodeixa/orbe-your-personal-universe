@@ -25,26 +25,25 @@ interface Message {
 
 const ORCHESTRATOR_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/agent-orchestrator`;
 
-function buildFinancialPrompt(fc: any): string {
-  const fmtBRL = (v: number) =>
-    `R$ ${Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+function buildFinancialPrompt(fc: any, formatMoney: (v: number) => string, currencyCode: string): string {
+  const fmt = formatMoney;
 
   const pendingList = (fc.expensesList || []).filter((e: any) => !e.paid);
   const paidList = (fc.expensesList || []).filter((e: any) => e.paid);
 
-  let prompt = `DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}):
-Renda total: ${fmtBRL(fc.totalIncome)}
-Gastos total: ${fmtBRL(fc.totalExpenses)} (pagos: ${fmtBRL(fc.paidExpenses)}, pendentes: ${fmtBRL(fc.pendingExpenses)})
-Carteiras: ${(fc.wallets || []).map((w: any) => `${w.name}: ${fmtBRL(w.balance)}`).join(", ")}
-Patrimônio total: ${fmtBRL(fc.totalWallets)}
-Disponível: ${fmtBRL(fc.availableBalance)}
-Fluxo mensal: ${fmtBRL(fc.monthlyFlow)} (${fc.commitmentPercent}% comprometido)
-Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmtBRL(g.current_amount)}/${fmtBRL(g.target_amount)}`).join(", ") || "Nenhuma"}`;
+  let prompt = `DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}, moeda: ${currencyCode}):
+Renda total: ${fmt(fc.totalIncome)}
+Gastos total: ${fmt(fc.totalExpenses)} (pagos: ${fmt(fc.paidExpenses)}, pendentes: ${fmt(fc.pendingExpenses)})
+Carteiras: ${(fc.wallets || []).map((w: any) => `${w.name} (${w.currency || currencyCode}): ${fmt(w.balance)}`).join(", ")}
+Patrimônio total: ${fmt(fc.totalWallets)}
+Disponível: ${fmt(fc.availableBalance)}
+Fluxo mensal: ${fmt(fc.monthlyFlow)} (${fc.commitmentPercent}% comprometido)
+Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmt(g.current_amount)}/${fmt(g.target_amount)}`).join(", ") || "Nenhuma"}`;
 
   if (pendingList.length > 0) {
     prompt += `\n\nCONTAS PENDENTES (por pagar):`;
     pendingList.forEach((e: any) => {
-      prompt += `\n- ${e.name}: ${fmtBRL(e.amount)} (vence ${e.due_date})`;
+      prompt += `\n- ${e.name}: ${fmt(e.amount)} (vence ${e.due_date})`;
     });
   } else {
     prompt += `\n\nCONTAS PENDENTES: Nenhuma`;
@@ -53,13 +52,13 @@ Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmtBRL(g.current_
   if (paidList.length > 0) {
     prompt += `\n\nCONTAS PAGAS:`;
     paidList.forEach((e: any) => {
-      prompt += `\n- ${e.name}: ${fmtBRL(e.amount)}`;
+      prompt += `\n- ${e.name}: ${fmt(e.amount)}`;
     });
   } else {
     prompt += `\n\nCONTAS PAGAS: Nenhuma`;
   }
 
-  prompt += `\n\nINSTRUÇÕES: Quando o usuário perguntar sobre "contas por pagar" ou "pendentes", liste APENAS as contas pendentes. Quando perguntar sobre "contas pagas", liste APENAS as pagas. Só mostre o resumo completo quando pedir "resumo" ou uma visão geral.`;
+  prompt += `\n\nIMPORTANTE: A moeda do usuário é ${currencyCode}. Formate TODOS os valores monetários usando ${currencyCode}. Quando o usuário perguntar sobre "contas por pagar" ou "pendentes", liste APENAS as contas pendentes. Quando perguntar sobre "contas pagas", liste APENAS as pagas. Só mostre o resumo completo quando pedir "resumo" ou uma visão geral.`;
 
   return prompt;
 }
