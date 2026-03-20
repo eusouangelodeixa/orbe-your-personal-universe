@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import FlashcardReview from "@/components/FlashcardReview";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Loader2, Brain, RotateCw, Trash2, Sparkles, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
+import { Plus, Loader2, Brain, RotateCw, Trash2, Sparkles } from "lucide-react";
 import { useSubjects } from "@/hooks/useStudies";
 import { useFlashcards, useDueFlashcards, useAddFlashcard, useAddFlashcardsBatch, useReviewFlashcard, useDeleteFlashcard, Flashcard } from "@/hooks/useFlashcards";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,8 +36,6 @@ export default function Flashcards() {
 
   // Review state
   const [reviewMode, setReviewMode] = useState(false);
-  const [reviewIndex, setReviewIndex] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
 
   const handleCreate = () => {
     if (!form.front.trim() || !form.back.trim()) return;
@@ -88,20 +87,6 @@ export default function Flashcards() {
   const startReview = () => {
     if (dueCards.length === 0) { toast.info("Nenhum flashcard para revisar agora!"); return; }
     setReviewMode(true);
-    setReviewIndex(0);
-    setShowAnswer(false);
-  };
-
-  const handleReview = (quality: number) => {
-    const card = dueCards[reviewIndex];
-    reviewCard.mutate({ card, quality });
-    if (reviewIndex + 1 < dueCards.length) {
-      setReviewIndex(i => i + 1);
-      setShowAnswer(false);
-    } else {
-      setReviewMode(false);
-      toast.success("Sessão de revisão concluída! 🎉");
-    }
   };
 
   if (isLoading || loadingDue) {
@@ -110,53 +95,17 @@ export default function Flashcards() {
 
   // Review mode
   if (reviewMode && dueCards.length > 0) {
-    const card = dueCards[reviewIndex];
     return (
       <AppLayout>
-        <div className="max-w-xl mx-auto space-y-6 pt-8">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold font-display flex items-center gap-2">
-              <Brain className="h-6 w-6 text-primary" /> Revisão
-            </h1>
-            <Badge variant="outline">{reviewIndex + 1} / {dueCards.length}</Badge>
-          </div>
-
-          <Card className="min-h-[250px] flex flex-col justify-center cursor-pointer" onClick={() => setShowAnswer(true)}>
-            <CardContent className="text-center py-12">
-              <p className="text-lg font-medium mb-4">{card.front}</p>
-              {showAnswer ? (
-                <div className="mt-6 pt-6 border-t border-border">
-                  <p className="text-base text-muted-foreground">{card.back}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground mt-4">Toque para ver a resposta</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {showAnswer && (
-            <div className="grid grid-cols-4 gap-2">
-              <Button variant="destructive" onClick={() => handleReview(0)} className="flex-col h-auto py-3">
-                <XCircle className="h-5 w-5 mb-1" />
-                <span className="text-xs">Errei</span>
-              </Button>
-              <Button variant="outline" onClick={() => handleReview(2)} className="flex-col h-auto py-3 text-orange-500 border-orange-500/30">
-                <ArrowRight className="h-5 w-5 mb-1" />
-                <span className="text-xs">Difícil</span>
-              </Button>
-              <Button variant="outline" onClick={() => handleReview(4)} className="flex-col h-auto py-3 text-blue-500 border-blue-500/30">
-                <CheckCircle2 className="h-5 w-5 mb-1" />
-                <span className="text-xs">Bom</span>
-              </Button>
-              <Button onClick={() => handleReview(5)} className="flex-col h-auto py-3 bg-emerald-600 hover:bg-emerald-700">
-                <CheckCircle2 className="h-5 w-5 mb-1" />
-                <span className="text-xs">Fácil</span>
-              </Button>
-            </div>
-          )}
-
-          <Button variant="ghost" onClick={() => setReviewMode(false)} className="w-full">Sair da revisão</Button>
-        </div>
+        <FlashcardReview
+          dueCards={dueCards}
+          allCards={allCards}
+          onReview={(card, quality) => reviewCard.mutate({ card, quality })}
+          onExit={() => {
+            setReviewMode(false);
+            toast.success("Sessão de revisão concluída! 🎉");
+          }}
+        />
       </AppLayout>
     );
   }
