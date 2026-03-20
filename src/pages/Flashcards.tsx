@@ -36,8 +36,6 @@ export default function Flashcards() {
 
   // Review state
   const [reviewMode, setReviewMode] = useState(false);
-  const [reviewIndex, setReviewIndex] = useState(0);
-  const [showAnswer, setShowAnswer] = useState(false);
 
   const handleCreate = () => {
     if (!form.front.trim() || !form.back.trim()) return;
