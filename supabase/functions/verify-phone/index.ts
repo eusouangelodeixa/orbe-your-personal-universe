@@ -162,21 +162,22 @@ serve(async (req) => {
         console.error("[verify-phone] Error marking verification:", JSON.stringify(markErr));
       }
 
-      // Update profile: set phone and phone_verified
-      const { data: updatedRows, error: profileErr } = await adminClient
-        .from("profiles")
-        .update({ phone, phone_verified: true, updated_at: new Date().toISOString() })
-        .eq("user_id", userId)
-        .select("id, user_id, phone_verified");
+      // Update profile in two steps so the phone-change trigger doesn't clear verification
+      const nowIso = new Date().toISOString();
 
-      if (profileErr) {
-        console.error("[verify-phone] Error updating profile:", JSON.stringify(profileErr));
+      const { data: phoneRows, error: phoneErr } = await adminClient
+        .from("profiles")
+        .update({ phone, updated_at: nowIso })
+        .eq("user_id", userId)
+        .select("id, user_id, phone, phone_verified");
+
+      if (phoneErr) {
+        console.error("[verify-phone] Error updating phone:", JSON.stringify(phoneErr));
         return jsonResponse({ error: "Telefone verificado mas erro ao atualizar perfil. Tente recarregar." }, 500);
       }
-      
-      if (!updatedRows || updatedRows.length === 0) {
+
+      if (!phoneRows || phoneRows.length === 0) {
         console.error(`[verify-phone] Profile update matched 0 rows for user ${userId}. Creating profile.`);
-        // Profile might not exist yet - create it
         const { error: insertErr } = await adminClient
           .from("profiles")
           .insert({ user_id: userId, phone, phone_verified: true });
@@ -186,7 +187,18 @@ serve(async (req) => {
         }
         console.log(`[verify-phone] Created profile for user ${userId} with phone_verified=true`);
       } else {
-        console.log(`[verify-phone] Profile updated for user ${userId}, rows=${updatedRows.length}, phone_verified=${updatedRows[0]?.phone_verified}`);
+        const { data: verifiedRows, error: verifiedErr } = await adminClient
+          .from("profiles")
+          .update({ phone_verified: true, updated_at: nowIso })
+          .eq("user_id", userId)
+          .select("id, user_id, phone_verified");
+
+        if (verifiedErr) {
+          console.error("[verify-phone] Error setting phone_verified:", JSON.stringify(verifiedErr));
+          return jsonResponse({ error: "Telefone verificado mas erro ao confirmar perfil. Tente recarregar." }, 500);
+        }
+
+        console.log(`[verify-phone] Profile updated for user ${userId}, rows=${verifiedRows?.length || 0}, phone_verified=${verifiedRows?.[0]?.phone_verified}`);
       }
 
       return jsonResponse({ success: true, message: "Telefone verificado com sucesso!" });
