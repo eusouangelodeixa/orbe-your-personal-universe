@@ -735,14 +735,14 @@ serve(async (req) => {
     if (isInternalServiceCall) {
       userId = bodyUserId;
     } else {
-      const { data: claimsData, error: claimsErr } = await supabase.auth.getClaims(token);
-      if (claimsErr || !claimsData?.claims) {
+      const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+      if (userErr || !userData?.user) {
         return new Response(JSON.stringify({ error: "Token inválido" }), {
           status: 401,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      userId = claimsData.claims.sub as string;
+      userId = userData.user.id;
     }
 
     const agentType = agent || "fit";
