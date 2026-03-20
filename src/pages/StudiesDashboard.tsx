@@ -2,9 +2,10 @@ import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BookOpen, CalendarDays, FileText, ClipboardList, RotateCw, Timer,
-  GraduationCap, Loader2,
+  GraduationCap, Loader2, BarChart3, CalendarClock,
 } from "lucide-react";
 import { useSubjects, useAcademicEvents } from "@/hooks/useStudies";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,6 +14,8 @@ import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, isAfter, isBefore, addDays, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
+import { GradesDashboard } from "@/components/GradesDashboard";
+import { StudyScheduleGenerator } from "@/components/StudyScheduleGenerator";
 
 const EVENT_TYPES: Record<string, { label: string; icon: typeof FileText; color: string }> = {
   prova: { label: "Prova", icon: FileText, color: "text-red-500" },
