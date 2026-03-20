@@ -7,8 +7,9 @@ import { Navigate } from "react-router-dom";
 import {
   Loader2, Users, BarChart3, FolderCog, Activity, Shield, Mail, Phone,
   Calendar, CheckCircle2, XCircle, Trash2, Plus, Pencil, Link2, DollarSign,
-  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown, Globe, UserPlus
+  Zap, Bot, CreditCard, MessageSquare, Eye, EyeOff, TrendingUp, TrendingDown, Globe, UserPlus, Megaphone
 } from "lucide-react";
+import { BroadcastPanel } from "@/components/admin/BroadcastPanel";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -276,6 +277,7 @@ export default function Admin() {
             <TabsTrigger value="connections" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Link2 className="h-3.5 w-3.5" /> Conexões</TabsTrigger>
             <TabsTrigger value="financial" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><DollarSign className="h-3.5 w-3.5" /> Assinaturas</TabsTrigger>
             <TabsTrigger value="mozambique" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Globe className="h-3.5 w-3.5" /> Moçambique</TabsTrigger>
+            <TabsTrigger value="broadcast" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Megaphone className="h-3.5 w-3.5" /> Broadcast</TabsTrigger>
           </TabsList>
 
           {/* METRICS */}
@@ -830,6 +832,11 @@ export default function Admin() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* BROADCAST */}
+          <TabsContent value="broadcast">
+            <BroadcastPanel />
           </TabsContent>
         </Tabs>
       </div>

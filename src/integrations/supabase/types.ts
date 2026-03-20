@@ -219,6 +219,95 @@ export type Database = {
         }
         Relationships: []
       }
+      broadcast_campaigns: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          failed_count: number
+          id: string
+          message: string
+          name: string
+          scheduled_at: string | null
+          sending_config: Json
+          sent_count: number
+          status: string
+          total_recipients: number
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          failed_count?: number
+          id?: string
+          message?: string
+          name: string
+          scheduled_at?: string | null
+          sending_config?: Json
+          sent_count?: number
+          status?: string
+          total_recipients?: number
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          failed_count?: number
+          id?: string
+          message?: string
+          name?: string
+          scheduled_at?: string | null
+          sending_config?: Json
+          sent_count?: number
+          status?: string
+          total_recipients?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      broadcast_recipients: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          display_name: string | null
+          error_message: string | null
+          id: string
+          phone: string
+          sent_at: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          display_name?: string | null
+          error_message?: string | null
+          id?: string
+          phone: string
+          sent_at?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          display_name?: string | null
+          error_message?: string | null
+          id?: string
+          phone?: string
+          sent_at?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcast_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "broadcast_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           color: string | null
