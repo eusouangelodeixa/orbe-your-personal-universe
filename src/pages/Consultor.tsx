@@ -76,22 +76,54 @@ export default function Consultor() {
   const { data: wallets = [] } = useWallets();
   const { data: savingsGoals = [] } = useSavingsGoals();
 
+  // Collect all unique wallet currencies to fetch exchange rates
+  const walletCurrencies = useMemo(() => {
+    const codes = new Set(wallets.map(w => (w as any).currency || "BRL"));
+    codes.add(currency.code);
+    return Array.from(codes);
+  }, [wallets, currency.code]);
+  const { data: exchangeRatesData } = useExchangeRates(walletCurrencies);
+  const rates = exchangeRatesData?.rates;
+
+  // Helper: convert any amount from a given currency to the user's display currency
+  const toUserCurrency = (amount: number, fromCurrency: string): number => {
+    if (fromCurrency === currency.code) return amount;
+    // Convert foreign → BRL first, then BRL → user currency
+    const inBRL = convertToBRL(amount, fromCurrency, rates);
+    if (currency.code === "BRL") return inBRL;
+    // BRL → user currency: multiply by rate
+    const userRate = rates?.[currency.code];
+    return userRate ? inBRL * userRate : inBRL;
+  };
+
   const financialContext = useMemo(() => {
     const totalIncome = incomes.reduce((a, i) => a + Number(i.amount), 0);
     const totalExpenses = expenses.reduce((a, e) => a + Number(e.amount), 0);
     const paidExpenses = expenses.filter(e => e.paid).reduce((a, e) => a + Number(e.amount), 0);
     const pendingExpenses = totalExpenses - paidExpenses;
-    const totalWallets = wallets.reduce((a, w) => a + Number(w.balance), 0);
+    // Convert each wallet balance to user's currency before summing
+    const totalWallets = wallets.reduce((a, w) => {
+      const wCurrency = (w as any).currency || "BRL";
+      return a + toUserCurrency(Number(w.balance), wCurrency);
+    }, 0);
     return {
       month, year, totalIncome, totalExpenses, paidExpenses, pendingExpenses,
       totalWallets, availableBalance: totalWallets - pendingExpenses,
       monthlyFlow: totalIncome - totalExpenses,
       commitmentPercent: totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 100) : 0,
-      wallets: wallets.map(w => ({ name: w.name, balance: Number(w.balance), currency: (w as any).currency || currency.code })),
+      wallets: wallets.map(w => {
+        const wCurrency = (w as any).currency || "BRL";
+        return {
+          name: w.name,
+          balance: Number(w.balance),
+          balanceConverted: toUserCurrency(Number(w.balance), wCurrency),
+          currency: wCurrency,
+        };
+      }),
       savingsGoals: savingsGoals.map((g: any) => ({ name: g.name, target_amount: Number(g.target_amount), current_amount: Number(g.current_amount) })),
       expensesList: expenses.map(e => ({ name: e.name, amount: Number(e.amount), paid: e.paid, due_date: e.due_date })),
     };
-  }, [incomes, expenses, wallets, savingsGoals, month, year, currency.code]);
+  }, [incomes, expenses, wallets, savingsGoals, month, year, currency.code, rates]);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
