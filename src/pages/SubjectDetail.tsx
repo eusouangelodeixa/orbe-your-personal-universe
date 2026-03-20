@@ -160,7 +160,7 @@ async function streamChat({ messages, subjectName, subjectType, ementaText, acce
 export default function SubjectDetail() {
   const { subjectId } = useParams<{ subjectId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { data: subjects = [] } = useSubjects();
   const subject = subjects.find(s => s.id === subjectId);
   const updateSubject = useUpdateSubject();
