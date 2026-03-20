@@ -2044,10 +2044,57 @@ async function executeAction(supabase: any, userId: string, intent: any, origina
       case "add_task": {
         let dueDate: string | null = null;
         const dueDateOnly = normalizeDateOnly(params.due_date);
+        const dueTime = normalizeDueTime(params.due_time) || extractDueTimeFromText(originalText);
 
-        if (dueDateOnly) {
-          dueDate = buildSaoPauloDateTime(dueDateOnly, params.due_time, originalText, "23:59");
+        if (dueDateOnly && dueTime) {
+          // Both date and time specified — create immediately
+          dueDate = buildSaoPauloDateTime(dueDateOnly, dueTime, originalText, dueTime);
+        } else if (dueDateOnly && !dueTime) {
+          // Date specified but NO time — ask the user what time
+          const taskTitle = params.task_title || params.name || "Tarefa WhatsApp";
+          const taskData = {
+            title: taskTitle,
+            description: params.description || null,
+            due_date: dueDateOnly,
+            priority: params.priority || "media",
+            category: params.category || "geral",
+          };
+          await supabase.from("whatsapp_pending_actions").insert({
+            user_id: userId,
+            action_type: "select_task_time",
+            action_data: taskData,
+            expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          });
+          return `📝 *${taskTitle}* para ${dueDateOnly.split("-").reverse().join("/")}.\n\n⏰ Que horas devo te lembrar?\n\n_Responda com o horário, ex: 14h, 18:30, meio-dia_\n_Ou diga *sem horário* para deixar sem lembrete específico._`;
+        } else if (!dueDateOnly && !dueTime) {
+          // No date and no time — ask for date+time
+          const taskTitle = params.task_title || params.name || "Tarefa WhatsApp";
+          const taskData = {
+            title: taskTitle,
+            description: params.description || null,
+            priority: params.priority || "media",
+            category: params.category || "geral",
+          };
+          await supabase.from("whatsapp_pending_actions").insert({
+            user_id: userId,
+            action_type: "select_task_datetime",
+            action_data: taskData,
+            expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+          });
+          return `📝 *${taskTitle}* anotada!\n\n📅 Quando devo te lembrar?\n\n_Responda com data e hora, ex: hoje às 15h, amanhã 18:30_\n_Ou diga *sem prazo* para criar sem lembrete._`;
+        } else {
+          // Only time, no date — assume today (or tomorrow if time already passed)
+          const now = brNow();
+          const [h, m] = dueTime!.split(":").map(Number);
+          let dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+          if (now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m)) {
+            const tomorrow = new Date(now);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            dateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+          }
+          dueDate = `${dateStr}T${dueTime}:00${SAO_PAULO_OFFSET}`;
         }
+
         const { error } = await supabase.from("tasks").insert({
           user_id: userId,
           title: params.task_title || params.name || "Tarefa WhatsApp",
