@@ -844,3 +844,73 @@ export function useAddSavingsTransaction() {
     onError: (e: Error) => toast.error(e.message),
   });
 }
+
+// ========== SAVINGS REMINDERS ==========
+
+export function useSavingsReminders() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["savings_reminders", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("savings_reminders" as any)
+        .select("*")
+        .eq("user_id", user!.id)
+        .order("day_of_month", { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    },
+  });
+}
+
+export function useAddSavingsReminder() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async (r: { goal_id: string; day_of_month: number; amount: number }) => {
+      const { error } = await supabase.from("savings_reminders" as any).insert({
+        ...r,
+        user_id: user!.id,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["savings_reminders"] });
+      toast.success("Lembrete criado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateSavingsReminder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ...data }: { id: string; day_of_month?: number; amount?: number; enabled?: boolean }) => {
+      const { error } = await supabase
+        .from("savings_reminders" as any)
+        .update(data as any)
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["savings_reminders"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteSavingsReminder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("savings_reminders" as any).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["savings_reminders"] });
+      toast.success("Lembrete removido");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}

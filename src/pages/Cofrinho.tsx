@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { SavingsReminders } from "@/components/SavingsReminders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -308,6 +309,11 @@ export default function Cofrinho() {
               );
             })}
           </div>
+        )}
+
+        {/* Savings Reminders */}
+        {goals.length > 0 && (
+          <SavingsReminders goals={goals.map((g: any) => ({ id: g.id, name: g.name }))} />
         )}
 
         {/* Edit Goal Dialog */}

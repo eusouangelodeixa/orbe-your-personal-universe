@@ -1087,6 +1087,47 @@ export type Database = {
         }
         Relationships: []
       }
+      savings_reminders: {
+        Row: {
+          amount: number
+          created_at: string
+          day_of_month: number
+          enabled: boolean
+          goal_id: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          day_of_month: number
+          enabled?: boolean
+          goal_id: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          day_of_month?: number
+          enabled?: boolean
+          goal_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "savings_reminders_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "savings_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       savings_transactions: {
         Row: {
           amount: number
