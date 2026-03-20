@@ -33,7 +33,8 @@ serve(async (req) => {
 
     const { type } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY não configurada");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!LOVABLE_API_KEY && !OPENAI_API_KEY) throw new Error("Nenhum provedor de IA configurado");
 
     // Get user's fit profile
     const { data: fitProfile } = await supabase
@@ -79,20 +80,41 @@ Respeite todas as restrições alimentares, alergias e orçamento. Responda APEN
       throw new Error("Tipo inválido. Use 'workout' ou 'meal'.");
     }
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-      }),
-    });
+    const requestBody = {
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    };
+
+    const runAiRequest = async (provider: "lovable" | "openai") => {
+      const isLovable = provider === "lovable";
+      const apiKey = isLovable ? LOVABLE_API_KEY : OPENAI_API_KEY;
+      const endpoint = isLovable
+        ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+        : "https://api.openai.com/v1/chat/completions";
+      const model = isLovable ? "google/gemini-3-flash-preview" : "gpt-4.1";
+
+      return fetch(endpoint, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ...requestBody, model }),
+      });
+    };
+
+    let aiRes = LOVABLE_API_KEY ? await runAiRequest("lovable") : await runAiRequest("openai");
+
+    if (LOVABLE_API_KEY && !aiRes.ok && [402, 403].includes(aiRes.status) && OPENAI_API_KEY) {
+      const fallbackReason = await aiRes.clone().text();
+      console.warn("Lovable AI indisponível no fit-generate, usando fallback OpenAI", {
+        status: aiRes.status,
+        reason: fallbackReason.slice(0, 200),
+      });
+      aiRes = await runAiRequest("openai");
+    }
 
     if (!aiRes.ok) {
       if (aiRes.status === 429) {
@@ -100,8 +122,8 @@ Respeite todas as restrições alimentares, alergias e orçamento. Responda APEN
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (aiRes.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes." }), {
+      if ([402, 403].includes(aiRes.status)) {
+        return new Response(JSON.stringify({ error: "Serviço de IA temporariamente indisponível." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
