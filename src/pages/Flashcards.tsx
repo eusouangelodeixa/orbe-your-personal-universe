@@ -48,71 +48,41 @@ export default function Flashcards() {
   const handleGenerate = async () => {
     if (!genSubject) return;
     setGenerating(true);
+
     try {
-      const subject = subjects.find(s => s.id === genSubject);
-      const content = `Gere EXATAMENTE ${genCount} flashcards sobre "${genTopic || subject?.name || "a disciplina"}".
-Disciplina: ${subject?.name || "Geral"}
-${subject?.ementa_text ? `Ementa: ${subject.ementa_text}` : ""}
+      const subject = subjects.find((s) => s.id === genSubject);
+      const count = Math.min(20, Math.max(1, Number(genCount) || 5));
 
-IMPORTANTE: Responda APENAS com um array JSON puro, sem markdown, sem explicações, sem code blocks.
-Formato: [{"front": "pergunta", "back": "resposta"}]
-Gere flashcards concisos e objetivos.`;
-
-      // Call the AI gateway directly via fetch to handle SSE stream
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/solve-academic`;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          content,
+      const { data, error } = await supabase.functions.invoke("generate-flashcards", {
+        body: {
           subjectName: subject?.name || "Geral",
-          type: "exercicio",
-        }),
+          topic: genTopic.trim() || null,
+          syllabus: subject?.ementa_text || null,
+          count,
+        },
       });
 
-      if (!resp.ok) throw new Error("Erro na geração");
-
-      // Read SSE stream and accumulate text
-      const reader = resp.body?.getReader();
-      if (!reader) throw new Error("No response body");
-      const decoder = new TextDecoder();
-      let fullText = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const line of chunk.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) fullText += delta;
-          } catch { /* partial chunk */ }
-        }
+      if (error) {
+        throw new Error(error.message || "Erro ao gerar flashcards");
       }
 
-      // Extract JSON array from the accumulated text
-      const match = fullText.match(/\[[\s\S]*?\]/);
-      if (match) {
-        const cards = JSON.parse(match[0]);
-        if (Array.isArray(cards) && cards.length > 0) {
-          addBatch.mutate(cards.map((c: any) => ({ front: c.front, back: c.back, subject_id: genSubject })));
-        } else {
-          toast.error("Nenhum flashcard gerado");
-        }
-      } else {
-        toast.error("Não foi possível extrair flashcards da resposta");
+      const cards = data?.flashcards;
+      if (!Array.isArray(cards) || cards.length === 0) {
+        throw new Error("Nenhum flashcard válido foi retornado");
       }
-    } catch {
-      toast.error("Erro ao gerar flashcards");
+
+      addBatch.mutate(
+        cards.map((c: { front: string; back: string }) => ({
+          front: c.front,
+          back: c.back,
+          subject_id: genSubject,
+        })),
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao gerar flashcards");
+    } finally {
+      setGenerating(false);
     }
-    setGenerating(false);
   };
 
   const startReview = () => {
