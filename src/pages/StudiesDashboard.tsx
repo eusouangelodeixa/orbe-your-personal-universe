@@ -209,58 +209,76 @@ export default function StudiesDashboard() {
           </CardContent>
         </Card>
 
-        {/* Subjects Grid */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <GraduationCap className="h-5 w-5 text-primary" />
-                <CardTitle className="font-display">Disciplinas</CardTitle>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => navigate("/disciplinas")}>
-                Gerenciar
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {subjects.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {subjects.map(sub => {
-                  const subEvents = allEvents.filter(e => e.subject_id === sub.id);
-                  const subPending = subEvents.filter(e => e.status === "pendente" || e.status === "em_andamento").length;
-                  const subDone = subEvents.filter(e => e.status === "entregue" || e.status === "realizado").length;
-                  const pomSub = pomodoroToday.find(p => p.subject_id === sub.id);
-                  return (
-                    <div
-                      key={sub.id}
-                      className="p-4 rounded-lg border border-border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
-                      onClick={() => navigate(`/disciplina/${sub.id}`)}
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: sub.color }} />
-                        <span className="font-medium text-sm truncate">{sub.name}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {subPending > 0 && <Badge variant="destructive" className="text-xs">{subPending} pendente(s)</Badge>}
-                        {subDone > 0 && <Badge variant="secondary" className="text-xs">{subDone} concluído(s)</Badge>}
-                        {pomSub && <Badge variant="outline" className="text-xs">🍅 {pomSub.completed_pomodoros} hoje</Badge>}
-                        {sub.ementa_url && <Badge variant="outline" className="text-xs">📄 Ementa</Badge>}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                <GraduationCap className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Nenhuma disciplina cadastrada</p>
-                <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/disciplinas")}>
-                  Cadastrar disciplina
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Tabs for subjects, grades, and schedule */}
+        <Tabs defaultValue="subjects">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="subjects" className="gap-1.5"><GraduationCap className="h-3.5 w-3.5" />Disciplinas</TabsTrigger>
+            <TabsTrigger value="grades" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" />Notas</TabsTrigger>
+            <TabsTrigger value="schedule" className="gap-1.5"><CalendarClock className="h-3.5 w-3.5" />Cronograma</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="subjects">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <GraduationCap className="h-5 w-5 text-primary" />
+                    <CardTitle className="font-display">Disciplinas</CardTitle>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => navigate("/disciplinas")}>
+                    Gerenciar
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {subjects.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {subjects.map(sub => {
+                      const subEvents = allEvents.filter(e => e.subject_id === sub.id);
+                      const subPending = subEvents.filter(e => e.status === "pendente" || e.status === "em_andamento").length;
+                      const subDone = subEvents.filter(e => e.status === "entregue" || e.status === "realizado").length;
+                      const pomSub = pomodoroToday.find(p => p.subject_id === sub.id);
+                      return (
+                        <div
+                          key={sub.id}
+                          className="p-4 rounded-lg border border-border bg-card hover:bg-accent/50 cursor-pointer transition-colors"
+                          onClick={() => navigate(`/disciplina/${sub.id}`)}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: sub.color }} />
+                            <span className="font-medium text-sm truncate">{sub.name}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {subPending > 0 && <Badge variant="destructive" className="text-xs">{subPending} pendente(s)</Badge>}
+                            {subDone > 0 && <Badge variant="secondary" className="text-xs">{subDone} concluído(s)</Badge>}
+                            {pomSub && <Badge variant="outline" className="text-xs">🍅 {pomSub.completed_pomodoros} hoje</Badge>}
+                            {sub.ementa_url && <Badge variant="outline" className="text-xs">📄 Ementa</Badge>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <GraduationCap className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Nenhuma disciplina cadastrada</p>
+                    <Button variant="outline" size="sm" className="mt-3" onClick={() => navigate("/disciplinas")}>
+                      Cadastrar disciplina
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="grades">
+            <GradesDashboard />
+          </TabsContent>
+
+          <TabsContent value="schedule">
+            <StudyScheduleGenerator />
+          </TabsContent>
+        </Tabs>
       </div>
     </AppLayout>
   );
