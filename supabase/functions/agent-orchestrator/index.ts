@@ -7,6 +7,57 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function fetchExchangeRates(baseCurrency: string, currencies: string[]): Promise<Record<string, number>> {
+  const unique = [...new Set(currencies.filter((currency) => currency && currency !== baseCurrency))];
+  if (!unique.length) return {};
+
+  try {
+    const resp = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
+    if (!resp.ok) return {};
+
+    const data = await resp.json();
+    if (data.result !== "success") return {};
+
+    const rates: Record<string, number> = {};
+    for (const currency of unique) {
+      if (typeof data.rates?.[currency] === "number") {
+        rates[currency] = data.rates[currency];
+      }
+    }
+    return rates;
+  } catch (error) {
+    console.error("fetchExchangeRates error:", error);
+    return {};
+  }
+}
+
+function convertToBase(amount: number, fromCurrency: string, baseCurrency: string, rates: Record<string, number>) {
+  if (!fromCurrency || fromCurrency === baseCurrency) return amount;
+  const rate = rates[fromCurrency];
+  if (!rate || rate === 0) return amount;
+  return amount / rate;
+}
+
+function convertWithHistoricalOrLiveRate(
+  amount: number,
+  fromCurrency: string,
+  baseCurrency: string,
+  liveRates: Record<string, number>,
+  exchangeRateToBrl?: number | null,
+) {
+  if (!fromCurrency || fromCurrency === baseCurrency) return amount;
+
+  if (exchangeRateToBrl && fromCurrency !== "BRL") {
+    const amountInBrl = amount * Number(exchangeRateToBrl);
+    if (baseCurrency === "BRL") return amountInBrl;
+
+    const baseRateFromBrl = liveRates.BRL;
+    return baseRateFromBrl ? amountInBrl / baseRateFromBrl : amountInBrl;
+  }
+
+  return convertToBase(amount, fromCurrency, baseCurrency, liveRates);
+}
+
 // ─── Tool definitions for the AI to call ───────────────────────────────
 
 const TOOLS = [
@@ -219,9 +270,9 @@ async function executeTool(
       const month = now.getMonth() + 1;
       const year = now.getFullYear();
       const [incomesRes, expensesRes, walletsRes, goalsRes, profileRes] = await Promise.all([
-        supabase.from("incomes").select("description, amount, month, year").eq("user_id", userId).eq("month", month).eq("year", year),
-        supabase.from("expenses").select("name, amount, paid, due_date, month, year").eq("user_id", userId).eq("month", month).eq("year", year),
-        supabase.from("wallets").select("name, balance, is_default, currency").eq("user_id", userId),
+        supabase.from("incomes").select("id, description, amount, wallet_id, month, year").eq("user_id", userId).eq("month", month).eq("year", year),
+        supabase.from("expenses").select("id, name, amount, paid, due_date, wallet_id, month, year").eq("user_id", userId).eq("month", month).eq("year", year),
+        supabase.from("wallets").select("id, name, balance, is_default, currency").eq("user_id", userId),
         supabase.from("savings_goals").select("name, target_amount, current_amount, deadline").eq("user_id", userId),
         supabase.from("profiles").select("currency").eq("user_id", userId).single(),
       ]);
@@ -232,20 +283,68 @@ async function executeTool(
       const wallets = walletsRes.data || [];
       const goals = goalsRes.data || [];
 
-      const totalIncome = incomes.reduce((a: number, i: any) => a + Number(i.amount), 0);
-      const totalExpenses = expenses.reduce((a: number, e: any) => a + Number(e.amount), 0);
-      const totalWallets = wallets.reduce((a: number, w: any) => a + Number(w.balance), 0);
-      const pendingExpenses = expenses.filter((e: any) => !e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
-      const paidExpenses = expenses.filter((e: any) => e.paid).reduce((a: number, e: any) => a + Number(e.amount), 0);
+      const walletCurrencyById: Record<string, string> = {};
+      for (const wallet of wallets) {
+        walletCurrencyById[wallet.id] = wallet.currency || "BRL";
+      }
+
+      const allRecordIds = [
+        ...incomes.map((income: any) => income.id),
+        ...expenses.map((expense: any) => expense.id),
+      ].filter(Boolean);
+
+      const txByRefId: Record<string, { exchange_rate_to_brl: number | null }> = {};
+      if (allRecordIds.length) {
+        const { data: txRows } = await supabase
+          .from("wallet_transactions")
+          .select("reference_id, exchange_rate_to_brl")
+          .eq("user_id", userId)
+          .in("reference_id", allRecordIds);
+
+        for (const tx of txRows || []) {
+          if (tx.reference_id) {
+            txByRefId[tx.reference_id] = { exchange_rate_to_brl: tx.exchange_rate_to_brl };
+          }
+        }
+      }
+
+      const walletCurrencies = [...new Set(wallets.map((wallet: any) => wallet.currency || "BRL"))];
+      const liveRates = await fetchExchangeRates(userCurrency, [...walletCurrencies, "BRL"]);
+
+      const getRecordCurrency = (record: any) => record.wallet_id ? (walletCurrencyById[record.wallet_id] || "BRL") : "BRL";
+      const toUserCurrency = (record: any) => {
+        const amount = Number(record.amount || 0);
+        const recordCurrency = getRecordCurrency(record);
+        const historicalRateToBrl = txByRefId[record.id]?.exchange_rate_to_brl != null
+          ? Number(txByRefId[record.id].exchange_rate_to_brl)
+          : null;
+
+        return convertWithHistoricalOrLiveRate(amount, recordCurrency, userCurrency, liveRates, historicalRateToBrl);
+      };
+
+      const totalIncome = incomes.reduce((a: number, income: any) => a + toUserCurrency(income), 0);
+      const totalExpenses = expenses.reduce((a: number, expense: any) => a + toUserCurrency(expense), 0);
+      const totalWallets = wallets.reduce((a: number, wallet: any) => {
+        return a + convertToBase(Number(wallet.balance), wallet.currency || "BRL", userCurrency, liveRates);
+      }, 0);
+      const pendingExpenses = expenses.filter((expense: any) => !expense.paid).reduce((a: number, expense: any) => a + toUserCurrency(expense), 0);
+      const paidExpenses = expenses.filter((expense: any) => expense.paid).reduce((a: number, expense: any) => a + toUserCurrency(expense), 0);
 
       const topExpenses = [...expenses]
-        .sort((a: any, b: any) => Number(b.amount) - Number(a.amount))
+        .map((expense: any) => ({
+          ...expense,
+          convertedAmount: toUserCurrency(expense),
+          recordCurrency: getRecordCurrency(expense),
+        }))
+        .sort((a: any, b: any) => Number(b.convertedAmount) - Number(a.convertedAmount))
         .slice(0, 5)
-        .map((e: any) => ({
-          nome: e.name,
-          valor: Number(e.amount),
-          pago: !!e.paid,
-          vencimento: e.due_date,
+        .map((expense: any) => ({
+          nome: expense.name,
+          valor: Number(expense.convertedAmount),
+          valor_original: Number(expense.amount),
+          moeda: expense.recordCurrency,
+          pago: !!expense.paid,
+          vencimento: expense.due_date,
         }));
 
       const largestExpense = topExpenses.length ? topExpenses[0] : null;
@@ -254,6 +353,8 @@ async function executeTool(
       const totalGoalCurrent = goals.reduce((sum: number, g: any) => sum + Number(g.current_amount || 0), 0);
 
       return JSON.stringify({
+        totais_convertidos: true,
+        observacao_totais: `Todos os totais monetários já estão convertidos para ${userCurrency}. Não some valores originais de moedas diferentes.`,
         moeda_usuario: userCurrency,
         mes: `${month}/${year}`,
         tem_dados_no_mes: incomes.length > 0 || expenses.length > 0,
@@ -266,21 +367,31 @@ async function executeTool(
         fluxo_mensal: totalIncome - totalExpenses,
         maior_gasto: largestExpense,
         top_gastos: topExpenses,
-        contas_pendentes: expenses.filter((e: any) => !e.paid).map((e: any) => ({
-          nome: e.name, valor: Number(e.amount), vencimento: e.due_date,
+        contas_pendentes: expenses.filter((expense: any) => !expense.paid).map((expense: any) => ({
+          nome: expense.name,
+          valor: toUserCurrency(expense),
+          valor_original: Number(expense.amount),
+          moeda: getRecordCurrency(expense),
+          vencimento: expense.due_date,
         })),
-        contas_pagas: expenses.filter((e: any) => e.paid).map((e: any) => ({
-          nome: e.name, valor: Number(e.amount),
+        contas_pagas: expenses.filter((expense: any) => expense.paid).map((expense: any) => ({
+          nome: expense.name,
+          valor: toUserCurrency(expense),
+          valor_original: Number(expense.amount),
+          moeda: getRecordCurrency(expense),
         })),
-        rendas_registradas: incomes.map((i: any) => ({
-          descricao: i.description,
-          valor: Number(i.amount),
+        rendas_registradas: incomes.map((income: any) => ({
+          descricao: income.description,
+          valor: toUserCurrency(income),
+          valor_original: Number(income.amount),
+          moeda: getRecordCurrency(income),
         })),
-        carteiras: wallets.map((w: any) => ({
-          nome: w.name,
-          saldo: Number(w.balance),
-          moeda: w.currency || "BRL",
-          principal: !!w.is_default,
+        carteiras: wallets.map((wallet: any) => ({
+          nome: wallet.name,
+          saldo: convertToBase(Number(wallet.balance), wallet.currency || "BRL", userCurrency, liveRates),
+          saldo_original: Number(wallet.balance),
+          moeda: wallet.currency || "BRL",
+          principal: !!wallet.is_default,
         })),
         metas: goals.map((g: any) => ({
           nome: g.name,
@@ -490,11 +601,12 @@ SUAS CAPACIDADES:
 - Pode ver tarefas e agenda para contextualizar planejamento financeiro.
 - Você NÃO é nutricionista nem personal trainer.
 
-REGRAS DE COMUNICAÇÃO:
-- Seja CURTO e DIRETO. Perguntas simples → 1-3 linhas.
-- Só elabore quando pedir análise detalhada.
-- Use os tools disponíveis para buscar dados antes de responder. NÃO invente dados.
-- Português brasileiro.`,
+  REGRAS DE COMUNICAÇÃO:
+  - Seja CURTO e DIRETO. Perguntas simples → 1-3 linhas.
+  - Só elabore quando pedir análise detalhada.
+  - Use os tools disponíveis para buscar dados antes de responder. NÃO invente dados.
+  - Os campos renda_total, gastos_total, gastos_pagos, gastos_pendentes, saldo_carteiras, disponivel e fluxo_mensal já vêm convertidos para a moeda do usuário. Trate esses totais como fonte da verdade e NÃO recalcule somando moedas diferentes.
+  - Português brasileiro.`,
 
   studies: `Você é um Tutor acadêmico especializado do ORBE para uma disciplina específica.
 

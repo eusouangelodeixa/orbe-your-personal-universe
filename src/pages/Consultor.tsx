@@ -44,7 +44,7 @@ Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmt(g.current_amo
   if (pendingList.length > 0) {
     prompt += `\n\nCONTAS PENDENTES (por pagar):`;
     pendingList.forEach((e: any) => {
-      prompt += `\n- ${e.name}: ${fmt(e.amount)} (vence ${e.due_date})`;
+      prompt += `\n- ${e.name}: ${fmt(e.amount)}${e.currency && e.currency !== currencyCode ? ` (orig. ${e.originalAmount} ${e.currency})` : ""} (vence ${e.due_date})`;
     });
   } else {
     prompt += `\n\nCONTAS PENDENTES: Nenhuma`;
@@ -53,13 +53,13 @@ Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmt(g.current_amo
   if (paidList.length > 0) {
     prompt += `\n\nCONTAS PAGAS:`;
     paidList.forEach((e: any) => {
-      prompt += `\n- ${e.name}: ${fmt(e.amount)}`;
+      prompt += `\n- ${e.name}: ${fmt(e.amount)}${e.currency && e.currency !== currencyCode ? ` (orig. ${e.originalAmount} ${e.currency})` : ""}`;
     });
   } else {
     prompt += `\n\nCONTAS PAGAS: Nenhuma`;
   }
 
-  prompt += `\n\nIMPORTANTE: A moeda do usuário é ${currencyCode}. Formate TODOS os valores monetários usando ${currencyCode}. Quando o usuário perguntar sobre "contas por pagar" ou "pendentes", liste APENAS as contas pendentes. Quando perguntar sobre "contas pagas", liste APENAS as pagas. Só mostre o resumo completo quando pedir "resumo" ou uma visão geral.`;
+  prompt += `\n\nIMPORTANTE: A moeda do usuário é ${currencyCode}. Todos os totais e valores abaixo já estão convertidos para ${currencyCode}; trate esses números como fonte da verdade e não recompute somando moedas diferentes. Formate TODOS os valores monetários usando ${currencyCode}. Quando o usuário perguntar sobre "contas por pagar" ou "pendentes", liste APENAS as contas pendentes. Quando perguntar sobre "contas pagas", liste APENAS as pagas. Só mostre o resumo completo quando pedir "resumo" ou uma visão geral.`;
 
   return prompt;
 }
@@ -97,21 +97,38 @@ export default function Consultor() {
   };
 
   const financialContext = useMemo(() => {
-    const totalIncome = incomes.reduce((a, i) => a + Number(i.amount), 0);
-    const totalExpenses = expenses.reduce((a, e) => a + Number(e.amount), 0);
-    const paidExpenses = expenses.filter(e => e.paid).reduce((a, e) => a + Number(e.amount), 0);
+    const getIncomeCurrency = (income: any) => income.wallets?.currency || "BRL";
+    const getExpenseCurrency = (expense: any) => expense.wallets?.currency || "BRL";
+
+    const totalIncome = incomes.reduce(
+      (a, i) => a + toUserCurrency(Number(i.amount), getIncomeCurrency(i)),
+      0
+    );
+    const totalExpenses = expenses.reduce(
+      (a, e) => a + toUserCurrency(Number(e.amount), getExpenseCurrency(e)),
+      0
+    );
+    const paidExpenses = expenses
+      .filter((e) => e.paid)
+      .reduce((a, e) => a + toUserCurrency(Number(e.amount), getExpenseCurrency(e)), 0);
     const pendingExpenses = totalExpenses - paidExpenses;
-    // Convert each wallet balance to user's currency before summing
     const totalWallets = wallets.reduce((a, w) => {
       const wCurrency = (w as any).currency || "BRL";
       return a + toUserCurrency(Number(w.balance), wCurrency);
     }, 0);
+
     return {
-      month, year, totalIncome, totalExpenses, paidExpenses, pendingExpenses,
-      totalWallets, availableBalance: totalWallets - pendingExpenses,
+      month,
+      year,
+      totalIncome,
+      totalExpenses,
+      paidExpenses,
+      pendingExpenses,
+      totalWallets,
+      availableBalance: totalWallets - pendingExpenses,
       monthlyFlow: totalIncome - totalExpenses,
       commitmentPercent: totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 100) : 0,
-      wallets: wallets.map(w => {
+      wallets: wallets.map((w) => {
         const wCurrency = (w as any).currency || "BRL";
         return {
           name: w.name,
@@ -120,8 +137,22 @@ export default function Consultor() {
           currency: wCurrency,
         };
       }),
-      savingsGoals: savingsGoals.map((g: any) => ({ name: g.name, target_amount: Number(g.target_amount), current_amount: Number(g.current_amount) })),
-      expensesList: expenses.map(e => ({ name: e.name, amount: Number(e.amount), paid: e.paid, due_date: e.due_date })),
+      savingsGoals: savingsGoals.map((g: any) => ({
+        name: g.name,
+        target_amount: Number(g.target_amount),
+        current_amount: Number(g.current_amount),
+      })),
+      expensesList: expenses.map((e) => {
+        const eCurrency = getExpenseCurrency(e);
+        return {
+          name: e.name,
+          amount: toUserCurrency(Number(e.amount), eCurrency),
+          originalAmount: Number(e.amount),
+          currency: eCurrency,
+          paid: e.paid,
+          due_date: e.due_date,
+        };
+      }),
     };
   }, [incomes, expenses, wallets, savingsGoals, month, year, currency.code, rates]);
 
