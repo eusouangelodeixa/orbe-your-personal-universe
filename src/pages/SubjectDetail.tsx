@@ -315,6 +315,11 @@ export default function SubjectDetail() {
 
   const sendChat = async () => {
     if (!chatInput.trim() || chatLoading || !subject) return;
+    if (!session?.access_token) {
+      toast.error("Sua sessão expirou. Entre novamente para usar o agente.");
+      return;
+    }
+
     const userMsg: Message = { role: "user", content: chatInput.trim() };
     const newMsgs = [...chatMessages, userMsg];
     setChatMessages(newMsgs);
@@ -334,11 +339,16 @@ export default function SubjectDetail() {
     try {
       await streamChat({
         messages: newMsgs, subjectName: subject.name, subjectType: subject.type,
-        ementaText: subject.ementa_text,
+        ementaText: subject.ementa_text, accessToken: session.access_token,
         onDelta: upsert,
-        onDone: () => { setChatLoading(false); addMsg.mutate({ subject_id: subject.id, role: "assistant", content: assistant }); },
+        onDone: () => { if (assistant.trim()) addMsg.mutate({ subject_id: subject.id, role: "assistant", content: assistant }); },
       });
-    } catch { setChatLoading(false); }
+      if (!assistant.trim()) toast.error("O agente não retornou resposta.");
+    } catch {
+      toast.error("Não foi possível obter resposta do agente.");
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   if (!subject) return (
