@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Upload, Receipt, CreditCard, Trash2, Pencil } from "lucide-react";
 import { useInstallments, useAddInstallment, useDeleteInstallment } from "@/hooks/useInstallments";
 import { useCategoryBudgets, useUpsertCategoryBudget, useDeleteCategoryBudget } from "@/hooks/useCategoryBudgets";
-import { useCategories, useExpenses, useWallets } from "@/hooks/useFinance";
+import { useBudgetSpending, useCategories, useWallets } from "@/hooks/useFinance";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
