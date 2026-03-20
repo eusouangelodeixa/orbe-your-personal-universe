@@ -833,6 +833,11 @@ export default function Admin() {
               </Card>
             )}
           </TabsContent>
+
+          {/* BROADCAST */}
+          <TabsContent value="broadcast">
+            <BroadcastPanel />
+          </TabsContent>
         </Tabs>
       </div>
     </AppLayout>
