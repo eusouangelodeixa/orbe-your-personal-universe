@@ -115,18 +115,25 @@ function MermaidBlock({ chart }: { chart: string }) {
   );
 }
 
-async function streamChat({ messages, subjectName, subjectType, ementaText, onDelta, onDone }: {
+async function streamChat({ messages, subjectName, subjectType, ementaText, accessToken, onDelta, onDone }: {
 
-  messages: Message[]; subjectName: string; subjectType: string; ementaText?: string | null;
+  messages: Message[]; subjectName: string; subjectType: string; ementaText?: string | null; accessToken?: string | null;
   onDelta: (t: string) => void; onDone: () => void;
 }) {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
   const resp = await fetch(CHAT_URL, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` },
+    headers,
     body: JSON.stringify({ messages, subjectName, subjectType, ementaText }),
   });
   if (resp.status === 429) { toast.error("Limite atingido."); throw new Error("Rate limited"); }
   if (resp.status === 402) { toast.error("Créditos insuficientes."); throw new Error("Payment required"); }
+  if (resp.status === 401 || resp.status === 403) {
+    toast.error("Sua sessão expirou. Entre novamente para usar o agente.");
+    throw new Error("Unauthorized");
+  }
   if (!resp.ok || !resp.body) throw new Error("Falha ao conectar");
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
@@ -153,7 +160,7 @@ async function streamChat({ messages, subjectName, subjectType, ementaText, onDe
 export default function SubjectDetail() {
   const { subjectId } = useParams<{ subjectId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { data: subjects = [] } = useSubjects();
   const subject = subjects.find(s => s.id === subjectId);
   const updateSubject = useUpdateSubject();
@@ -308,6 +315,11 @@ export default function SubjectDetail() {
 
   const sendChat = async () => {
     if (!chatInput.trim() || chatLoading || !subject) return;
+    if (!session?.access_token) {
+      toast.error("Sua sessão expirou. Entre novamente para usar o agente.");
+      return;
+    }
+
     const userMsg: Message = { role: "user", content: chatInput.trim() };
     const newMsgs = [...chatMessages, userMsg];
     setChatMessages(newMsgs);
@@ -327,11 +339,16 @@ export default function SubjectDetail() {
     try {
       await streamChat({
         messages: newMsgs, subjectName: subject.name, subjectType: subject.type,
-        ementaText: subject.ementa_text,
+        ementaText: subject.ementa_text, accessToken: session.access_token,
         onDelta: upsert,
-        onDone: () => { setChatLoading(false); addMsg.mutate({ subject_id: subject.id, role: "assistant", content: assistant }); },
+        onDone: () => { if (assistant.trim()) addMsg.mutate({ subject_id: subject.id, role: "assistant", content: assistant }); },
       });
-    } catch { setChatLoading(false); }
+      if (!assistant.trim()) toast.error("O agente não retornou resposta.");
+    } catch {
+      toast.error("Não foi possível obter resposta do agente.");
+    } finally {
+      setChatLoading(false);
+    }
   };
 
   if (!subject) return (
