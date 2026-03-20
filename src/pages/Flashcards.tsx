@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Loader2, Brain, RotateCw, Trash2, Sparkles, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
+import { Plus, Loader2, Brain, RotateCw, Trash2, Sparkles } from "lucide-react";
 import { useSubjects } from "@/hooks/useStudies";
 import { useFlashcards, useDueFlashcards, useAddFlashcard, useAddFlashcardsBatch, useReviewFlashcard, useDeleteFlashcard, Flashcard } from "@/hooks/useFlashcards";
 import { supabase } from "@/integrations/supabase/client";
