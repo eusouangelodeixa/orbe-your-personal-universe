@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TrendingUp, Plus, Loader2, Scale, Camera, Image, Dumbbell } from "lucide-react";
+import { PhotoComparison } from "@/components/PhotoComparison";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -279,6 +280,10 @@ export default function FitProgress() {
 
           {/* Photos tab */}
           <TabsContent value="photos" className="space-y-4">
+            {allPhotos.length >= 2 && (
+              <PhotoComparison photos={allPhotos} />
+            )}
+
             {allPhotos.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {allPhotos.map((photo, i) => (
