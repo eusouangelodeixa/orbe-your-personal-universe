@@ -28,6 +28,9 @@ import FitChat from "./pages/FitChat";
 import Tarefas from "./pages/Tarefas";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import Flashcards from "./pages/Flashcards";
+import UnifiedDashboard from "./pages/UnifiedDashboard";
+import FinanceExtras from "./pages/FinanceExtras";
 
 const queryClient = new QueryClient();
 
