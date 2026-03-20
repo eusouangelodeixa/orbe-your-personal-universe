@@ -155,6 +155,73 @@ export function useExpenses(month = now.getMonth() + 1, year = now.getFullYear()
   });
 }
 
+export function useBudgetSpending(month = now.getMonth() + 1, year = now.getFullYear()) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["budget_spending", user?.id, month, year],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data: expenses, error: expensesError } = await supabase
+        .from("expenses")
+        .select("id, category_id, amount")
+        .eq("user_id", user!.id)
+        .eq("month", month)
+        .eq("year", year);
+
+      if (expensesError) throw expensesError;
+
+      const expenseRows = (expenses || []) as Pick<Expense, "id" | "category_id" | "amount">[];
+      const expenseIds = expenseRows.map((expense) => expense.id);
+
+      if (expenseIds.length === 0) {
+        return {} as Record<string, number>;
+      }
+
+      const { data: transactions, error: transactionsError } = await supabase
+        .from("wallet_transactions")
+        .select("reference_id, amount, exchange_rate_to_brl, type")
+        .eq("user_id", user!.id)
+        .eq("reference_type", "expense")
+        .in("reference_id", expenseIds);
+
+      if (transactionsError) throw transactionsError;
+
+      const transactionAmountByExpenseId = new Map<string, number>();
+
+      ((transactions || []) as Pick<WalletTransaction, "reference_id" | "amount" | "exchange_rate_to_brl" | "type">[])
+        .forEach((transaction) => {
+          if (transaction.type !== "debit" || !transaction.reference_id) return;
+
+          const rawAmount = Number(transaction.amount) || 0;
+          const exchangeRate = Number(transaction.exchange_rate_to_brl);
+          const amountInBrl = Number.isFinite(exchangeRate) && exchangeRate > 0
+            ? rawAmount * exchangeRate
+            : rawAmount;
+
+          transactionAmountByExpenseId.set(
+            transaction.reference_id,
+            Number(amountInBrl.toFixed(2)),
+          );
+        });
+
+      return expenseRows.reduce<Record<string, number>>((accumulator, expense) => {
+        if (!expense.category_id) return accumulator;
+
+        const fallbackAmount = Math.abs(Number(expense.amount) || 0);
+        const normalizedAmount = Math.abs(
+          transactionAmountByExpenseId.get(expense.id) ?? fallbackAmount,
+        );
+
+        accumulator[expense.category_id] = Number(
+          ((accumulator[expense.category_id] || 0) + normalizedAmount).toFixed(2),
+        );
+
+        return accumulator;
+      }, {});
+    },
+  });
+}
+
 // ========== WALLETS ==========
 
 export function useWallets() {
