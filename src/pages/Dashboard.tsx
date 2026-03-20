@@ -151,7 +151,7 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3">
+        <OnboardingBanner />
           <div>
             <h1 className="text-3xl font-bold font-display">Dashboard Financeiro</h1>
             <p className="text-muted-foreground">Visão geral das suas finanças</p>
