@@ -517,11 +517,54 @@ async function convertRecordsToUserCurrency(
 
 
 
+async function fetchChatCompletionWithFallback(requestBody: Record<string, unknown>, lovableApiKey?: string) {
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  type AIProvider = "lovable" | "openai";
+
+  if (!lovableApiKey && !OPENAI_API_KEY) {
+    throw new Error("Nenhum provedor de IA configurado");
+  }
+
+  const execute = async (provider: AIProvider) => {
+    const isLovable = provider === "lovable";
+    const apiKey = isLovable ? lovableApiKey : OPENAI_API_KEY;
+    const endpoint = isLovable
+      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+      : "https://api.openai.com/v1/chat/completions";
+    const model = isLovable ? "google/gemini-3-flash-preview" : "gpt-4.1";
+
+    if (!apiKey) {
+      throw new Error(`${isLovable ? "LOVABLE_API_KEY" : "OPENAI_API_KEY"} not configured`);
+    }
+
+    return fetch(endpoint, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...requestBody,
+        model,
+      }),
+    });
+  };
+
+  let res = await execute(lovableApiKey ? "lovable" : "openai");
+
+  if (lovableApiKey && !res.ok && [402, 403].includes(res.status) && OPENAI_API_KEY) {
+    const fallbackReason = await res.clone().text();
+    console.warn("Lovable AI indisponível no whatsapp-hub, usando fallback OpenAI", {
+      status: res.status,
+      reason: fallbackReason.slice(0, 200),
+    });
+    res = await execute("openai");
+  }
+
+  return res;
+}
+
 async function callAI(apiKey: string, systemPrompt: string, userMessage: string, tools?: any[], toolChoice?: any, chatHistory?: Array<{role: string, content: string}>) {
   const messages: any[] = [
     { role: "system", content: systemPrompt },
   ];
-  // Add recent chat history for context
   if (chatHistory?.length) {
     for (const msg of chatHistory) {
       messages.push({ role: msg.role === "assistant" ? "assistant" : "user", content: msg.content });
@@ -529,14 +572,10 @@ async function callAI(apiKey: string, systemPrompt: string, userMessage: string,
   }
   messages.push({ role: "user", content: userMessage });
 
-  const body: any = { model: "google/gemini-3-flash-preview", messages };
+  const body: any = { messages };
   if (tools) { body.tools = tools; body.tool_choice = toolChoice; }
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await fetchChatCompletionWithFallback(body, apiKey);
 
   if (!res.ok) {
     const t = await res.text();
@@ -603,54 +642,110 @@ async function downloadMediaDirect(url: string): Promise<{ base64: string; mimeT
   return { base64: uint8ToBase64(buffer), mimeType: ct.split(";")[0].trim() };
 }
 
-async function transcribeAudio(_apiKey: string, audioBase64: string, mimeType = "audio/ogg"): Promise<string> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+async function transcribeAudio(lovableApiKey: string | undefined, audioBase64: string, mimeType = "audio/ogg"): Promise<string> {
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 
   let cleanMime = mimeType.split(";")[0].trim();
   if (!cleanMime.startsWith("audio/")) cleanMime = "audio/ogg";
 
-  console.log(`Transcribing audio via Lovable AI (Gemini): mime=${cleanMime}, base64_length=${audioBase64.length}`);
+  const extMap: Record<string, string> = {
+    "audio/ogg": "ogg",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/wav": "wav",
+    "audio/webm": "webm",
+    "audio/x-m4a": "m4a",
+  };
+  const ext = extMap[cleanMime] || "ogg";
 
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${LOVABLE_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        {
-          role: "system",
-          content: "Você é um transcritor de áudio. Transcreva o áudio fornecido em texto exato, em português. Retorne APENAS a transcrição, sem comentários, sem aspas, sem prefixos. Se o áudio estiver inaudível, retorne '[inaudível]'.",
-        },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Transcreva este áudio:" },
-            {
-              type: "image_url",
-              image_url: { url: `data:${cleanMime};base64,${audioBase64}` },
-            },
-          ],
-        },
-      ],
-    }),
-  });
+  const binaryStr = atob(audioBase64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
-  if (!res.ok) {
-    const t = await res.text();
-    console.error("Lovable AI transcription error:", res.status, t);
-    if (res.status === 429) throw new Error("Limite de requisições atingido para transcrição.");
-    if (res.status === 402) throw new Error("Créditos insuficientes para transcrição.");
-    throw new Error(`Não consegui transcrever o áudio [${res.status}]: ${t.slice(0, 200)}`);
+  const transcribeWithLovable = async () => {
+    if (!lovableApiKey) throw Object.assign(new Error("LOVABLE_API_KEY not configured"), { status: 500 });
+
+    console.log(`Transcribing audio via Lovable AI: mime=${cleanMime}, base64_length=${audioBase64.length}`);
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          {
+            role: "system",
+            content: "Você é um transcritor de áudio. Transcreva o áudio fornecido em texto exato, em português. Retorne APENAS a transcrição, sem comentários, sem aspas, sem prefixos. Se o áudio estiver inaudível, retorne '[inaudível]'.",
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Transcreva este áudio:" },
+              {
+                type: "image_url",
+                image_url: { url: `data:${cleanMime};base64,${audioBase64}` },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const t = await res.text();
+      console.error("Lovable AI transcription error:", res.status, t);
+      throw Object.assign(new Error(`Lovable transcription error [${res.status}]`), { status: res.status, details: t.slice(0, 200) });
+    }
+
+    const data = await res.json();
+    return (data.choices?.[0]?.message?.content || "").trim();
+  };
+
+  const transcribeWithOpenAI = async () => {
+    if (!OPENAI_API_KEY) throw Object.assign(new Error("OPENAI_API_KEY not configured"), { status: 500 });
+
+    console.log(`Transcribing audio via OpenAI fallback: mime=${cleanMime}, ext=${ext}, bytes=${bytes.length}`);
+    const formData = new FormData();
+    formData.append("file", new Blob([bytes], { type: cleanMime }), `audio.${ext}`);
+    formData.append("model", "gpt-4o-transcribe");
+    formData.append("language", "pt");
+
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const t = await res.text();
+      console.error("OpenAI transcription fallback error:", res.status, t);
+      throw Object.assign(new Error(`OpenAI transcription error [${res.status}]`), { status: res.status, details: t.slice(0, 200) });
+    }
+
+    const data = await res.json();
+    return (data.text || "").trim();
+  };
+
+  try {
+    const transcription = lovableApiKey ? await transcribeWithLovable() : await transcribeWithOpenAI();
+    console.log(`Transcription result: "${transcription.slice(0, 100)}"`);
+    return transcription;
+  } catch (error) {
+    const status = Number((error as any)?.status || 0);
+
+    if (lovableApiKey && [402, 403].includes(status) && OPENAI_API_KEY) {
+      console.warn("Lovable AI indisponível para transcrição, usando fallback OpenAI", { status });
+      const fallbackTranscription = await transcribeWithOpenAI();
+      console.log(`Transcription fallback result: "${fallbackTranscription.slice(0, 100)}"`);
+      return fallbackTranscription;
+    }
+
+    if (status === 429) throw new Error("Limite de requisições atingido para transcrição.");
+    if ([402, 403].includes(status)) throw new Error("Serviço de transcrição temporariamente indisponível.");
+    throw error instanceof Error ? error : new Error("Não consegui transcrever o áudio.");
   }
-
-  const data = await res.json();
-  const transcription = (data.choices?.[0]?.message?.content || "").trim();
-  console.log(`Transcription result: "${transcription.slice(0, 100)}"`);
-  return transcription;
 }
 
 // ========== INTENT PARSER ==========

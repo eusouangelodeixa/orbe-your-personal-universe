@@ -559,10 +559,55 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY não configurada");
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!LOVABLE_API_KEY && !OPENAI_API_KEY) throw new Error("Nenhum provedor de IA configurado");
+
+    type AIProvider = "lovable" | "openai";
+    let aiProvider: AIProvider = LOVABLE_API_KEY ? "lovable" : "openai";
 
     const body = await req.json();
     const { messages, agent, extraSystemPrompt, stream: shouldStream = true, user_id: bodyUserId } = body;
+
+    async function fetchChatCompletion(requestBody: Record<string, unknown>) {
+      const execute = async (provider: AIProvider) => {
+        const isLovable = provider === "lovable";
+        const apiKey = isLovable ? LOVABLE_API_KEY : OPENAI_API_KEY;
+        const endpoint = isLovable
+          ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+          : "https://api.openai.com/v1/chat/completions";
+        const model = isLovable ? "google/gemini-3-flash-preview" : "gpt-4.1";
+
+        if (!apiKey) {
+          throw new Error(`${isLovable ? "LOVABLE_API_KEY" : "OPENAI_API_KEY"} não configurada`);
+        }
+
+        return fetch(endpoint, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...requestBody,
+            model,
+          }),
+        });
+      };
+
+      let response = await execute(aiProvider);
+
+      if (aiProvider === "lovable" && !response.ok && [402, 403].includes(response.status) && OPENAI_API_KEY) {
+        const fallbackReason = await response.clone().text();
+        console.warn("Lovable AI indisponível no agent-orchestrator, usando fallback OpenAI", {
+          status: response.status,
+          reason: fallbackReason.slice(0, 200),
+        });
+        aiProvider = "openai";
+        response = await execute("openai");
+      }
+
+      return response;
+    }
 
     // Allow internal service calls with explicit user_id (WhatsApp integration)
     const internalKeyHeader = req.headers.get("x-internal-service-key");
@@ -627,7 +672,6 @@ serve(async (req) => {
     // ── Helper: make AI call (streaming or JSON) ──
     async function makeFinalCall(msgs: any[], depth = 0): Promise<Response> {
       const finalRequestBody: Record<string, unknown> = {
-        model: "google/gemini-3-flash-preview",
         messages: msgs,
         stream: shouldStream,
       };
@@ -637,18 +681,26 @@ serve(async (req) => {
         finalRequestBody.tools = TOOLS;
       }
 
-      const finalResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(finalRequestBody),
-      });
+      const finalResp = await fetchChatCompletion(finalRequestBody);
 
       if (!finalResp.ok) {
         const t = await finalResp.text();
-        console.error("AI gateway error (final):", finalResp.status, t);
+        console.error(`AI error (final:${aiProvider}):`, finalResp.status, t);
+
+        if (finalResp.status === 429) {
+          return new Response(JSON.stringify({ error: "Limite de requisições atingido." }), {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if ([402, 403].includes(finalResp.status)) {
+          return new Response(JSON.stringify({ error: "Serviço de IA temporariamente indisponível." }), {
+            status: 402,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
         throw new Error("Erro na resposta final");
       }
 
@@ -670,6 +722,7 @@ serve(async (req) => {
           toolCallCount: toolCalls.length,
           resultKeys: Object.keys(result || {}),
           messageKeys: message ? Object.keys(message) : [],
+          provider: aiProvider,
         });
       }
 
@@ -727,17 +780,9 @@ serve(async (req) => {
     }
 
     // ── Step 1: First AI call with tools ──
-    const firstResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
-        tools: TOOLS,
-      }),
+    const firstResp = await fetchChatCompletion({
+      messages: [{ role: "system", content: systemPrompt }, ...messages],
+      tools: TOOLS,
     });
 
     if (!firstResp.ok) {
@@ -747,13 +792,13 @@ serve(async (req) => {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes." }), {
+      if ([402, 403].includes(status)) {
+        return new Response(JSON.stringify({ error: "Serviço de IA temporariamente indisponível." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const t = await firstResp.text();
-      console.error("AI gateway error (step 1):", status, t);
+      console.error(`AI error (step 1:${aiProvider}):`, status, t);
       throw new Error("Erro na IA");
     }
 
