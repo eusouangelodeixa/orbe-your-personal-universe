@@ -24,7 +24,7 @@ export default function FinanceExtras() {
   const [year, setYear] = useState(now.getFullYear());
 
   const { data: categories = [] } = useCategories();
-  const { data: expenses = [] } = useExpenses(month, year);
+  const { data: budgetSpending = {} } = useBudgetSpending(month, year);
   const { data: wallets = [] } = useWallets();
   const { data: installments = [] } = useInstallments();
   const { data: budgets = [] } = useCategoryBudgets(month, year);
