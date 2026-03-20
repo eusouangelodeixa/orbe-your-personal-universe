@@ -277,6 +277,7 @@ export default function Admin() {
             <TabsTrigger value="connections" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Link2 className="h-3.5 w-3.5" /> Conexões</TabsTrigger>
             <TabsTrigger value="financial" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><DollarSign className="h-3.5 w-3.5" /> Assinaturas</TabsTrigger>
             <TabsTrigger value="mozambique" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Globe className="h-3.5 w-3.5" /> Moçambique</TabsTrigger>
+            <TabsTrigger value="broadcast" className="gap-1.5 text-xs data-[state=active]:bg-primary/10 data-[state=active]:text-primary"><Megaphone className="h-3.5 w-3.5" /> Broadcast</TabsTrigger>
           </TabsList>
 
           {/* METRICS */}
