@@ -311,6 +311,11 @@ export default function Cofrinho() {
           </div>
         )}
 
+        {/* Savings Reminders */}
+        {goals.length > 0 && (
+          <SavingsReminders goals={goals.map((g: any) => ({ id: g.id, name: g.name }))} />
+        )}
+
         {/* Edit Goal Dialog */}
         <Dialog open={!!editGoal} onOpenChange={(open) => !open && setEditGoal(null)}>
           <DialogContent>
