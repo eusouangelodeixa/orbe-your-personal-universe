@@ -17,9 +17,10 @@ import { toast } from "sonner";
 
 export default function Flashcards() {
   const { data: subjects = [] } = useSubjects();
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
-  const { data: allCards = [], isLoading } = useFlashcards(selectedSubject || undefined);
-  const { data: dueCards = [], isLoading: loadingDue } = useDueFlashcards(selectedSubject || undefined);
+  const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const subjectFilter = selectedSubject === "all" ? undefined : selectedSubject;
+  const { data: allCards = [], isLoading } = useFlashcards(subjectFilter);
+  const { data: dueCards = [], isLoading: loadingDue } = useDueFlashcards(subjectFilter);
   const addCard = useAddFlashcard();
   const addBatch = useAddFlashcardsBatch();
   const reviewCard = useReviewFlashcard();
@@ -228,7 +229,7 @@ export default function Flashcards() {
           <Select value={selectedSubject} onValueChange={setSelectedSubject}>
             <SelectTrigger className="w-[200px]"><SelectValue placeholder="Todas as disciplinas" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
               {subjects.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
