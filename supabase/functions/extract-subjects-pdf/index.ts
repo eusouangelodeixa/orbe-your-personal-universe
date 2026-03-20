@@ -40,7 +40,8 @@ serve(async (req) => {
     }
 
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) {
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    if (!apiKey && !OPENAI_API_KEY) {
       return new Response(JSON.stringify({ error: "AI not configured" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -58,7 +59,7 @@ serve(async (req) => {
 
     const mimeType = file.type || "application/pdf";
 
-    // Use Gemini with vision to extract subjects from the PDF
+    // Use AI with vision/tool calling to extract subjects from the PDF
     const systemPrompt = `Você é um extrator de grade horária acadêmica. Analise o PDF/imagem do horário de aulas e extraia TODAS as disciplinas encontradas.
 
 Para cada disciplina, extraia:
@@ -77,75 +78,96 @@ REGRAS:
 - Se o PDF tiver formato de grade/tabela, interprete linhas e colunas corretamente
 - Retorne APENAS disciplinas reais, não cabeçalhos ou labels da tabela`;
 
-    const aiResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Extraia todas as disciplinas deste documento de grade horária. Retorne usando a função extract_subjects.",
-              },
-              {
-                type: "image_url",
-                image_url: { url: `data:${mimeType};base64,${base64}` },
-              },
-            ],
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "extract_subjects",
-              description: "Return extracted subjects from the schedule PDF",
-              parameters: {
-                type: "object",
-                properties: {
-                  subjects: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        name: { type: "string", description: "Subject name" },
-                        teacher: { type: "string", description: "Professor name or null" },
-                        schedule: {
-                          type: "array",
-                          items: {
-                            type: "object",
-                            properties: {
-                              day: { type: "string", enum: ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"] },
-                              start: { type: "string", description: "Start time HH:MM" },
-                              end: { type: "string", description: "End time HH:MM" },
-                            },
-                            required: ["day", "start", "end"],
+    const requestBody = {
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Extraia todas as disciplinas deste documento de grade horária. Retorne usando a função extract_subjects.",
+            },
+            {
+              type: "image_url",
+              image_url: { url: `data:${mimeType};base64,${base64}` },
+            },
+          ],
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "extract_subjects",
+            description: "Return extracted subjects from the schedule PDF",
+            parameters: {
+              type: "object",
+              properties: {
+                subjects: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      name: { type: "string", description: "Subject name" },
+                      teacher: { type: "string", description: "Professor name or null" },
+                      schedule: {
+                        type: "array",
+                        items: {
+                          type: "object",
+                          properties: {
+                            day: { type: "string", enum: ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"] },
+                            start: { type: "string", description: "Start time HH:MM" },
+                            end: { type: "string", description: "End time HH:MM" },
                           },
+                          required: ["day", "start", "end"],
                         },
-                        weekly_hours: { type: "number" },
-                        type: { type: "string", enum: ["teorica", "pratica", "laboratorio"] },
-                        course: { type: "string" },
-                        semester: { type: "string" },
                       },
-                      required: ["name", "schedule"],
+                      weekly_hours: { type: "number" },
+                      type: { type: "string", enum: ["teorica", "pratica", "laboratorio"] },
+                      course: { type: "string" },
+                      semester: { type: "string" },
                     },
+                    required: ["name", "schedule"],
                   },
                 },
-                required: ["subjects"],
               },
+              required: ["subjects"],
             },
           },
-        ],
-        tool_choice: { type: "function", function: { name: "extract_subjects" } },
-      }),
-    });
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "extract_subjects" } },
+    };
+
+    const runAiRequest = async (provider: "lovable" | "openai") => {
+      const isLovable = provider === "lovable";
+      const token = isLovable ? apiKey : OPENAI_API_KEY;
+      const endpoint = isLovable
+        ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+        : "https://api.openai.com/v1/chat/completions";
+      const model = isLovable ? "google/gemini-2.5-flash" : "gpt-4o";
+
+      return fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ...requestBody, model }),
+      });
+    };
+
+    let aiResp = apiKey ? await runAiRequest("lovable") : await runAiRequest("openai");
+
+    if (apiKey && !aiResp.ok && [402, 403].includes(aiResp.status) && OPENAI_API_KEY) {
+      const fallbackReason = await aiResp.clone().text();
+      console.warn("Lovable AI indisponível no extract-subjects-pdf, usando fallback OpenAI", {
+        status: aiResp.status,
+        reason: fallbackReason.slice(0, 200),
+      });
+      aiResp = await runAiRequest("openai");
+    }
 
     if (!aiResp.ok) {
       const errText = await aiResp.text();
@@ -156,8 +178,8 @@ REGRAS:
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (aiResp.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos de IA esgotados." }), {
+      if ([402, 403].includes(aiResp.status)) {
+        return new Response(JSON.stringify({ error: "Serviço de IA temporariamente indisponível." }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
