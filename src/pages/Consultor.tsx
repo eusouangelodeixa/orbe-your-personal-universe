@@ -97,21 +97,38 @@ export default function Consultor() {
   };
 
   const financialContext = useMemo(() => {
-    const totalIncome = incomes.reduce((a, i) => a + Number(i.amount), 0);
-    const totalExpenses = expenses.reduce((a, e) => a + Number(e.amount), 0);
-    const paidExpenses = expenses.filter(e => e.paid).reduce((a, e) => a + Number(e.amount), 0);
+    const getIncomeCurrency = (income: any) => income.wallets?.currency || "BRL";
+    const getExpenseCurrency = (expense: any) => expense.wallets?.currency || "BRL";
+
+    const totalIncome = incomes.reduce(
+      (a, i) => a + toUserCurrency(Number(i.amount), getIncomeCurrency(i)),
+      0
+    );
+    const totalExpenses = expenses.reduce(
+      (a, e) => a + toUserCurrency(Number(e.amount), getExpenseCurrency(e)),
+      0
+    );
+    const paidExpenses = expenses
+      .filter((e) => e.paid)
+      .reduce((a, e) => a + toUserCurrency(Number(e.amount), getExpenseCurrency(e)), 0);
     const pendingExpenses = totalExpenses - paidExpenses;
-    // Convert each wallet balance to user's currency before summing
     const totalWallets = wallets.reduce((a, w) => {
       const wCurrency = (w as any).currency || "BRL";
       return a + toUserCurrency(Number(w.balance), wCurrency);
     }, 0);
+
     return {
-      month, year, totalIncome, totalExpenses, paidExpenses, pendingExpenses,
-      totalWallets, availableBalance: totalWallets - pendingExpenses,
+      month,
+      year,
+      totalIncome,
+      totalExpenses,
+      paidExpenses,
+      pendingExpenses,
+      totalWallets,
+      availableBalance: totalWallets - pendingExpenses,
       monthlyFlow: totalIncome - totalExpenses,
       commitmentPercent: totalIncome > 0 ? Math.round((totalExpenses / totalIncome) * 100) : 0,
-      wallets: wallets.map(w => {
+      wallets: wallets.map((w) => {
         const wCurrency = (w as any).currency || "BRL";
         return {
           name: w.name,
@@ -120,8 +137,22 @@ export default function Consultor() {
           currency: wCurrency,
         };
       }),
-      savingsGoals: savingsGoals.map((g: any) => ({ name: g.name, target_amount: Number(g.target_amount), current_amount: Number(g.current_amount) })),
-      expensesList: expenses.map(e => ({ name: e.name, amount: Number(e.amount), paid: e.paid, due_date: e.due_date })),
+      savingsGoals: savingsGoals.map((g: any) => ({
+        name: g.name,
+        target_amount: Number(g.target_amount),
+        current_amount: Number(g.current_amount),
+      })),
+      expensesList: expenses.map((e) => {
+        const eCurrency = getExpenseCurrency(e);
+        return {
+          name: e.name,
+          amount: toUserCurrency(Number(e.amount), eCurrency),
+          originalAmount: Number(e.amount),
+          currency: eCurrency,
+          paid: e.paid,
+          due_date: e.due_date,
+        };
+      }),
     };
   }, [incomes, expenses, wallets, savingsGoals, month, year, currency.code, rates]);
 

@@ -144,7 +144,7 @@ export function useExpenses(month = now.getMonth() + 1, year = now.getFullYear()
     queryFn: async () => {
       const { data, error } = await supabase
         .from("expenses")
-        .select("*, categories(name, icon, color), wallets(name)")
+        .select("*, categories(name, icon, color), wallets(name, currency)")
         .eq("user_id", user!.id)
         .eq("month", month)
         .eq("year", year)
