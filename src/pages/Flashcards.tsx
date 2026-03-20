@@ -111,53 +111,17 @@ export default function Flashcards() {
 
   // Review mode
   if (reviewMode && dueCards.length > 0) {
-    const card = dueCards[reviewIndex];
     return (
       <AppLayout>
-        <div className="max-w-xl mx-auto space-y-6 pt-8">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold font-display flex items-center gap-2">
-              <Brain className="h-6 w-6 text-primary" /> Revisão
-            </h1>
-            <Badge variant="outline">{reviewIndex + 1} / {dueCards.length}</Badge>
-          </div>
-
-          <Card className="min-h-[250px] flex flex-col justify-center cursor-pointer" onClick={() => setShowAnswer(true)}>
-            <CardContent className="text-center py-12">
-              <p className="text-lg font-medium mb-4">{card.front}</p>
-              {showAnswer ? (
-                <div className="mt-6 pt-6 border-t border-border">
-                  <p className="text-base text-muted-foreground">{card.back}</p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground mt-4">Toque para ver a resposta</p>
-              )}
-            </CardContent>
-          </Card>
-
-          {showAnswer && (
-            <div className="grid grid-cols-4 gap-2">
-              <Button variant="destructive" onClick={() => handleReview(0)} className="flex-col h-auto py-3">
-                <XCircle className="h-5 w-5 mb-1" />
-                <span className="text-xs">Errei</span>
-              </Button>
-              <Button variant="outline" onClick={() => handleReview(2)} className="flex-col h-auto py-3 text-orange-500 border-orange-500/30">
-                <ArrowRight className="h-5 w-5 mb-1" />
-                <span className="text-xs">Difícil</span>
-              </Button>
-              <Button variant="outline" onClick={() => handleReview(4)} className="flex-col h-auto py-3 text-blue-500 border-blue-500/30">
-                <CheckCircle2 className="h-5 w-5 mb-1" />
-                <span className="text-xs">Bom</span>
-              </Button>
-              <Button onClick={() => handleReview(5)} className="flex-col h-auto py-3 bg-emerald-600 hover:bg-emerald-700">
-                <CheckCircle2 className="h-5 w-5 mb-1" />
-                <span className="text-xs">Fácil</span>
-              </Button>
-            </div>
-          )}
-
-          <Button variant="ghost" onClick={() => setReviewMode(false)} className="w-full">Sair da revisão</Button>
-        </div>
+        <FlashcardReview
+          dueCards={dueCards}
+          allCards={allCards}
+          onReview={(card, quality) => reviewCard.mutate({ card, quality })}
+          onExit={() => {
+            setReviewMode(false);
+            toast.success("Sessão de revisão concluída! 🎉");
+          }}
+        />
       </AppLayout>
     );
   }
