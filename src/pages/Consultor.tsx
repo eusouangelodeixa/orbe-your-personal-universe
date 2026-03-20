@@ -35,7 +35,7 @@ function buildFinancialPrompt(fc: any, formatMoney: (v: number) => string, curre
   let prompt = `DADOS FINANCEIROS DO USUÁRIO (mês ${fc.month}/${fc.year}, moeda: ${currencyCode}):
 Renda total: ${fmt(fc.totalIncome)}
 Gastos total: ${fmt(fc.totalExpenses)} (pagos: ${fmt(fc.paidExpenses)}, pendentes: ${fmt(fc.pendingExpenses)})
-Carteiras: ${(fc.wallets || []).map((w: any) => `${w.name} (${w.currency || currencyCode}): ${fmt(w.balance)}`).join(", ")}
+Carteiras: ${(fc.wallets || []).map((w: any) => `${w.name} (${w.currency}): ${fmt(w.balance)}${w.currency !== currencyCode ? ` → ${fmt(w.balanceConverted)} em ${currencyCode}` : ""}`).join(", ")}
 Patrimônio total: ${fmt(fc.totalWallets)}
 Disponível: ${fmt(fc.availableBalance)}
 Fluxo mensal: ${fmt(fc.monthlyFlow)} (${fc.commitmentPercent}% comprometido)
