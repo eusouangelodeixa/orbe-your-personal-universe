@@ -87,20 +87,6 @@ export default function Flashcards() {
   const startReview = () => {
     if (dueCards.length === 0) { toast.info("Nenhum flashcard para revisar agora!"); return; }
     setReviewMode(true);
-    setReviewIndex(0);
-    setShowAnswer(false);
-  };
-
-  const handleReview = (quality: number) => {
-    const card = dueCards[reviewIndex];
-    reviewCard.mutate({ card, quality });
-    if (reviewIndex + 1 < dueCards.length) {
-      setReviewIndex(i => i + 1);
-      setShowAnswer(false);
-    } else {
-      setReviewMode(false);
-      toast.success("Sessão de revisão concluída! 🎉");
-    }
   };
 
   if (isLoading || loadingDue) {
