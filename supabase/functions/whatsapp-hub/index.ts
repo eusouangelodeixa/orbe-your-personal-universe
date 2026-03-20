@@ -352,6 +352,37 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   }
 }
 
+// ========== RATE LIMITING ==========
+
+async function checkRateLimit(supabase: any, identifier: string, endpoint: string, maxRequests = 30, windowMinutes = 5): Promise<boolean> {
+  const windowStart = new Date(Date.now() - windowMinutes * 60 * 1000).toISOString();
+
+  // Clean old entries
+  await supabase.from("rate_limits").delete().lt("window_start", windowStart);
+
+  // Check current count
+  const { data: existing } = await supabase
+    .from("rate_limits")
+    .select("id, request_count")
+    .eq("identifier", identifier)
+    .eq("endpoint", endpoint)
+    .gte("window_start", windowStart)
+    .maybeSingle();
+
+  if (existing) {
+    if (existing.request_count >= maxRequests) {
+      console.warn(`Rate limit exceeded for ${identifier} on ${endpoint}: ${existing.request_count}/${maxRequests}`);
+      return false;
+    }
+    await supabase.from("rate_limits").update({ request_count: existing.request_count + 1 }).eq("id", existing.id);
+  } else {
+    await supabase.from("rate_limits").insert({ identifier, endpoint, request_count: 1 });
+  }
+  return true;
+}
+
+// ========== WHATSAPP SENDERS ==========
+
 async function sendWhatsApp(url: string, tokenCandidates: string[], phone: string, text: string) {
   const tokens = [...new Set(tokenCandidates.map((t) => safeString(t).trim()).filter(Boolean))];
   if (!tokens.length) throw new Error("No UAZAPI token available to send reply");
@@ -386,6 +417,44 @@ async function sendWhatsApp(url: string, tokenCandidates: string[], phone: strin
   }
 
   throw lastError ?? new Error("Unable to send WhatsApp reply");
+}
+
+async function sendWhatsAppImage(url: string, token: string, phone: string, imageUrl: string, caption?: string) {
+  const number = safeString(phone).replace(/@.*$/, "");
+  const response = await fetch(`${url}/send/image`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", token },
+    body: JSON.stringify({
+      number,
+      image: imageUrl,
+      caption: caption ? `*ORBE*\n\n${caption}` : "*ORBE*",
+    }),
+  });
+  if (!response.ok) {
+    const t = await response.text();
+    console.error(`UAZAPI image send error [${response.status}]:`, t.slice(0, 300));
+  }
+  return response.ok;
+}
+
+async function sendWhatsAppButtons(url: string, token: string, phone: string, text: string, buttons: Array<{id: string, text: string}>) {
+  const number = safeString(phone).replace(/@.*$/, "");
+  const response = await fetch(`${url}/send/buttons`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", token },
+    body: JSON.stringify({
+      number,
+      title: "*ORBE*",
+      text,
+      buttons: buttons.slice(0, 3).map(b => ({ id: b.id, text: b.text })),
+    }),
+  });
+  if (!response.ok) {
+    // Fallback to text if buttons not supported
+    const fallbackText = `${text}\n\n${buttons.map((b, i) => `${i + 1}. ${b.text}`).join("\n")}`;
+    await sendWhatsApp(url, [token], phone, fallbackText);
+  }
+  return response.ok;
 }
 
 // ========== EXCHANGE RATE HELPERS ==========
