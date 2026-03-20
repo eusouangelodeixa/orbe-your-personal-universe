@@ -7,6 +7,57 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+async function fetchExchangeRates(baseCurrency: string, currencies: string[]): Promise<Record<string, number>> {
+  const unique = [...new Set(currencies.filter((currency) => currency && currency !== baseCurrency))];
+  if (!unique.length) return {};
+
+  try {
+    const resp = await fetch(`https://open.er-api.com/v6/latest/${baseCurrency}`);
+    if (!resp.ok) return {};
+
+    const data = await resp.json();
+    if (data.result !== "success") return {};
+
+    const rates: Record<string, number> = {};
+    for (const currency of unique) {
+      if (typeof data.rates?.[currency] === "number") {
+        rates[currency] = data.rates[currency];
+      }
+    }
+    return rates;
+  } catch (error) {
+    console.error("fetchExchangeRates error:", error);
+    return {};
+  }
+}
+
+function convertToBase(amount: number, fromCurrency: string, baseCurrency: string, rates: Record<string, number>) {
+  if (!fromCurrency || fromCurrency === baseCurrency) return amount;
+  const rate = rates[fromCurrency];
+  if (!rate || rate === 0) return amount;
+  return amount / rate;
+}
+
+function convertWithHistoricalOrLiveRate(
+  amount: number,
+  fromCurrency: string,
+  baseCurrency: string,
+  liveRates: Record<string, number>,
+  exchangeRateToBrl?: number | null,
+) {
+  if (!fromCurrency || fromCurrency === baseCurrency) return amount;
+
+  if (exchangeRateToBrl && fromCurrency !== "BRL") {
+    const amountInBrl = amount * Number(exchangeRateToBrl);
+    if (baseCurrency === "BRL") return amountInBrl;
+
+    const baseRateFromBrl = liveRates.BRL;
+    return baseRateFromBrl ? amountInBrl / baseRateFromBrl : amountInBrl;
+  }
+
+  return convertToBase(amount, fromCurrency, baseCurrency, liveRates);
+}
+
 // ─── Tool definitions for the AI to call ───────────────────────────────
 
 const TOOLS = [

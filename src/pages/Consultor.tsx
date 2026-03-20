@@ -44,7 +44,7 @@ Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmt(g.current_amo
   if (pendingList.length > 0) {
     prompt += `\n\nCONTAS PENDENTES (por pagar):`;
     pendingList.forEach((e: any) => {
-      prompt += `\n- ${e.name}: ${fmt(e.amount)} (vence ${e.due_date})`;
+      prompt += `\n- ${e.name}: ${fmt(e.amount)}${e.currency && e.currency !== currencyCode ? ` (orig. ${e.originalAmount} ${e.currency})` : ""} (vence ${e.due_date})`;
     });
   } else {
     prompt += `\n\nCONTAS PENDENTES: Nenhuma`;
@@ -53,13 +53,13 @@ Metas: ${(fc.savingsGoals || []).map((g: any) => `${g.name}: ${fmt(g.current_amo
   if (paidList.length > 0) {
     prompt += `\n\nCONTAS PAGAS:`;
     paidList.forEach((e: any) => {
-      prompt += `\n- ${e.name}: ${fmt(e.amount)}`;
+      prompt += `\n- ${e.name}: ${fmt(e.amount)}${e.currency && e.currency !== currencyCode ? ` (orig. ${e.originalAmount} ${e.currency})` : ""}`;
     });
   } else {
     prompt += `\n\nCONTAS PAGAS: Nenhuma`;
   }
 
-  prompt += `\n\nIMPORTANTE: A moeda do usuário é ${currencyCode}. Formate TODOS os valores monetários usando ${currencyCode}. Quando o usuário perguntar sobre "contas por pagar" ou "pendentes", liste APENAS as contas pendentes. Quando perguntar sobre "contas pagas", liste APENAS as pagas. Só mostre o resumo completo quando pedir "resumo" ou uma visão geral.`;
+  prompt += `\n\nIMPORTANTE: A moeda do usuário é ${currencyCode}. Todos os totais e valores abaixo já estão convertidos para ${currencyCode}; trate esses números como fonte da verdade e não recompute somando moedas diferentes. Formate TODOS os valores monetários usando ${currencyCode}. Quando o usuário perguntar sobre "contas por pagar" ou "pendentes", liste APENAS as contas pendentes. Quando perguntar sobre "contas pagas", liste APENAS as pagas. Só mostre o resumo completo quando pedir "resumo" ou uma visão geral.`;
 
   return prompt;
 }
