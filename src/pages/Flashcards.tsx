@@ -84,7 +84,6 @@ export default function Flashcards() {
       setGenerating(false);
     }
   };
-  };
 
   const startReview = () => {
     if (dueCards.length === 0) { toast.info("Nenhum flashcard para revisar agora!"); return; }
