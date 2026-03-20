@@ -2866,8 +2866,130 @@ async function processIncomingMessage(body: any) {
               expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
             });
             skipNormalFlow = true;
+        }
+
+        // Handle pending task time selection
+        if (pending.action_type === "select_task_time") {
+          const data = pending.action_data as any;
+          const input = normalizeText(userText);
+
+          if (input.includes("sem horario") || input.includes("sem hora") || input.includes("sem lembrete") || input.includes("nao") || input.includes("nenhum")) {
+            // Create task with date but default 23:59
+            const dueDate = buildSaoPauloDateTime(data.due_date, null, "", "23:59");
+            const { error } = await supabase.from("tasks").insert({
+              user_id: userId,
+              title: data.title,
+              description: data.description,
+              due_date: dueDate,
+              priority: data.priority || "media",
+              category: data.category || "geral",
+            });
+            if (error) throw error;
+            responseText = `✅ Tarefa criada!\n\n📋 *${data.title}*\n📅 ${data.due_date.split("-").reverse().join("/")}`;
+            skipNormalFlow = true;
+          } else {
+            const time = normalizeDueTime(userText) || extractDueTimeFromText(userText);
+            if (time) {
+              const dueDate = buildSaoPauloDateTime(data.due_date, time, "", time);
+              const { error } = await supabase.from("tasks").insert({
+                user_id: userId,
+                title: data.title,
+                description: data.description,
+                due_date: dueDate,
+                priority: data.priority || "media",
+                category: data.category || "geral",
+              });
+              if (error) throw error;
+              responseText = `✅ Tarefa criada!\n\n📋 *${data.title}*\n📅 ${data.due_date.split("-").reverse().join("/")}\n⏰ Lembrete às ${time}\n\nVou te avisar quando estiver chegando a hora!`;
+              skipNormalFlow = true;
+            } else {
+              responseText = "❌ Não entendi o horário. Responda com algo como *14h*, *18:30* ou *meio-dia*.\n\nOu diga *sem horário* para criar sem lembrete.";
+              await supabase.from("whatsapp_pending_actions").insert({
+                user_id: userId,
+                action_type: "select_task_time",
+                action_data: data,
+                expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+              });
+              skipNormalFlow = true;
+            }
           }
         }
+
+        // Handle pending task datetime selection (no date was given originally)
+        if (pending.action_type === "select_task_datetime") {
+          const data = pending.action_data as any;
+          const input = normalizeText(userText);
+
+          if (input.includes("sem prazo") || input.includes("sem data") || input.includes("sem lembrete") || input.includes("nenhum")) {
+            const { error } = await supabase.from("tasks").insert({
+              user_id: userId,
+              title: data.title,
+              description: data.description,
+              due_date: null,
+              priority: data.priority || "media",
+              category: data.category || "geral",
+            });
+            if (error) throw error;
+            responseText = `✅ Tarefa criada sem prazo!\n\n📋 *${data.title}*`;
+            skipNormalFlow = true;
+          } else {
+            // Try to parse date + time from user response
+            const now = brNow();
+            let dateStr: string | null = normalizeDateOnly(userText);
+            const time = normalizeDueTime(userText) || extractDueTimeFromText(userText);
+
+            // Handle relative dates
+            if (!dateStr) {
+              if (input.includes("hoje")) {
+                dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+              } else if (input.includes("amanha")) {
+                const tomorrow = new Date(now);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                dateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+              }
+            }
+
+            if (dateStr || time) {
+              if (!dateStr) {
+                // Only time given — assume today/tomorrow
+                const [h, m] = (time || "23:59").split(":").map(Number);
+                dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+                if (now.getHours() > h || (now.getHours() === h && now.getMinutes() >= m)) {
+                  const tomorrow = new Date(now);
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  dateStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+                }
+              }
+
+              const finalTime = time || "23:59";
+              const dueDate = buildSaoPauloDateTime(dateStr, finalTime, "", finalTime);
+              const { error } = await supabase.from("tasks").insert({
+                user_id: userId,
+                title: data.title,
+                description: data.description,
+                due_date: dueDate,
+                priority: data.priority || "media",
+                category: data.category || "geral",
+              });
+              if (error) throw error;
+              const displayDate = dateStr.split("-").reverse().join("/");
+              const timeInfo = finalTime !== "23:59" ? `\n⏰ Lembrete às ${finalTime}` : "";
+              responseText = `✅ Tarefa criada!\n\n📋 *${data.title}*\n📅 ${displayDate}${timeInfo}`;
+              if (finalTime !== "23:59") responseText += "\n\nVou te avisar quando estiver chegando a hora!";
+              skipNormalFlow = true;
+            } else {
+              responseText = "❌ Não entendi. Responda com algo como *hoje às 15h*, *amanhã 18:30*.\n\nOu diga *sem prazo* para criar sem lembrete.";
+              await supabase.from("whatsapp_pending_actions").insert({
+                user_id: userId,
+                action_type: "select_task_datetime",
+                action_data: data,
+                expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+              });
+              skipNormalFlow = true;
+            }
+          }
+        }
+      }
 
         // Handle pending expense wallet selection
         if (pending.action_type === "select_expense_wallet") {
