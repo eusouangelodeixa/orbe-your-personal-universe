@@ -32,7 +32,7 @@ export function useOnboarding() {
         .eq("user_id", user!.id)
         .maybeSingle();
       if (error) throw error;
-      return data as OnboardingProgress | null;
+      return data as unknown as OnboardingProgress | null;
     },
   });
 }
