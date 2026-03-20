@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Upload, Receipt, CreditCard, Trash2, Pencil } from "lucide-react";
 import { useInstallments, useAddInstallment, useDeleteInstallment } from "@/hooks/useInstallments";
 import { useCategoryBudgets, useUpsertCategoryBudget, useDeleteCategoryBudget } from "@/hooks/useCategoryBudgets";
-import { useCategories, useExpenses, useWallets } from "@/hooks/useFinance";
+import { useBudgetSpending, useCategories, useWallets } from "@/hooks/useFinance";
 import { useCurrency } from "@/contexts/CurrencyContext";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -24,7 +24,7 @@ export default function FinanceExtras() {
   const [year, setYear] = useState(now.getFullYear());
 
   const { data: categories = [] } = useCategories();
-  const { data: expenses = [] } = useExpenses(month, year);
+  const { data: budgetSpending = {} } = useBudgetSpending(month, year);
   const { data: wallets = [] } = useWallets();
   const { data: installments = [] } = useInstallments();
   const { data: budgets = [] } = useCategoryBudgets(month, year);
@@ -125,15 +125,10 @@ export default function FinanceExtras() {
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  // Budget analysis — only count expenses that have a matching category_id
+  // Budget analysis — normalize foreign-currency expenses to BRL before comparing with the budget limit
   const budgetAnalysis = budgets.map(b => {
     const cat = categories.find(c => c.id === b.category_id);
-    // Only sum expenses that explicitly match this budget's category
-    const spent = b.category_id
-      ? expenses
-          .filter(e => e.category_id === b.category_id)
-          .reduce((acc, e) => acc + Math.abs(Number(e.amount) || 0), 0)
-      : 0;
+    const spent = b.category_id ? budgetSpending[b.category_id] || 0 : 0;
     const pct = b.budget_limit > 0 ? Math.round((spent / b.budget_limit) * 100) : 0;
     const exceeded = pct >= 100;
     const alert = pct >= (b.alert_threshold || 80);
