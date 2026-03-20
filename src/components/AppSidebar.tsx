@@ -13,6 +13,9 @@ import {
   Utensils,
   TrendingUp,
   Shield,
+  Brain,
+  Eye,
+  CreditCard,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -37,12 +40,14 @@ const financeItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Planilha", url: "/planilha", icon: Receipt },
   { title: "Cofrinho", url: "/cofrinho", icon: PiggyBank },
+  { title: "Orçamentos", url: "/financas/extras", icon: CreditCard },
   { title: "Consultor IA", url: "/consultor", icon: Bot },
 ];
 
 const studiesItems = [
   { title: "Dashboard", url: "/estudos", icon: LayoutDashboard },
   { title: "Disciplinas", url: "/disciplinas", icon: GraduationCap },
+  { title: "Flashcards", url: "/flashcards", icon: Brain },
   { title: "Agenda", url: "/agenda", icon: Calendar },
   { title: "Tutor Central IA", url: "/estudos/chat", icon: Bot },
 ];
@@ -57,6 +62,7 @@ const fitItems = [
 
 const taskItems = [
   { title: "Tarefas", url: "/tarefas", icon: CheckSquare },
+  { title: "Visão Geral", url: "/visao-geral", icon: Eye },
 ];
 
 export function AppSidebar() {

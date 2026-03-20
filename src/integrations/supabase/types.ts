@@ -186,6 +186,39 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          entity_id: string | null
+          entity_type: string
+          id: string
+          ip_address: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type: string
+          id?: string
+          ip_address?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          entity_id?: string | null
+          entity_type?: string
+          id?: string
+          ip_address?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           color: string | null
@@ -206,6 +239,50 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      category_budgets: {
+        Row: {
+          alert_threshold: number
+          budget_limit: number
+          category_id: string | null
+          created_at: string
+          id: string
+          month: number
+          updated_at: string
+          user_id: string
+          year: number
+        }
+        Insert: {
+          alert_threshold?: number
+          budget_limit?: number
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          month: number
+          updated_at?: string
+          user_id: string
+          year: number
+        }
+        Update: {
+          alert_threshold?: number
+          budget_limit?: number
+          category_id?: string | null
+          created_at?: string
+          id?: string
+          month?: number
+          updated_at?: string
+          user_id?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_budgets_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       expenses: {
         Row: {
@@ -336,6 +413,39 @@ export type Database = {
           title?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      fit_personal_records: {
+        Row: {
+          created_at: string
+          exercise_name: string
+          id: string
+          notes: string | null
+          record_date: string
+          reps: number
+          user_id: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          exercise_name: string
+          id?: string
+          notes?: string | null
+          record_date?: string
+          reps?: number
+          user_id: string
+          weight: number
+        }
+        Update: {
+          created_at?: string
+          exercise_name?: string
+          id?: string
+          notes?: string | null
+          record_date?: string
+          reps?: number
+          user_id?: string
+          weight?: number
         }
         Relationships: []
       }
@@ -572,6 +682,59 @@ export type Database = {
         }
         Relationships: []
       }
+      flashcards: {
+        Row: {
+          back: string
+          created_at: string
+          difficulty: number
+          ease_factor: number
+          front: string
+          id: string
+          interval_days: number
+          next_review: string
+          review_count: number
+          subject_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          back: string
+          created_at?: string
+          difficulty?: number
+          ease_factor?: number
+          front: string
+          id?: string
+          interval_days?: number
+          next_review?: string
+          review_count?: number
+          subject_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          back?: string
+          created_at?: string
+          difficulty?: number
+          ease_factor?: number
+          front?: string
+          id?: string
+          interval_days?: number
+          next_review?: string
+          review_count?: number
+          subject_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "flashcards_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incomes: {
         Row: {
           amount: number
@@ -619,6 +782,72 @@ export type Database = {
           },
         ]
       }
+      installments: {
+        Row: {
+          category_id: string | null
+          created_at: string
+          current_installment: number
+          day_of_month: number
+          id: string
+          installment_amount: number
+          installment_count: number
+          name: string
+          start_date: string
+          status: string
+          total_amount: number
+          updated_at: string
+          user_id: string
+          wallet_id: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          created_at?: string
+          current_installment?: number
+          day_of_month: number
+          id?: string
+          installment_amount: number
+          installment_count: number
+          name: string
+          start_date: string
+          status?: string
+          total_amount: number
+          updated_at?: string
+          user_id: string
+          wallet_id?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          created_at?: string
+          current_installment?: number
+          day_of_month?: number
+          id?: string
+          installment_amount?: number
+          installment_count?: number
+          name?: string
+          start_date?: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+          user_id?: string
+          wallet_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installments_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "installments_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           created_at: string
@@ -651,6 +880,33 @@ export type Database = {
           reference_type?: string | null
           title?: string
           type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      onboarding_progress: {
+        Row: {
+          completed: boolean
+          completed_steps: Json
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_steps?: Json
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          completed_steps?: Json
+          created_at?: string
+          id?: string
+          updated_at?: string
           user_id?: string
         }
         Relationships: []
@@ -771,6 +1027,33 @@ export type Database = {
         }
         Relationships: []
       }
+      rate_limits: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          identifier: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          id?: string
+          identifier: string
+          request_count?: number
+          window_start?: string
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          identifier?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
       savings_goals: {
         Row: {
           created_at: string
@@ -838,6 +1121,60 @@ export type Database = {
             columns: ["goal_id"]
             isOneToOne: false
             referencedRelation: "savings_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      study_schedules: {
+        Row: {
+          completed: boolean
+          created_at: string
+          duration_minutes: number | null
+          event_id: string | null
+          id: string
+          scheduled_date: string
+          start_time: string | null
+          subject_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          created_at?: string
+          duration_minutes?: number | null
+          event_id?: string | null
+          id?: string
+          scheduled_date: string
+          start_time?: string | null
+          subject_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          created_at?: string
+          duration_minutes?: number | null
+          event_id?: string | null
+          id?: string
+          scheduled_date?: string
+          start_time?: string | null
+          subject_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_schedules_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "academic_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "study_schedules_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
             referencedColumns: ["id"]
           },
         ]

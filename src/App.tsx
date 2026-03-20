@@ -28,6 +28,9 @@ import FitChat from "./pages/FitChat";
 import Tarefas from "./pages/Tarefas";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import Flashcards from "./pages/Flashcards";
+import UnifiedDashboard from "./pages/UnifiedDashboard";
+import FinanceExtras from "./pages/FinanceExtras";
 
 const queryClient = new QueryClient();
 
@@ -43,15 +46,18 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/visao-geral" element={<ProtectedRoute><UnifiedDashboard /></ProtectedRoute>} />
             {/* Finance routes — all plans */}
             <Route path="/planilha" element={<ProtectedRoute><PlanGate group="finance"><Planilha /></PlanGate></ProtectedRoute>} />
             <Route path="/cofrinho" element={<ProtectedRoute><PlanGate group="finance"><Cofrinho /></PlanGate></ProtectedRoute>} />
             <Route path="/consultor" element={<ProtectedRoute><PlanGate group="finance"><Consultor /></PlanGate></ProtectedRoute>} />
+            <Route path="/financas/extras" element={<ProtectedRoute><PlanGate group="finance"><FinanceExtras /></PlanGate></ProtectedRoute>} />
             {/* Studies routes — student & full */}
             <Route path="/estudos" element={<ProtectedRoute><PlanGate group="studies"><StudiesDashboard /></PlanGate></ProtectedRoute>} />
             <Route path="/estudos/chat" element={<ProtectedRoute><PlanGate group="studies"><StudiesChat /></PlanGate></ProtectedRoute>} />
             <Route path="/disciplinas" element={<ProtectedRoute><PlanGate group="studies"><Disciplinas /></PlanGate></ProtectedRoute>} />
             <Route path="/disciplina/:subjectId" element={<ProtectedRoute><PlanGate group="studies"><SubjectDetail /></PlanGate></ProtectedRoute>} />
+            <Route path="/flashcards" element={<ProtectedRoute><PlanGate group="studies"><Flashcards /></PlanGate></ProtectedRoute>} />
             {/* Fit routes — fit & full */}
             <Route path="/fit" element={<ProtectedRoute><PlanGate group="fit"><FitDashboard /></PlanGate></ProtectedRoute>} />
             <Route path="/fit/onboarding" element={<ProtectedRoute><PlanGate group="fit"><FitOnboarding /></PlanGate></ProtectedRoute>} />

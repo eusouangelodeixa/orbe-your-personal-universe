@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
+import { OnboardingBanner } from "@/components/OnboardingBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -150,6 +151,7 @@ export default function Dashboard() {
   return (
     <AppLayout>
       <div className="max-w-6xl mx-auto space-y-6">
+        <OnboardingBanner />
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-3xl font-bold font-display">Dashboard Financeiro</h1>
