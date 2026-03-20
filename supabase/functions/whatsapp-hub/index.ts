@@ -604,49 +604,51 @@ async function downloadMediaDirect(url: string): Promise<{ base64: string; mimeT
 }
 
 async function transcribeAudio(_apiKey: string, audioBase64: string, mimeType = "audio/ogg"): Promise<string> {
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not configured");
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
-  // Determine file extension from mime type
   let cleanMime = mimeType.split(";")[0].trim();
   if (!cleanMime.startsWith("audio/")) cleanMime = "audio/ogg";
-  const extMap: Record<string, string> = {
-    "audio/ogg": "ogg",
-    "audio/mpeg": "mp3",
-    "audio/mp4": "m4a",
-    "audio/wav": "wav",
-    "audio/webm": "webm",
-    "audio/x-m4a": "m4a",
-  };
-  const ext = extMap[cleanMime] || "ogg";
 
-  console.log(`Transcribing audio via OpenAI Whisper: mime=${cleanMime}, ext=${ext}, base64_length=${audioBase64.length}`);
+  console.log(`Transcribing audio via Lovable AI (Gemini): mime=${cleanMime}, base64_length=${audioBase64.length}`);
 
-  // Convert base64 to binary
-  const binaryStr = atob(audioBase64);
-  const bytes = new Uint8Array(binaryStr.length);
-  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-
-  // Build multipart form data for OpenAI Whisper API
-  const formData = new FormData();
-  formData.append("file", new Blob([bytes], { type: cleanMime }), `audio.${ext}`);
-  formData.append("model", "whisper-1");
-  formData.append("language", "pt");
-
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-    body: formData,
+    headers: {
+      Authorization: `Bearer ${LOVABLE_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "system",
+          content: "Você é um transcritor de áudio. Transcreva o áudio fornecido em texto exato, em português. Retorne APENAS a transcrição, sem comentários, sem aspas, sem prefixos. Se o áudio estiver inaudível, retorne '[inaudível]'.",
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "Transcreva este áudio:" },
+            {
+              type: "image_url",
+              image_url: { url: `data:${cleanMime};base64,${audioBase64}` },
+            },
+          ],
+        },
+      ],
+    }),
   });
 
   if (!res.ok) {
     const t = await res.text();
-    console.error("OpenAI Whisper transcription error:", res.status, t, `mime=${cleanMime}, ext=${ext}, bytes=${bytes.length}`);
+    console.error("Lovable AI transcription error:", res.status, t);
+    if (res.status === 429) throw new Error("Limite de requisições atingido para transcrição.");
+    if (res.status === 402) throw new Error("Créditos insuficientes para transcrição.");
     throw new Error(`Não consegui transcrever o áudio [${res.status}]: ${t.slice(0, 200)}`);
   }
 
   const data = await res.json();
-  const transcription = (data.text || "").trim();
+  const transcription = (data.choices?.[0]?.message?.content || "").trim();
   console.log(`Transcription result: "${transcription.slice(0, 100)}"`);
   return transcription;
 }
