@@ -279,6 +279,10 @@ export default function FitProgress() {
 
           {/* Photos tab */}
           <TabsContent value="photos" className="space-y-4">
+            {allPhotos.length >= 2 && (
+              <PhotoComparison photos={allPhotos} />
+            )}
+
             {allPhotos.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {allPhotos.map((photo, i) => (
