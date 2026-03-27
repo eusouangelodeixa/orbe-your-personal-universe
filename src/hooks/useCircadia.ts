@@ -516,3 +516,19 @@ export async function generateCircadianInsights(userId: string, sessions: SleepS
 
   return { insights, adjustments };
 }
+
+export function useDeleteCircadianProfile() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("circadian_profiles").delete().eq("user_id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["circadian_profile"] });
+      toast.success("Perfil circadiano excluído!");
+    },
+    onError: () => toast.error("Erro ao excluir perfil"),
+  });
+}

@@ -47,20 +47,12 @@ interface Variation {
   estimated_open_rate: number;
 }
 
-const FUNC_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/broadcast-campaign`;
-
 async function callBroadcast(action: string, body: any = {}) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const resp = await fetch(`${FUNC_URL}?action=${action}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-    },
-    body: JSON.stringify(body),
+  const { data, error } = await supabase.functions.invoke(`broadcast-campaign`, {
+    body: { ...body, action },
   });
-  const data = await resp.json();
-  if (!resp.ok) throw new Error(data.error || "Erro na requisição");
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
   return data;
 }
 

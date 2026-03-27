@@ -7,7 +7,7 @@ import {
   useCircadianProfile, useTodaySession, useSleepHistory, useConfirmWake,
   useCircadianScore, useCircadianInsights, useAcknowledgeInsight,
   useCircadianAdjustments, useRespondAdjustment, useCreateTodaySession,
-  detectPatterns,
+  detectPatterns, useDeleteCircadianProfile
 } from "@/hooks/useCircadia";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from "recharts";
 import { format, parseISO } from "date-fns";
@@ -25,6 +25,7 @@ function ScoreGauge({ score }: { score: number }) {
 
 export function CircadiaDashboardView() {
   const { data: profile } = useCircadianProfile();
+  const deleteProfile = useDeleteCircadianProfile();
   const { data: todaySession } = useTodaySession();
   const { data: sessions = [] } = useSleepHistory(14);
   const confirmWake = useConfirmWake();
@@ -119,9 +120,24 @@ export function CircadiaDashboardView() {
           <CardContent className="py-3">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Perfil: Dormir {profile.target_sleep_time.slice(0,5)} → Acordar {profile.target_wake_time.slice(0,5)}</span>
-              <Badge variant="outline" className="text-[10px]">
-                {pattern && pattern.consistencyPct >= 80 ? "🟢 Estável" : pattern && pattern.consistencyPct >= 50 ? "🟡 Parcial" : "🔴 Desregulado"}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-[10px]">
+                  {pattern && pattern.consistencyPct >= 80 ? "🟢 Estável" : pattern && pattern.consistencyPct >= 50 ? "🟡 Parcial" : "🔴 Desregulado"}
+                </Badge>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    if (window.confirm("Deseja apagar seu perfil e refazer a avaliação?")) {
+                      deleteProfile.mutate();
+                    }
+                  }}
+                  disabled={deleteProfile.isPending}
+                >
+                  Refazer Perfil
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

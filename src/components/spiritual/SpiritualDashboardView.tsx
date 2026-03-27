@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Flame, BookOpen, Award, RefreshCw, Loader2 } from "lucide-react";
 import {
   useActivePlan, usePlanDays, useSpiritualStreak, useSpiritualProgress,
-  useTodayVerse, useGenerateDailyVerse, SPIRITUAL_THEMES,
+  useTodayVerse, useGenerateDailyVerse, SPIRITUAL_THEMES, useDeleteSpiritualProfile
 } from "@/hooks/useSpiritual";
 
 export function SpiritualDashboardView({ onStartPlan }: { onStartPlan: () => void }) {
@@ -15,6 +15,7 @@ export function SpiritualDashboardView({ onStartPlan }: { onStartPlan: () => voi
   const { data: progress } = useSpiritualProgress();
   const { data: todayVerse } = useTodayVerse();
   const generateVerse = useGenerateDailyVerse();
+  const deleteProfile = useDeleteSpiritualProfile();
 
   const completedDays = days.filter((d) => d.completed).length;
   const progressPct = days.length ? Math.round((completedDays / days.length) * 100) : 0;
@@ -58,7 +59,22 @@ export function SpiritualDashboardView({ onStartPlan }: { onStartPlan: () => voi
               <CardTitle className="text-sm font-medium flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-primary" /> Plano Ativo
               </CardTitle>
-              <Badge variant="outline" className="text-xs">{plan.plan_type}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-xs">{plan.plan_type}</Badge>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-6 text-[10px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => {
+                    if (window.confirm("Deseja apagar seu plano atual e iniciar um novo?")) {
+                      deleteProfile.mutate();
+                    }
+                  }}
+                  disabled={deleteProfile.isPending}
+                >
+                  Refazer Plano
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-2">

@@ -570,3 +570,19 @@ export function useGenerateDailyVerse() {
     },
   });
 }
+
+export function useDeleteSpiritualProfile() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("spiritual_profiles").delete().eq("user_id", user!.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["spiritual_profile"] });
+      toast.success("Plano espiritual excluído!");
+    },
+    onError: () => toast.error("Erro ao excluir plano"),
+  });
+}

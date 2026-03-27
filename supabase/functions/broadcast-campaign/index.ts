@@ -29,8 +29,8 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const action = url.searchParams.get("action") || "send";
     const body = await req.json().catch(() => ({}));
+    const action = url.searchParams.get("action") || body.action || "send";
 
     // ACTION: generate-content - AI content generation
     if (action === "generate-content") {
@@ -189,68 +189,77 @@ Retorne EXATAMENTE um JSON com esta estrutura:
         .eq("status", "pending")
         .order("created_at");
 
-      let sentCount = campaign.sent_count || 0;
-      let failedCount = campaign.failed_count || 0;
+      const sendLoop = async () => {
+        let sentCount = campaign.sent_count || 0;
+        let failedCount = campaign.failed_count || 0;
 
-      for (const recipient of (recipients || [])) {
-        // Check if campaign was paused/canceled
-        const { data: currentCampaign } = await supabase
-          .from("broadcast_campaigns")
-          .select("status")
-          .eq("id", campaign_id)
-          .single();
+        for (const recipient of (recipients || [])) {
+          // Check if campaign was paused/canceled
+          const { data: currentCampaign } = await supabase
+            .from("broadcast_campaigns")
+            .select("status")
+            .eq("id", campaign_id)
+            .single();
 
-        if (currentCampaign?.status === "paused" || currentCampaign?.status === "canceled") {
-          console.log(`Campaign ${campaign_id} was ${currentCampaign.status}, stopping.`);
-          break;
-        }
-
-        // Personalize message
-        const personalizedMsg = campaign.message.replace(/\{nome\}/gi, recipient.display_name || "");
-
-        try {
-          const response = await fetch(`${UAZAPI_URL}/send/text`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "token": UAZAPI_TOKEN },
-            body: JSON.stringify({ number: recipient.phone, text: personalizedMsg }),
-          });
-
-          if (response.ok) {
-            sentCount++;
-            await supabase.from("broadcast_recipients").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", recipient.id);
-            console.log(`✅ Sent to ${recipient.display_name || recipient.phone}`);
-          } else {
-            failedCount++;
-            const err = await response.text();
-            await supabase.from("broadcast_recipients").update({ status: "failed", error_message: err.slice(0, 500) }).eq("id", recipient.id);
-            console.error(`❌ Failed: ${recipient.phone}: ${err}`);
+          if (currentCampaign?.status === "paused" || currentCampaign?.status === "canceled") {
+            console.log(`Campaign ${campaign_id} was ${currentCampaign?.status}, stopping.`);
+            break;
           }
-        } catch (e) {
-          failedCount++;
-          const errMsg = e instanceof Error ? e.message : "unknown";
-          await supabase.from("broadcast_recipients").update({ status: "failed", error_message: errMsg }).eq("id", recipient.id);
+
+          // Personalize message
+          const personalizedMsg = campaign.message.replace(/\{nome\}/gi, recipient.display_name || "");
+
+          try {
+            const response = await fetch(`${UAZAPI_URL}/send/text`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "token": UAZAPI_TOKEN },
+              body: JSON.stringify({ number: recipient.phone, text: personalizedMsg }),
+            });
+
+            if (response.ok) {
+              sentCount++;
+              await supabase.from("broadcast_recipients").update({ status: "sent", sent_at: new Date().toISOString() }).eq("id", recipient.id);
+              console.log(`✅ Sent to ${recipient.display_name || recipient.phone}`);
+            } else {
+              failedCount++;
+              const err = await response.text();
+              await supabase.from("broadcast_recipients").update({ status: "failed", error_message: err.slice(0, 500) }).eq("id", recipient.id);
+              console.error(`❌ Failed: ${recipient.phone}: ${err}`);
+            }
+          } catch (e) {
+            failedCount++;
+            const errMsg = e instanceof Error ? e.message : "unknown";
+            await supabase.from("broadcast_recipients").update({ status: "failed", error_message: errMsg }).eq("id", recipient.id);
+          }
+
+          // Update campaign counts
+          await supabase.from("broadcast_campaigns").update({ sent_count: sentCount, failed_count: failedCount, updated_at: new Date().toISOString() }).eq("id", campaign_id);
+
+          // Randomized delay with non-linear distribution (bias toward longer delays)
+          const random = Math.pow(Math.random(), 0.7); // skew toward higher values
+          const delay = Math.floor(minDelay + random * (maxDelay - minDelay));
+          await new Promise(r => setTimeout(r, delay * 1000));
         }
 
-        // Update campaign counts
-        await supabase.from("broadcast_campaigns").update({ sent_count: sentCount, failed_count: failedCount, updated_at: new Date().toISOString() }).eq("id", campaign_id);
+        // Mark completed
+        const finalStatus = sentCount + failedCount >= (campaign.total_recipients || 0) ? "completed" : "paused";
+        await supabase.from("broadcast_campaigns").update({
+          status: finalStatus,
+          sent_count: sentCount,
+          failed_count: failedCount,
+          completed_at: finalStatus === "completed" ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        }).eq("id", campaign_id);
+      };
 
-        // Randomized delay with non-linear distribution (bias toward longer delays)
-        const random = Math.pow(Math.random(), 0.7); // skew toward higher values
-        const delay = Math.floor(minDelay + random * (maxDelay - minDelay));
-        await new Promise(r => setTimeout(r, delay * 1000));
+      // Run asynchronously to avoid timeout
+      if (typeof (globalThis as any).EdgeRuntime !== "undefined" && typeof (globalThis as any).EdgeRuntime.waitUntil === "function") {
+        (globalThis as any).EdgeRuntime.waitUntil(sendLoop());
+      } else {
+        sendLoop().catch(console.error);
       }
 
-      // Mark completed
-      const finalStatus = sentCount + failedCount >= (campaign.total_recipients || 0) ? "completed" : "paused";
-      await supabase.from("broadcast_campaigns").update({
-        status: finalStatus,
-        sent_count: sentCount,
-        failed_count: failedCount,
-        completed_at: finalStatus === "completed" ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString(),
-      }).eq("id", campaign_id);
-
-      return jsonResp({ success: true, sent: sentCount, failed: failedCount });
+      return jsonResp({ success: true, message: "Disparo iniciado em segundo plano" });
     }
 
     // ACTION: pause/resume/cancel

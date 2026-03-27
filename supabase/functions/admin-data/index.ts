@@ -59,7 +59,8 @@ Deno.serve(async (req) => {
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
     const url = new URL(req.url);
-    const action = url.searchParams.get("action") || "overview";
+    const body = await req.json().catch(() => ({}));
+    const action = url.searchParams.get("action") || body.action || "overview";
 
     if (action === "overview") {
       const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
@@ -253,7 +254,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update-category") {
-      const body = await req.json();
+      // body already parsed at the top
       const { id, name, color, icon } = body;
       const { error } = await adminClient
         .from("categories")
@@ -266,7 +267,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "create-category") {
-      const body = await req.json();
+      // body already parsed at the top
       const { name, color, icon } = body;
       const { error } = await adminClient
         .from("categories")
@@ -278,7 +279,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "delete-category") {
-      const body = await req.json();
+      // body already parsed at the top
       const { id } = body;
       const { error } = await adminClient
         .from("categories")
@@ -311,7 +312,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "update-setting") {
-      const body = await req.json();
+      // body already parsed at the top
       const { key, value } = body;
       const { error } = await adminClient
         .from("admin_settings")
@@ -563,7 +564,7 @@ Deno.serve(async (req) => {
 
     // Manual plan assignment
     if (action === "assign-plan") {
-      const body = await req.json();
+      // body already parsed at the top
       const { user_id, plan, plan_period, duration_days } = body;
 
       if (!user_id || !plan || !plan_period || !duration_days) {
@@ -623,7 +624,7 @@ Deno.serve(async (req) => {
 
     // Remove manual plan
     if (action === "remove-plan") {
-      const body = await req.json();
+      // body already parsed at the top
       const { user_id } = body;
 
       if (!user_id) {
@@ -639,6 +640,26 @@ Deno.serve(async (req) => {
         .eq("user_id", user_id)
         .eq("provider", "manual")
         .eq("status", "active");
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Delete user
+    if (action === "delete-user") {
+      // body already parsed at the top
+      const { id } = body;
+
+      if (!id) {
+        return new Response(JSON.stringify({ error: "Missing user id" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error } = await adminClient.auth.admin.deleteUser(id);
+      if (error) throw error;
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

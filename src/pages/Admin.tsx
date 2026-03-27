@@ -230,6 +230,21 @@ export default function Admin() {
     }
   };
 
+  const handleDeleteUser = async (userId: string, email: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir DEFINITIVAMENTE o usuário ${email}? Isso apagará todos os seus dados e não pode ser desfeito!`)) return;
+    try {
+      const { data: result, error } = await supabase.functions.invoke("admin-data?action=delete-user", {
+        body: { id: userId },
+      });
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+      toast.success(`Usuário ${email} excluído`);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err?.message || "Erro ao excluir usuário");
+    }
+  };
+
   if (authLoading || loading || roleLoading) {
     return <AppLayout><div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div></AppLayout>;
   }
@@ -376,6 +391,9 @@ export default function Admin() {
                                    <XCircle className="h-4 w-4 text-destructive" />
                                  </Button>
                                )}
+                               <Button variant="ghost" size="icon" title="Excluir usuário" onClick={() => handleDeleteUser(u.id, u.email)}>
+                                 <Trash2 className="h-4 w-4 text-destructive" />
+                               </Button>
                              </div>
                            </TableCell>
                          </TableRow>
