@@ -19,6 +19,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO, isAfter, isBefore, addDays, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { DailyRecommendation } from "@/components/decision/DailyRecommendation";
+import { PredictionAlerts } from "@/components/predictions/PredictionAlerts";
+import { EnergyCheckIn } from "@/components/energy/EnergyCheckIn";
 
 export default function UnifiedDashboard() {
   const navigate = useNavigate();
@@ -237,6 +240,14 @@ export default function UnifiedDashboard() {
             </CardContent>
           </Card>
         )}
+
+        {/* Intelligence & Direction Layer */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <DailyRecommendation />
+          <EnergyCheckIn />
+        </div>
+
+        <PredictionAlerts />
       </div>
     </AppLayout>
   );

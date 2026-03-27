@@ -16,6 +16,12 @@ import {
   Brain,
   Eye,
   CreditCard,
+  Zap,
+  Target,
+  Star,
+  Compass,
+  Moon,
+  BookHeart,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -36,6 +42,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 
+// ─── Camada 1: Dados Comportamentais ────────────────────────────
 const financeItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Planilha", url: "/planilha", icon: Receipt },
@@ -62,6 +69,26 @@ const fitItems = [
 
 const taskItems = [
   { title: "Tarefas", url: "/tarefas", icon: CheckSquare },
+];
+
+const circadiaItems = [
+  { title: "Circadia", url: "/circadia", icon: Moon },
+];
+
+const spiritualItems = [
+  { title: "Espiritual", url: "/espiritual", icon: BookHeart },
+];
+
+// ─── Camada 2: Inteligência Adaptativa ──────────────────────────
+const intelligenceItems = [
+  { title: "Energia", url: "/energia", icon: Zap },
+  { title: "Hábitos", url: "/habitos", icon: Target },
+  { title: "Review", url: "/review", icon: Star },
+];
+
+// ─── Camada 3: Direção e Decisão ────────────────────────────────
+const directionItems = [
+  { title: "Norte", url: "/norte", icon: Compass },
   { title: "Visão Geral", url: "/visao-geral", icon: Eye },
 ];
 
@@ -175,6 +202,114 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {taskItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span className="font-syne text-xs tracking-wide">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Circadia */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="flex items-center gap-2 font-syne text-[10px] font-semibold tracking-[2px] uppercase text-primary">
+            <Moon className="h-4 w-4" />
+            {!collapsed && <span>Circadia</span>}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {circadiaItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span className="font-syne text-xs tracking-wide">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* Espiritual */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="flex items-center gap-2 font-syne text-[10px] font-semibold tracking-[2px] uppercase text-primary">
+            <BookHeart className="h-4 w-4" />
+            {!collapsed && <span>Espiritual</span>}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {spiritualItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span className="font-syne text-xs tracking-wide">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* ─── Camada 2: Inteligência ──── */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="flex items-center gap-2 font-syne text-[10px] font-semibold tracking-[2px] uppercase text-primary">
+            <Brain className="h-4 w-4" />
+            {!collapsed && <span>Inteligência</span>}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {intelligenceItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild>
+                    <NavLink
+                      to={item.url}
+                      end
+                      className="text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      activeClassName="bg-primary/10 text-primary border-l-2 border-primary font-semibold"
+                    >
+                      <item.icon className="mr-2 h-4 w-4" />
+                      {!collapsed && <span className="font-syne text-xs tracking-wide">{item.title}</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* ─── Camada 3: Direção ──── */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="flex items-center gap-2 font-syne text-[10px] font-semibold tracking-[2px] uppercase text-primary">
+            <Compass className="h-4 w-4" />
+            {!collapsed && <span>Direção</span>}
+          </SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {directionItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink

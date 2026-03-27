@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BookOpen, CalendarDays, FileText, ClipboardList, RotateCw, Timer,
-  GraduationCap, Loader2, BarChart3, CalendarClock,
+  GraduationCap, Loader2, BarChart3, CalendarClock, Zap,
 } from "lucide-react";
 import { useSubjects, useAcademicEvents } from "@/hooks/useStudies";
 import { useAuth } from "@/contexts/AuthContext";
@@ -16,6 +16,7 @@ import { ptBR } from "date-fns/locale";
 import { useNavigate } from "react-router-dom";
 import { GradesDashboard } from "@/components/GradesDashboard";
 import { StudyScheduleGenerator } from "@/components/StudyScheduleGenerator";
+import { IntensiveStudyDashboard } from "@/components/intensive-study/IntensiveStudyDashboard";
 
 const EVENT_TYPES: Record<string, { label: string; icon: typeof FileText; color: string }> = {
   prova: { label: "Prova", icon: FileText, color: "text-red-500" },
@@ -211,10 +212,11 @@ export default function StudiesDashboard() {
 
         {/* Tabs for subjects, grades, and schedule */}
         <Tabs defaultValue="subjects">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="subjects" className="gap-1.5"><GraduationCap className="h-3.5 w-3.5" />Disciplinas</TabsTrigger>
             <TabsTrigger value="grades" className="gap-1.5"><BarChart3 className="h-3.5 w-3.5" />Notas</TabsTrigger>
             <TabsTrigger value="schedule" className="gap-1.5"><CalendarClock className="h-3.5 w-3.5" />Cronograma</TabsTrigger>
+            <TabsTrigger value="intensivo" className="gap-1.5"><Zap className="h-3.5 w-3.5" />Intensivo</TabsTrigger>
           </TabsList>
 
           <TabsContent value="subjects">
@@ -277,6 +279,25 @@ export default function StudiesDashboard() {
 
           <TabsContent value="schedule">
             <StudyScheduleGenerator />
+          </TabsContent>
+
+          <TabsContent value="intensivo">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-primary" /> Motor de Estudo Intensivo
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Sessões adaptativas de recuperação acadêmica
+                  </p>
+                </div>
+                <Button onClick={() => navigate("/estudos/intensivo")}>
+                  <Zap className="h-4 w-4 mr-1" /> Nova Sessão
+                </Button>
+              </div>
+              <IntensiveStudyDashboard />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

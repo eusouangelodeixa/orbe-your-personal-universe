@@ -29,8 +29,16 @@ import Tarefas from "./pages/Tarefas";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 import Flashcards from "./pages/Flashcards";
+import IntensiveStudy from "./pages/IntensiveStudy";
 import UnifiedDashboard from "./pages/UnifiedDashboard";
 import FinanceExtras from "./pages/FinanceExtras";
+import EnergyDashboard from "./pages/EnergyDashboard";
+import HabitsDashboard from "./pages/HabitsDashboard";
+import NorteDashboard from "./pages/NorteDashboard";
+import ReviewDashboard from "./pages/ReviewDashboard";
+import CircadiaDashboard from "./pages/CircadiaDashboard";
+import CircadiaWakePage from "./pages/CircadiaWakePage";
+import SpiritualDashboard from "./pages/SpiritualDashboard";
 
 const queryClient = new QueryClient();
 
@@ -58,6 +66,18 @@ const App = () => (
             <Route path="/disciplinas" element={<ProtectedRoute><PlanGate group="studies"><Disciplinas /></PlanGate></ProtectedRoute>} />
             <Route path="/disciplina/:subjectId" element={<ProtectedRoute><PlanGate group="studies"><SubjectDetail /></PlanGate></ProtectedRoute>} />
             <Route path="/flashcards" element={<ProtectedRoute><PlanGate group="studies"><Flashcards /></PlanGate></ProtectedRoute>} />
+            <Route path="/estudos/intensivo" element={<ProtectedRoute><PlanGate group="studies"><IntensiveStudy /></PlanGate></ProtectedRoute>} />
+            {/* Intelligence layer — Camada 2 */}
+            <Route path="/energia" element={<ProtectedRoute><EnergyDashboard /></ProtectedRoute>} />
+            <Route path="/habitos" element={<ProtectedRoute><HabitsDashboard /></ProtectedRoute>} />
+            <Route path="/review" element={<ProtectedRoute><PlanGate group="studies"><ReviewDashboard /></PlanGate></ProtectedRoute>} />
+            {/* Direction layer — Camada 3 */}
+            <Route path="/norte" element={<ProtectedRoute><PlanGate group="studies"><NorteDashboard /></PlanGate></ProtectedRoute>} />
+            {/* Circadia */}
+            <Route path="/circadia" element={<ProtectedRoute><CircadiaDashboard /></ProtectedRoute>} />
+            <Route path="/circadia/wake/:sessionId" element={<ProtectedRoute><CircadiaWakePage /></ProtectedRoute>} />
+            {/* Espiritual */}
+            <Route path="/espiritual" element={<ProtectedRoute><SpiritualDashboard /></ProtectedRoute>} />
             {/* Fit routes — fit & full */}
             <Route path="/fit" element={<ProtectedRoute><PlanGate group="fit"><FitDashboard /></PlanGate></ProtectedRoute>} />
             <Route path="/fit/onboarding" element={<ProtectedRoute><PlanGate group="fit"><FitOnboarding /></PlanGate></ProtectedRoute>} />
