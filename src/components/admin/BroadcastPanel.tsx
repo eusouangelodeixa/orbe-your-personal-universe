@@ -48,8 +48,8 @@ interface Variation {
 }
 
 async function callBroadcast(action: string, body: any = {}) {
-  const { data, error } = await supabase.functions.invoke(`broadcast-campaign`, {
-    body: { ...body, action },
+  const { data, error } = await supabase.functions.invoke(`broadcast-campaign?action=${action}`, {
+    body,
   });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
